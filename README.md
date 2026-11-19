@@ -47,25 +47,38 @@ UI 不直接调用系统服务：页面 → `GlacierRepository` → `FreezeContr
 ## Glass 结构
 
 ```
-Scaffold(Transparent, insets=0)                 ← 弹层宿主（最外层）
+Scaffold(Transparent, insets=0)                    ← 弹层宿主（最外层）
+├ bottomBar（窄屏）→ GlassNavigationBar(root)       ← R 的兄弟；24dp 横向内边距
 └ Box(fillMaxSize)
-   ├ Box(fillMaxSize).layerBackdrop(root)       ★录制层 R（满屏，录在分页容器外）
+   ├ Box(fillMaxSize).layerBackdrop(root)          ★录制层 R（满屏，录在分页容器外）
    │  └ NavDisplay → 一级页 HorizontalPager / 二级页
-   ├ GlassNavigationBar(backdrop = root)        ← R 的兄弟（窄屏）
-   └ GlassNavigationRail(backdrop = root)       ← R 的兄弟（宽屏）
+   └ GlassNavigationRail(backdrop = root)          ← R 的兄弟（宽屏）
 ```
 
-页面内部：
+页面内部（`PageFrame`，对照 MIUIX 官方 `GlassPage`）：
 
 ```
-Scaffold(topBar = GlassTopAppBar(pageBackdrop))
-└ content
-   └ Box(fillMaxSize).layerBackdrop(pageBackdrop)   ★录制层 P（先 drawRect(surface)）
-      └ 列表 / 网格（padding 走 contentPadding，内容才能滚到顶栏下面）
+Box
+├ Scaffold(containerColor = surface, insets = 0)
+│  ├ topBar   = GlassTopAppBar(pageBackdrop)
+│  ├ bottomBar= Spacer(LocalShellBottomBarHeight)   ← 透明占位：正文/FAB 按真实底栏高度让位
+│  └ body     = Box(fillMaxSize).layerBackdrop(pageBackdrop)   ★录制层 P
+│                └ 列表 / 网格（padding 走 contentPadding，内容才能滚到顶栏下面）
+└ overlay()                                          ← 搜索/弹层，画在 Scaffold 之上
 ```
 
 三条红线（见 `docs/architecture/glass-contract.md`）：消费者不是录制层的后代、
 采样源在消费者整个绘制区域都有像素、尺寸坐标只在量测/布局/绘制期读取。
+
+## 设计对齐
+
+界面按 MIUIX OS4 官方源码与 `example/shared` 逐项对齐（底栏 24dp 横向内边距、
+页面 12dp 留白、官方脚手架/滚动/弹层动画、About 页结构与尺寸、squircle 应用图标）。
+审计与验收记录：
+
+- [审计报告](docs/audit/miuix-os4-audit.md) · [Glass 架构](docs/audit/miuix-os4-glass-audit.md)
+- [修改清单](docs/plan/r3-change-list.md) · [构建与运行验收](docs/verification/miuix-os4-r3/README.md)
+- [MIUIX 官方契约摘录](docs/reference/miuix-os4-contract.md) · [参考项目与许可证](docs/reference/reference-projects.md)
 
 ## 许可证
 
