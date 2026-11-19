@@ -74,3 +74,24 @@ Glacier 以 **GPL-3.0-or-later** 发布，包含源自 [Hail](https://github.com
 第三方组件与来源说明见 `NOTICE.md`，应用内也有"开源许可证"页面。
 
 Hail 的商标与品牌不用于 Glacier 的正常界面。
+
+## 发布
+
+- 仓库：https://github.com/Ayang233/Glacier
+- 版本：https://github.com/Ayang233/Glacier/releases
+
+Release APK 使用独立密钥签名（`keystore/` 与 `signing.properties` 不入库）。
+在缺少这两个文件的机器上，`assembleRelease` 会退回 debug 签名，仅用于本机构建。
+
+### 本机推送方式的说明
+
+这台机器的网络只放行 `api.github.com`，`github.com` 被代理拦截（`CONNECT tunnel failed, response 502`），
+所以 `git push` 不可用。仓库内容通过 Git Data API 推送：
+
+```bash
+python tools/publish.py . Ayang233/Glacier /path/to/gh
+```
+
+脚本是增量的：按 tree SHA 判断远端已有哪些提交，只推剩下的。需要已登录的 `gh`。
+因此**远端提交的 SHA 与本地不同**（内容一致）。若以后网络恢复，首次同步请用
+`git fetch origin && git reset --hard origin/main`，之后即可正常 `git push`。
