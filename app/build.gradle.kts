@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.compose.compiler)
@@ -23,6 +25,23 @@ android {
         versionName = "1.0.0"
     }
 
+    // Release 签名：优先使用仓库根目录的 signing.properties（不入库），
+    // 缺失时退回 debug 签名，保证在没有密钥的机器上仍可构建。
+    val signingPropsFile = rootProject.file("signing.properties")
+    val releaseSigning = if (signingPropsFile.exists()) {
+        val props = Properties().apply {
+            signingPropsFile.inputStream().use { load(it) }
+        }
+        signingConfigs.create("release") {
+            storeFile = rootProject.file(props.getProperty("storeFile"))
+            storePassword = props.getProperty("storePassword")
+            keyAlias = props.getProperty("keyAlias")
+            keyPassword = props.getProperty("keyPassword")
+        }
+    } else {
+        signingConfigs.getByName("debug")
+    }
+
     buildTypes {
         debug {
             applicationIdSuffix = ".debug"
@@ -31,7 +50,7 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = releaseSigning
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
