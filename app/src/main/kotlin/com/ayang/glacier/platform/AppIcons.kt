@@ -1,6 +1,7 @@
 package com.ayang.glacier.platform
 
 import android.content.Context
+import android.content.pm.ApplicationInfo
 import android.content.res.Resources
 import android.content.res.XmlResourceParser
 import android.graphics.Bitmap
@@ -9,6 +10,7 @@ import android.graphics.Canvas
 import android.graphics.ColorMatrix
 import android.graphics.ColorMatrixColorFilter
 import android.graphics.Paint
+import android.graphics.drawable.AdaptiveIconDrawable
 import androidx.collection.LruCache
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -25,7 +27,7 @@ import me.zhanghai.android.appiconloader.AppIconLoader
 /**
  * 应用图标加载。
  *
- * 三条来源，按优先级：图标包 → 系统图标（AppIconLoader 负责自适应遮罩）→ 默认图标。
+ * 三条来源，按优先级：图标包 → 系统图标 → 空占位。
  * 全部走 IO 线程 + LRU，组合期不读磁盘。
  */
 class AppIconSource(
@@ -48,14 +50,65 @@ class AppIconSource(
         }
         val bitmap = fromPack ?: run {
             val info = PackageTools.applicationInfoOrNull(context, packageName) ?: return null
-            val loader = loaders.getOrPut(sizePx) {
-                AppIconLoader(sizePx, synthesizeAdaptive, context)
-            }
-            runCatching { loader.loadIcon(info, false) }.getOrNull()
+            loadSystemIcon(info, sizePx)
         } ?: return null
 
         cache.put(key, bitmap)
         return bitmap
+    }
+
+    /**
+     * 系统图标。
+     *
+     * 自适应图标不能交给 `AdaptiveIconDrawable.draw()`：那会套用系统遮罩（AOSP 默认是圆形），
+     * Glacier 拿到的是已经裁成圆形的位图，外面再套圆角矩形也没用 —— 主页与列表看起来就是圆形图标。
+     * 这里自己画原始 108dp 画布（背景层 + 前景层），再由 UI 层套 MIUIX squircle 轮廓。
+     */
+    private fun loadSystemIcon(info: ApplicationInfo, sizePx: Int): Bitmap? {
+        val adaptive = runCatching { info.loadIcon(context.packageManager) as? AdaptiveIconDrawable }
+            .getOrNull()
+        if (adaptive != null) {
+            renderUnmasked(adaptive, sizePx)?.let { return it }
+        }
+        val loader = loaders.getOrPut(sizePx) {
+            AppIconLoader(sizePx, synthesizeAdaptive, context)
+        }
+        return runCatching { loader.loadIcon(info, false) }.getOrNull()
+    }
+
+    /**
+     * 按启动器遮罩语义渲染自适应图标（不套任何遮罩）。
+     *
+     * 自适应图标的完整画布是 108dp，可见遮罩区（启动器真正的图标形状）只有居中的 72dp；
+     * 因此启动器实际显示时看到的始终是“108dp 画布的中心 2/3”。如果把 108dp 画布直接铺满
+     * [sizePx] 位图，位图里就只有 2/3 是启动器上能看到的区域，图标内容看起来会偏小约 1/3。
+     *
+     * 这里按同一语义放大 1.5×：把 108dp 画布的 bounds 设为
+     * `(-sizePx/4, -sizePx/4, sizePx*5/4, sizePx*5/4)`（每边外扩 sizePx/4，总宽 = 1.5×sizePx），
+     * 使中心 72dp 安全区正好铺满 [sizePx]，再由 UI 层 `squircleClip` 裁出 MIUIX 轮廓。
+     * 前景内容位于 72dp 安全区内，外扩不会裁掉安全区内容。
+     *
+     * 抗锯齿：Android `Canvas` 默认开启抗锯齿，VectorDrawable / BitmapDrawable 自带 AA 与双线性采样；
+     * 输出位图为 ARGB_8888，初始像素全透明（未覆盖区域保持透明，不垫底色）。
+     */
+    private fun renderUnmasked(adaptive: AdaptiveIconDrawable, sizePx: Int): Bitmap? {
+        if (sizePx <= 0) return null
+        return runCatching {
+            val output = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(output)
+            // 108dp 画布按 1.5× 绘制：中心 72dp 安全区 == sizePx，画布外扩 sizePx/4。
+            val left = -sizePx / 4
+            val top = left
+            val right = sizePx * 5 / 4
+            val bottom = right
+            val background = adaptive.background
+            val foreground = adaptive.foreground
+            background?.setBounds(left, top, right, bottom)
+            foreground?.setBounds(left, top, right, bottom)
+            background?.draw(canvas)
+            foreground?.draw(canvas)
+            output
+        }.getOrNull()?.takeIf { !it.isRecycled }
     }
 
     fun clear() {

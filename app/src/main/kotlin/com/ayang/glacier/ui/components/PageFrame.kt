@@ -1,43 +1,45 @@
 package com.ayang.glacier.ui.components
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.union
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.layout
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.windowInsetsBottomHeight
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.height
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import com.ayang.glacier.platform.Platform
 import com.ayang.glacier.ui.LocalGlassActive
-import com.ayang.glacier.ui.LocalNavReserve
 import com.ayang.glacier.ui.LocalPageBackdrop
-import com.ayang.glacier.ui.LocalRailInset
+import com.ayang.glacier.ui.LocalShellBottomBarHeight
+import com.ayang.glacier.ui.LocalTopBarTitleAlpha
+import com.ayang.glacier.ui.isWideLayout
 import com.ayang.glacier.ui.rememberSurfaceBackdrop
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
@@ -51,14 +53,63 @@ import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.glass.GlassIconButton
 import top.yukonga.miuix.kmp.glass.GlassTopAppBar
+import top.yukonga.miuix.kmp.glass.glassSearchBarTransition
+import top.yukonga.miuix.kmp.glass.rememberGlassSearchBarAlpha
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+
+/**
+ * 页面级尺寸。
+ *
+ * 全部取自 MIUIX 官方 example 的实际数值，不凭感觉调：
+ * - 卡片外边距 12dp（`example/MainPage.kt:312`、`AboutPage.kt:348`）
+ * - 卡片/分节间距 12dp（`AboutPage.kt:399`、`:442`）
+ * - 列表末尾留白 12dp（`MainPage.kt:339`）
+ * - 卡片圆角取官方 [CardDefaults.CornerRadius]
+ * - 顶栏动作图标 28dp（`example/GlassPage.kt:357`）
+ */
+object PageMetrics {
+    /** 卡片 / 列表到页面边缘的距离。 */
+    val Horizontal = 12.dp
+
+    /** 分节之间的纵向间距。 */
+    val SectionGap = 12.dp
+
+    /** 列表末尾的留白。 */
+    val BottomGap = 12.dp
+
+    /** 官方卡片圆角。 */
+    val CardCorner = CardDefaults.CornerRadius
+
+    /** 顶栏动作按钮里的图标尺寸（官方 example 28dp）。 */
+    val TopBarActionIcon = 28.dp
+
+    /** 行内应用图标尺寸（列表行）。 */
+    val ListAppIcon = 40.dp
+
+    /** 主页网格图标尺寸。 */
+    val GridAppIcon = 56.dp
+}
 
 /**
  * 页面骨架。
  *
- * 结构固定为：页面 Scaffold → 正文录制层（满宽，先垫底色）→ 内容。
- * 顶栏在 `topBar` 槽里，因此与录制层是兄弟，不会自采样；
- * 弹层写在 [overlay] 槽里，位于录制层之外，采样源应传一级页整屏层。
+ * 结构对照官方 `GlassPage`（`miuix/example/shared/src/commonMain/kotlin/GlassPage.kt:264-341`）：
+ *
+ * ```
+ * Box
+ * ├ Scaffold                                   ← 顶栏 / 正文 / FAB
+ * │  └ 正文录制层（满宽，先垫底色）→ 内容
+ * └ overlay                                    ← 浮层，画在 Scaffold 之上
+ * ```
+ *
+ * - **浮层必须在 Scaffold 之外**：官方 Scaffold 的摆放顺序是
+ *   `body → topBar → snackbar → bottomBar → fab → popup`，把浮层写进 body 槽会被顶栏盖住；
+ *   顶栏淡出后仍参与命中测试，搜索浮层的 × 与顶栏动作坐标重叠时点击会被顶栏吃掉。
+ * - **底栏高度来自 Shell 实测**：Shell 的 GlassNavigationBar 已经在自己的 Scaffold 里占位，
+ *   这里用透明 bottomBar 复现同样的布局语义，正文底部 padding 与 FAB 位置都由 Scaffold 计算，
+ *   不再手写 `Height + 32dp` 之类的魔法值。
+ * - **搜索态**：整页按官方 `rememberGlassSearchBarAlpha` 淡出，顶栏再用
+ *   `glassSearchBarTransition` 做缩放 + 模糊，两者分工与官方 example 一致。
  */
 @Composable
 fun PageFrame(
@@ -66,6 +117,11 @@ fun PageFrame(
     scrollBehavior: ScrollBehavior,
     modifier: Modifier = Modifier,
     subtitle: String = "",
+    /**
+     * 是否允许大标题折叠。二级页传 `false`（官方 `AdaptiveTopAppBar(expandable=...)`）；
+     * 宽屏时主页面也会自动折叠成紧凑标题。
+     */
+    expandable: Boolean = true,
     navigationIcon: @Composable () -> Unit = {},
     topBarActions: @Composable RowScope.() -> Unit = {},
     /**
@@ -77,65 +133,72 @@ fun PageFrame(
      */
     topBarBottom: @Composable (LayerBackdrop?) -> Unit = {},
     floatingActionButton: @Composable (LayerBackdrop?) -> Unit = {},
-    bottomBar: @Composable () -> Unit = {},
+    /** 全屏浮层（搜索、弹层）。画在 Scaffold 之上，因此能盖住顶栏。 */
     overlay: @Composable () -> Unit = {},
-    /**
-     * 顶栏透明度。搜索浮层是整屏内容，而 Scaffold 先画正文再画顶栏，
-     * 所以搜索展开时必须把页面顶栏隐掉，否则大标题会压在搜索结果上。
-     * 用透明度而不是移除，避免 contentPadding 变化导致列表跳动。
-     */
-    topBarAlpha: Float = 1f,
+    /** 搜索浮层是否展开：整页按官方动画淡出并屏蔽无障碍语义。 */
+    searchExpanded: Boolean = false,
     content: @Composable (PaddingValues) -> Unit,
 ) {
     val surface = MiuixTheme.colorScheme.surface
     val glassActive = LocalGlassActive.current
     val backdrop = rememberSurfaceBackdrop(surface)
-    val railInset = LocalRailInset.current
+    val searchBarAlpha = rememberGlassSearchBarAlpha(searchExpanded)
+    val shellBottom = LocalShellBottomBarHeight.current
+    val safeBottom = pageSafeBottom()
+    // 底栏可见时它已经含了手势区；宽屏/二级页则自己让出系统底部安全区。
+    val bottomReserve = if (shellBottom > 0.dp) shellBottom else safeBottom
+    val largeTitle = expandable && !isWideLayout()
+    val titleAlpha = LocalTopBarTitleAlpha.current
 
-    Scaffold(
-        modifier = modifier.fillMaxSize(),
-        containerColor = surface,
-        topBar = {
-            Box(
-                Modifier.graphicsLayer { alpha = topBarAlpha },
-            ) {
+    Box(modifier = modifier.fillMaxSize()) {
+        Scaffold(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer { alpha = searchBarAlpha.value }
+                .then(if (searchExpanded) Modifier.clearAndSetSemantics { } else Modifier),
+            containerColor = surface,
+            contentWindowInsets = WindowInsets(0),
+            topBar = {
                 PageTopBar(
                     title = title,
                     subtitle = subtitle,
                     backdrop = backdrop.takeIf { glassActive },
                     scrollBehavior = scrollBehavior,
+                    expandable = largeTitle,
+                    titleAlpha = titleAlpha,
                     navigationIcon = navigationIcon,
                     actions = topBarActions,
                     bottomContent = { topBarBottom(backdrop.takeIf { glassActive }) },
+                    searchExpanded = searchExpanded,
                 )
-            }
-        },
-        bottomBar = bottomBar,
-        floatingActionButton = {
-            // FAB 由 Scaffold 摆在自己底边之上；悬浮导航胶囊是 Shell 叠在页面之上的，
-            // Scaffold 并不知道它，所以这里显式再让出一段，避免 FAB 被胶囊压住。
-            val reserve = LocalNavReserve.current
-            Box(Modifier.padding(bottom = (reserve - 20.dp).coerceAtLeast(0.dp))) {
+            },
+            bottomBar = {
+                if (bottomReserve > 0.dp) {
+                    Spacer(Modifier.fillMaxWidth().height(bottomReserve))
+                }
+            },
+            floatingActionButton = {
                 floatingActionButton(backdrop.takeIf { glassActive })
-            }
-        },
-    ) { padding ->
-        CompositionLocalProvider(LocalPageBackdrop provides backdrop.takeIf { glassActive }) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .then(if (glassActive) Modifier.layerBackdrop(backdrop) else Modifier),
-            ) {
+            },
+        ) { padding ->
+            CompositionLocalProvider(LocalPageBackdrop provides backdrop.takeIf { glassActive }) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .nestedScroll(scrollBehavior.nestedScrollConnection),
+                        .then(if (glassActive) Modifier.layerBackdrop(backdrop) else Modifier),
                 ) {
-                    content(padding)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .nestedScroll(scrollBehavior.nestedScrollConnection),
+                    ) {
+                        content(padding)
+                    }
                 }
             }
-            overlay()
         }
+
+        overlay()
     }
 }
 
@@ -146,9 +209,12 @@ fun PageTopBar(
     backdrop: LayerBackdrop?,
     scrollBehavior: ScrollBehavior,
     subtitle: String = "",
+    expandable: Boolean = true,
+    titleAlpha: () -> Float = { 1f },
     navigationIcon: @Composable () -> Unit = {},
     actions: @Composable RowScope.() -> Unit = {},
     bottomContent: @Composable () -> Unit = {},
+    searchExpanded: Boolean = false,
 ) {
     if (LocalGlassActive.current) {
         GlassTopAppBar(
@@ -156,8 +222,16 @@ fun PageTopBar(
             subtitle = subtitle,
             backdrop = backdrop,
             scrollBehavior = scrollBehavior,
+            expandable = expandable,
             // AGSL 渐进模糊在模拟器上产出的像素不可信，交给库的 band 渐变路径。
             progressiveBlur = !Platform.isEmulator,
+            // 官方搜索转场：缩放 + 模糊；整页透明度由 PageFrame 的 Scaffold 负责。
+            contentModifier = Modifier.glassSearchBarTransition(
+                expanded = searchExpanded,
+                blurEnabled = !Platform.isEmulator,
+                barAlpha = { 1f },
+            ),
+            titleAlpha = titleAlpha,
             navigationIcon = navigationIcon,
             actions = actions,
             bottomContent = bottomContent,
@@ -167,6 +241,7 @@ fun PageTopBar(
             title = title,
             subtitle = subtitle,
             scrollBehavior = scrollBehavior,
+            expandable = expandable,
             navigationIcon = navigationIcon,
             actions = actions,
             bottomContent = bottomContent,
@@ -186,7 +261,7 @@ fun TopBarAction(
             Icon(
                 imageVector = icon,
                 contentDescription = contentDescription,
-                modifier = Modifier.size(24.dp),
+                modifier = Modifier.size(PageMetrics.TopBarActionIcon),
                 tint = MiuixTheme.colorScheme.onSurface,
             )
         }
@@ -195,7 +270,7 @@ fun TopBarAction(
             Icon(
                 imageVector = icon,
                 contentDescription = contentDescription,
-                modifier = Modifier.size(24.dp),
+                modifier = Modifier.size(PageMetrics.TopBarActionIcon),
                 tint = MiuixTheme.colorScheme.onSurface,
             )
         }
@@ -228,24 +303,56 @@ fun Modifier.railStartInset(inset: () -> Dp): Modifier = layout { measurable, co
     }
 }
 
-/** 页面内容内边距：统一把顶栏、导航胶囊、手势区都算进去。 */
+/** 系统底部安全区（手势条 / 三键导航 / 刘海横屏的 caption bar）。 */
+@Composable
+private fun pageSafeBottom(): Dp {
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val insets = WindowInsets.navigationBars
+        .union(WindowInsets.displayCutout)
+    return with(density) { insets.getBottom(this).toDp() }
+}
+
+/**
+ * 页面内容内边距。
+ *
+ * 语义与官方 `example/utils/PageUtils.kt:186-222` 一致：
+ * - start/end = `max(页面横向留白, 系统横向安全区)`
+ * - top = Scaffold 给的顶栏高度 + extraTop
+ * - bottom = Scaffold 给的底栏高度 + 末尾留白 + extraBottom
+ *
+ * 横向安全区只算刘海/横屏导航条：侧栏让位已经在 Shell 的 `railStartInset` 做过，
+ * 页面再让一次就会双算。
+ */
 @Composable
 fun pageContentPadding(
     scaffoldPadding: PaddingValues,
-    horizontal: Dp = 16.dp,
+    horizontal: Dp = PageMetrics.Horizontal,
     extraTop: Dp = 0.dp,
     extraBottom: Dp = 0.dp,
 ): PaddingValues {
-    val navReserve = LocalNavReserve.current
+    val layoutDirection = LocalLayoutDirection.current
+    val horizontalInsets = WindowInsets.displayCutout
+        .only(WindowInsetsSides.Horizontal)
+        .union(WindowInsets.navigationBars.only(WindowInsetsSides.Horizontal))
+        .asPaddingValues()
+    // 不能 remember：MIUIX Scaffold 的 contentPadding 是一个实例不变、
+    // 内部 paddingHolder 变化的 PaddingValues。用 remember(scaffoldPadding) 会缓存第一帧
+    // （顶栏底栏高度还没量出来）的旧值，导致正文永远按错误的顶栏高度起排。
+    // 直接读 calculate*Padding() 在组合期订阅其内部状态，高度变化时自动重组。
     return PaddingValues(
-        start = horizontal,
-        end = horizontal,
+        start = maxOf(horizontal, horizontalInsets.calculateLeftPadding(layoutDirection)),
+        end = maxOf(horizontal, horizontalInsets.calculateRightPadding(layoutDirection)),
         top = scaffoldPadding.calculateTopPadding() + extraTop,
-        bottom = scaffoldPadding.calculateBottomPadding() + navReserve + extraBottom + 24.dp,
+        bottom = scaffoldPadding.calculateBottomPadding() + PageMetrics.BottomGap + extraBottom,
     )
 }
 
-/** 设置页与列表页共用的分组卡片容器。 */
+/**
+ * 设置页与列表页共用的分组卡片容器。
+ *
+ * 直接就是官方 [Card]：圆角、底色、内容色全部走 [CardDefaults]，
+ * 内部留白交给每一行（`BasicComponentDefaults.InsideMargin` = 16dp），不叠第二层 padding。
+ */
 @Composable
 fun GroupCard(
     modifier: Modifier = Modifier,
@@ -279,11 +386,4 @@ fun EmptyState(
             textAlign = TextAlign.Center,
         )
     }
-}
-
-/** 页面底部留白，给悬浮导航胶囊与手势区。 */
-@Composable
-fun NavigationReserve() {
-    val navBars = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    Spacer(Modifier.height(navBars + LocalNavReserve.current))
 }

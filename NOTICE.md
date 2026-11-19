@@ -42,6 +42,30 @@ are all Glacier-specific. Hail's UI code was not carried over.
 | libxposed API (`io.github.libxposed`) | Apache-2.0 | Optional LSPosed module entry point (compileOnly) |
 | HiddenApiBypass (`org.lsposed.hiddenapibypass`) | Apache-2.0 | Hidden API reflection |
 
+## Design reference attribution
+
+Glacier's MIUIX OS4 layout work (page skeleton, navigation bar/capsule metrics,
+About page structure, list/card spacing, glass layering) is written against the
+official **MIUIX** library and its Apache-2.0 example app:
+
+- MIUIX — https://github.com/compose-miuix-ui/miuix (Apache-2.0)
+  - `example/shared/.../AppContent.kt`, `GlassPage.kt`, `AboutPage.kt`,
+    `LicensePage.kt`, `utils/PageUtils.kt`, `utils/AdaptiveUtils.kt`
+
+Glacier copies **structure and numeric design constants** from that example
+(Apache-2.0 permits this); the Compose code in Glacier is its own. Attribution
+for the upstream project is included here and on the in-app license screen.
+
+Two mature MIUIX applications were read as references for patterns and
+dimensions only (**no code copied**), because they are GPL-3.0 projects:
+
+- Mishka — https://github.com/YuKongA/Mishka (GPL-3.0)
+- InstallerX-Revived — https://github.com/wxxsfxyzm/InstallerX-Revived (GPL-3.0-only)
+
+Glacier itself is GPL-3.0-or-later, so GPL-3.0-compatible reference code would
+also have been legally usable; it was deliberately not copied to keep the UI
+implementation original and auditable. See `docs/reference/reference-projects.md`.
+
 Notes on deliberate exclusions:
 
 - **No `androidx.compose.material3`.** Glacier uses MIUIX as its only design

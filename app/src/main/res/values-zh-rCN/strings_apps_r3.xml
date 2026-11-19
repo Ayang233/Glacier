@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  R3 Apps / 操作面板新增文案（简体中文）。
+
+  与 values/strings_apps_r3.xml 对应；本轮整改未引入新的用户可见文本，
+  排序 / 筛选 / 冻结徽标 / 搜索提示 / 操作名均复用 strings.xml 现有键。
+-->
+<resources />

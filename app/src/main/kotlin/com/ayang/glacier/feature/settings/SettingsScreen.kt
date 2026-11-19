@@ -1,17 +1,11 @@
 package com.ayang.glacier.feature.settings
 
-import android.content.Context
 import android.content.Intent
 import android.provider.Settings
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -20,7 +14,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import com.ayang.glacier.GlacierApplication
 import com.ayang.glacier.R
 import com.ayang.glacier.domain.BackendState
@@ -34,17 +27,16 @@ import com.ayang.glacier.ui.LocalGlassActive
 import com.ayang.glacier.ui.LocalRootBackdrop
 import com.ayang.glacier.ui.components.GroupCard
 import com.ayang.glacier.ui.components.PageFrame
+import com.ayang.glacier.ui.components.PageMetrics
 import com.ayang.glacier.ui.components.pageContentPadding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.glass.GlassDropdownPreference
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SliderPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
-import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
  * 设置页。
@@ -103,6 +95,10 @@ fun SettingsScreen(onOpenAbout: () -> Unit) {
     var labelSize by remember(revision) { mutableStateOf(preferences.homeLabelSize) }
     var delay by remember(revision) { mutableStateOf(preferences.autoFreezeDelayMinutes.toFloat()) }
 
+    // onClick 不是 @Composable 上下文，字符串必须在组合期取好。
+    val appName = stringResource(R.string.app_name)
+    val deviceOwnerCommand = stringResource(R.string.settings_device_owner_command)
+
     PageFrame(
         title = stringResource(R.string.nav_settings),
         subtitle = repository.deviceSummary(),
@@ -110,8 +106,8 @@ fun SettingsScreen(onOpenAbout: () -> Unit) {
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = pageContentPadding(padding, horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+            contentPadding = pageContentPadding(padding),
+            verticalArrangement = Arrangement.spacedBy(PageMetrics.SectionGap),
         ) {
             item { SmallTitle(stringResource(R.string.settings_general)) }
             item {
@@ -130,7 +126,11 @@ fun SettingsScreen(onOpenAbout: () -> Unit) {
                         summary = if (preferences.workingMode.backend == com.ayang.glacier.domain.Backend.None) {
                             modeLabel(preferences.workingMode)
                         } else {
-                            modeLabel(preferences.workingMode) + " · " + backendSummary(modeState.value)
+                            stringResource(
+                                R.string.working_mode_summary,
+                                modeLabel(preferences.workingMode),
+                                backendSummary(modeState.value),
+                            )
                         },
                         backdrop = backdrop,
                     )
@@ -219,7 +219,7 @@ fun SettingsScreen(onOpenAbout: () -> Unit) {
                             preferences.bumpRevision()
                         },
                         title = stringResource(R.string.home_font_size),
-                        valueText = "${labelSize.toInt()} sp",
+                        valueText = stringResource(R.string.settings_font_size_value, labelSize.toInt()),
                         valueRange = 11f..18f,
                         steps = 6,
                     )
@@ -275,7 +275,7 @@ fun SettingsScreen(onOpenAbout: () -> Unit) {
                         },
                         title = stringResource(R.string.auto_freeze_delay),
                         summary = stringResource(R.string.auto_freeze_delay_summary, delay.toInt()),
-                        valueText = "${delay.toInt()} min",
+                        valueText = stringResource(R.string.settings_minutes_value, delay.toInt()),
                         valueRange = 0f..30f,
                         steps = 29,
                         enabled = autoFreezeEnabled,
@@ -333,18 +333,11 @@ fun SettingsScreen(onOpenAbout: () -> Unit) {
             item { SmallTitle(stringResource(R.string.settings_system)) }
             item {
                 GroupCard {
+                    // 这里只保留"跳系统设置 / 复制命令"的入口。
+                    // 自动冻结已在「自动化」节完整配置过，不再重复一个只弹提示的 ArrowPreference。
                     ArrowPreference(
-                        title = stringResource(R.string.auto_freeze),
-                        summary = stringResource(
-                            if (autoFreezeEnabled) R.string.switch_on else R.string.switch_off,
-                        ),
-                        onClick = {
-                            UiFeedback.toast(context, context.getString(R.string.working_mode_hint), true)
-                        },
-                    )
-                    ArrowPreference(
-                        title = "Notification access",
-                        summary = "Auto freeze needs it to skip notifying apps",
+                        title = stringResource(R.string.settings_notification_access),
+                        summary = stringResource(R.string.settings_notification_access_summary),
                         onClick = {
                             runCatching {
                                 context.startActivity(
@@ -355,8 +348,8 @@ fun SettingsScreen(onOpenAbout: () -> Unit) {
                         },
                     )
                     ArrowPreference(
-                        title = "Usage access",
-                        summary = "Used to skip the foreground app",
+                        title = stringResource(R.string.settings_usage_access),
+                        summary = stringResource(R.string.settings_usage_access_summary),
                         onClick = {
                             runCatching {
                                 context.startActivity(
@@ -367,13 +360,13 @@ fun SettingsScreen(onOpenAbout: () -> Unit) {
                         },
                     )
                     ArrowPreference(
-                        title = "Device owner command",
-                        summary = "Copy the dpm set-device-owner command",
+                        title = stringResource(R.string.settings_device_owner),
+                        summary = stringResource(R.string.settings_device_owner_summary),
                         onClick = {
                             UiFeedback.copy(
                                 context,
-                                "Glacier",
-                                "adb shell dpm set-device-owner com.ayang.glacier/.platform.admin.GlacierDeviceAdminReceiver",
+                                appName,
+                                deviceOwnerCommand,
                             )
                             UiFeedback.toast(context, R.string.ok)
                         },
@@ -391,7 +384,6 @@ fun SettingsScreen(onOpenAbout: () -> Unit) {
                     )
                 }
             }
-            item { Spacer(Modifier.height(24.dp)) }
         }
     }
 }

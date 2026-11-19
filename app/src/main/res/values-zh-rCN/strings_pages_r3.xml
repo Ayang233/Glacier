@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  R3 整改：Settings / About / Licenses / ApiActivity 页面的新增文案（简体中文）。
+  与 values/strings_pages_r3.xml 成对维护；translatable="false" 的标识符只在默认资源里出现。
+-->
+<resources>
+    <!-- Settings -->
+    <string name="settings_font_size_value">%1$d sp</string>
+    <string name="settings_minutes_value">%1$d 分钟</string>
+
+    <!-- About -->
+    <string name="about_version_brand">v%1$s（%2$d）</string>
+
+    <!-- Licenses -->
+    <string name="licenses_gpl_heading">GNU 通用公共许可证第 3 版</string>
+
+    <!-- Licenses: 组件说明 -->
+    <string name="licenses_note_miuix">OS4 主题、组件与官方玻璃表面。</string>
+    <string name="licenses_note_androidx">UI 运行时与生命周期。</string>
+    <string name="licenses_note_shizuku">无需 root 的特权 binder 访问。</string>
+    <string name="licenses_note_dhizuku">设备所有者委托授权。</string>
+    <string name="licenses_note_appiconloader">自适应图标渲染。</string>
+    <string name="licenses_note_libxposed">可选的模块入口。</string>
+    <string name="licenses_note_hail">aistra0528 的原始项目，Glacier 的冻结后端与数据格式由其衍生。</string>
+</resources>

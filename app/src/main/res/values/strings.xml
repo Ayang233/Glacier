@@ -184,4 +184,29 @@
     <string name="api_unfreeze">Unfreeze</string>
     <string name="api_missing_package">Package must not be null</string>
     <string name="api_unknown_scheme">Unknown scheme:\n%1$s</string>
+
+    <!-- App rows -->
+    <string name="badge_pinned">pinned</string>
+    <string name="badge_whitelisted">whitelisted</string>
+    <string name="badge_not_on_home">not on home</string>
+    <string name="minutes_format">%1$d min</string>
+
+    <!-- About (OS4 layout) -->
+    <string name="about_section_app">Application</string>
+    <string name="about_version_label">Version</string>
+    <string name="about_package_label">Package</string>
+    <string name="about_build_label">Build</string>
+    <string name="about_device_label">Device</string>
+    <string name="about_section_open_source">Open source</string>
+    <string name="about_license_label">License</string>
+
+    <!-- System access -->
+    <string name="settings_notification_access">Notification access</string>
+    <string name="settings_notification_access_summary">Auto freeze needs it to skip apps that are notifying</string>
+    <string name="settings_usage_access">Usage access</string>
+    <string name="settings_usage_access_summary">Used to skip the foreground app</string>
+    <string name="settings_device_owner">Device owner command</string>
+    <string name="settings_device_owner_summary">Copy the dpm set-device-owner command</string>
+    <string name="version_value">%1$s (%2$d)</string>
+    <string name="licenses_components">Components</string>
 </resources>

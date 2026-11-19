@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    品牌标记（About 页独立展示用）：黑色单色主体，无渐变/彩色，配合外层白色容器使用。
+
+    它与启动器自适应图标同源（ic_launcher_foreground），但这里裁到自适应图标的 72dp 安全区：
+    About 页是直接把整张图缩放到 74dp 显示，如果保留 108dp 画布四周 18dp 空白（那部分在
+    启动器上会被遮罩裁掉），主体在页面里看起来会偏小（audit 5.4）。裁切只去掉空白，
+    不裁掉任何笔画：内容位于 108dp 画布的 x 28.1~79.9 / y 24.5~83.5，完全在 18~90 内。
+    下面的坐标 = 108dp 画布坐标整体减去 18（即裁出 18~90 的安全区窗口）。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="72dp"
+    android:height="72dp"
+    android:viewportWidth="72"
+    android:viewportHeight="72">
+    <path
+        android:pathData="M36,9 L36,63"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="5"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M12.6,22.5 L59.4,49.5"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="5"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M59.4,22.5 L12.6,49.5"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="5"
+        android:strokeLineCap="round" />
+
+    <path
+        android:pathData="M36,18 L29,12 M36,18 L43,12"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="4"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M36,54 L29,60 M36,54 L43,60"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="4"
+        android:strokeLineCap="round" />
+
+    <path
+        android:pathData="M18.4,26 L12.6,24.2 M18.4,26 L16.6,19.9"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="4"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M53.6,46 L59.4,47.8 M53.6,46 L55.4,52.1"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="4"
+        android:strokeLineCap="round" />
+
+    <path
+        android:pathData="M53.6,26 L59.4,24.2 M53.6,26 L55.4,19.9"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="4"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M18.4,46 L12.6,47.8 M18.4,46 L16.6,52.1"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="4"
+        android:strokeLineCap="round" />
+</vector>

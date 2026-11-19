@@ -21,7 +21,7 @@ val LocalGlassRequested = staticCompositionLocalOf { true }
 val LocalGlassActive = staticCompositionLocalOf { false }
 
 /**
- * 一级页整屏录制层。所有弹层、底栏、侧栏都采样这一层，
+ * 一级页整屏录制层。弹层、底栏、侧栏都采样这一层，
  * 因为只有它录在分页容器外面，坐标空间与最外层 Scaffold 一致。
  */
 val LocalRootBackdrop = staticCompositionLocalOf<LayerBackdrop?> { null }
@@ -38,18 +38,46 @@ val LocalPageBackdrop = staticCompositionLocalOf<LayerBackdrop?> { null }
 val LocalRailInset = staticCompositionLocalOf<() -> Dp> { { 0.dp } }
 
 /**
- * 页面底部需要为悬浮导航胶囊让出的高度。
+ * 底栏实测总高度（含 20dp 顶部间距 + 胶囊 + 底部安全区）。
  *
- * 由 Shell 统一计算（含手势区），页面不要自己猜。
+ * 由 Shell 的 bottomBar 实测后写入；页面在自己的 Scaffold 里用它做透明占位，
+ * 让正文底部 padding 与 FAB 位置都由 Scaffold 计算，不再手动猜。
  */
-val LocalNavReserve = staticCompositionLocalOf { 0.dp }
+val LocalShellBottomBarHeight = staticCompositionLocalOf { 0.dp }
 
-/** 宽屏断点：与 MIUIX 官方 example 的侧栏阈值一致。 */
+/**
+ * 顶栏标题透明度。
+ *
+ * 宽屏玻璃侧栏折叠成顶部胶囊时会盖住页面标题，官方 example 用
+ * `LocalTopAppBarTitleAlpha` 让标题跟随侧栏 morph 进度淡出；窄屏恒为 1。
+ */
+val LocalTopBarTitleAlpha = staticCompositionLocalOf<() -> Float> { { 1f } }
+
+/**
+ * 宽屏折叠胶囊为搜索浮层让出的顶部高度（官方 `searchTop`）。
+ *
+ * 侧栏展开时让位为 0；折叠成胶囊时浮层要下移，避免搜索条与胶囊重叠。
+ */
+val LocalSearchTopInset = staticCompositionLocalOf<() -> Dp> { { 0.dp } }
+
+/**
+ * 宽屏断点：与 MIUIX 官方 example 的 `shouldShowSplitPane` 一致。
+ * 宽度 ≥ 840dp，或 ≥ 600dp 且横向（高/宽 < 1.2）。
+ */
 @Composable
 fun isWideLayout(): Boolean {
-    val width = LocalConfiguration.current.screenWidthDp
-    return width >= 840
+    val configuration = LocalConfiguration.current
+    val width = configuration.screenWidthDp
+    val height = configuration.screenHeightDp
+    return width >= 840 || (width >= 600 && height.toFloat() / width < 1.2f)
 }
+
+/**
+ * 侧栏展开断点：与 MIUIX 官方 example 的 `shouldExpandNavigationRail` 一致。
+ * 宽度 < 1200dp 时玻璃侧栏折叠成顶部胶囊，由用户点开。
+ */
+@Composable
+fun isExtraWideLayout(): Boolean = LocalConfiguration.current.screenWidthDp >= 1200
 
 /**
  * 页面正文录制层：先垫页面真实底色，再录内容。

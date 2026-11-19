@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  R3 整改：Home 页新增文案（简体中文）。
+  只允许本文件新增 Home 的用户可见文本，避免多人改同一个 strings.xml。
+-->
+<resources>
+    <!-- 删除标签确认框摘要（带标签名） -->
+    <string name="home_delete_tag_summary">“%1$s”中的应用将移到默认标签。</string>
+</resources>

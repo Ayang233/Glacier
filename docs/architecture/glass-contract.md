@@ -21,19 +21,23 @@
 
 ```
 Scaffold(containerColor = Transparent, contentWindowInsets = 0)     ← 弹层宿主
+├ bottomBar（窄屏）→ GlassNavigationBar(rootBackdrop)              ← R 的兄弟，24dp 横向内边距
 └ Box(fillMaxSize)
    ├ Box(fillMaxSize).layerBackdrop(rootBackdrop)                   ★R 满屏录制层
    │  │   (rootBackdrop 先 drawRect(surface))
-   │  └ NavDisplay(padding(start = railInset))                      ← 让位只在内容层
+   │  └ NavDisplay(railStartInset)                                  ← 让位只在内容层
    │     ├ Route.Main → HorizontalPager
    │     │   └ 页面 PageFrame
-   │     │      Scaffold(topBar = GlassTopAppBar(pageBackdrop))     ← 顶栏与 P 同级
-   │     │      └ content
-   │     │         └ Box(fillMaxSize).layerBackdrop(pageBackdrop)   ★P 页面录制层
-   │     │            └ 列表 / 网格
+   │     │      Box                                                  ← 浮层宿主
+   │     │      ├ Scaffold(containerColor = surface, insets = 0)
+   │     │      │  ├ topBar  → GlassTopAppBar(pageBackdrop)          ← 顶栏与 P 同级
+   │     │      │  ├ bottomBar → Spacer(LocalShellBottomBarHeight)   ← 透明占位：正文/FAB 让位
+   │     │      │  ├ fab     → GlassFloatingActionButton(pageBackdrop)
+   │     │      │  └ body    → Box.layerBackdrop(pageBackdrop)       ★P 页面录制层
+   │     │      │              └ 列表 / 网格
+   │     │      └ overlay()                                          ← 浮层，画在顶栏之上
    │     └ Route.About / Route.Licenses（同上）
-   ├ GlassNavigationBar(backdrop = rootBackdrop)                    ← R 的兄弟（窄屏）
-   └ GlassNavigationRail(backdrop = rootBackdrop)                   ← R 的兄弟（宽屏）
+   └ GlassNavigationRail(backdrop = rootBackdrop)（宽屏）            ← R 的兄弟
 ```
 
 弹层（`GlassDialog` / `GlassBottomSheet` / `GlassDropdownPreference`）通过
@@ -46,10 +50,11 @@ Scaffold(containerColor = Transparent, contentWindowInsets = 0)     ← 弹层�
 |---|---|---|---|
 | `GlassTopAppBar` | 页面 `Scaffold.topBar` | P | 与 P 同父（Scaffold 的两个子槽） |
 | `GlassFloatingActionButton` | 页面 `Scaffold.floatingActionButton` | P | 与 P 同父 |
-| `GlassNavigationBar` | Shell `Box` 的第二个子节点 | R | 与 R 同父 |
+| `GlassNavigationBar` | Shell `Scaffold.bottomBar`（窄屏） | R | 与 R 同父（槽位在 R 之后绘制） |
 | `GlassNavigationRail` | Shell `Box` 的第二个子节点 | R | 与 R 同父 |
 | `GlassDialog` / `GlassBottomSheet` | 页面 `overlay` 槽（实际渲染在根 Scaffold） | R | 在 R 之外 |
-| `GlassSearchOverlay` | 页面 `overlay` 槽 | 自建内部录制层 | 组件自包含，不采外部层 |
+| `GlassSearchOverlay` | 页面 `overlay` 槽（在 `Scaffold` 之后组合） | 自建内部录制层 | 组件自包含，不采外部层；位置在顶栏之上 |
+| `GlassTabRow`（Home 标签） | 顶栏 `bottomContent` | 顶栏上下文（`LocalGlassTopAppBarContext`） | 与正文 P 无关，安全 |
 | `GlassIconButton`（顶栏内） | 顶栏子树 | 继承顶栏 | 由库的 `LocalGlassTopAppBarContext` 处理 |
 
 ## 两个已知陷阱（本项目实际踩过）
@@ -66,24 +71,29 @@ Scaffold(containerColor = Transparent, contentWindowInsets = 0)     ← 弹层�
 val tabBackdrop = if (tabsInTopBar) backdrop else wallpaperBackdrop
 ```
 
-Glacier 的取舍：**标签栏改用官方非玻璃 `TabRow`，放在正文列表顶部**。
-理由：页签是导航控件，"浮在内容之上且需要看见背后内容"这个判据只满足一半；
-而放进顶栏 `bottomContent` 虽然结构合法，但在本版 MIUIX 上实测该槽的高度测量不稳定
-（`bottomContent` 折叠为 0）。改用普通 `TabRow` 既没有采样问题，也符合 OS4 设置页的既有范式。
+**第二轮的修正**：本版 MIUIX 的 `GlassTopAppBar.bottomContent` 已经稳定（`GlassTabRow`
+会从 `LocalGlassTopAppBarContext` 取顶栏的 backdrop 与 `underlayMaterial`），
+因此标签栏搬到顶栏 `bottomContent`，玻璃档直接用 `GlassTabRow`，非玻璃档用普通 `TabRow`。
+这既是官方 example 的用法，也不再需要在正文列表里放导航控件。
 
 ### 2. 让位不能在组合期解包
 
-第一版把 `railStartInset` 写成 `Modifier.layout` + `hasBoundedWidth` 判断，
-在 `minWidth == maxWidth` 的固定约束下会抛出 `maxWidth must be >= than minWidth`。
-最终把让位收到 Shell 层：`NavDisplay(modifier = fillMaxSize().padding(start = railInsetDp))`，
-`railInsetDp` 来自"是否展开"这个布尔状态而不是逐帧 `progress`。
-好处是录制层（外层 Box）保持满宽，符合"录制层不跟着内容让位收窄"的要求。
+`railStartInset` 用 `Modifier.layout` 实现，在量测期读 `inset()`；
+侧栏 morph 的每一帧只触发重新测量，不重组整页。
+
+第二轮又补了两个坑：
+
+- 让位必须带 `if (wide)`。窄屏没有侧栏，若还读 `railState.progress`（旋转前留下的 1.0），
+  竖屏内容会被挤到屏幕右侧（实测现象：整页缩到右侧、标题折行）。
+- 侧栏状态用 `rememberGlassNavigationRailState` 内部是 `rememberSaveable`，
+  竖屏时的 `false` 会被带到横屏 → 侧栏以折叠胶囊出现在顶部。必须
+  `LaunchedEffect(wide) { railState.expanded = wide }` 同步。
 
 ## 回退策略
 
 - **唯一决策点**：`LocalGlassActive = 用户开关 && isRuntimeShaderSupported()`。
   页面里不再出现第二个 `isRuntimeShaderSupported()` 判断。
 - **每个组件都能 `backdrop = null` 工作**：官方组件自身走不透明回退；
-  `GlassTabRow` 这种"没 backdrop 就没材质"的情况，Glacier 干脆不用它做导航。
+  `GlassTabRow` 在非玻璃档换回官方普通 `TabRow`。
 - **模拟器**：`Platform.isEmulator` 为真时顶栏关闭 `progressiveBlur`，
   走库自带的 band 渐变，不自绘替代视觉。

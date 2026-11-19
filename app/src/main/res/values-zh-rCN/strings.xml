@@ -184,4 +184,29 @@
     <string name="api_unfreeze">解冻</string>
     <string name="api_missing_package">包名不能为空</string>
     <string name="api_unknown_scheme">未知 scheme：\n%1$s</string>
+
+    <!-- 应用行 -->
+    <string name="badge_pinned">置顶</string>
+    <string name="badge_whitelisted">白名单</string>
+    <string name="badge_not_on_home">不在主页</string>
+    <string name="minutes_format">%1$d 分钟</string>
+
+    <!-- 关于页（OS4 版式） -->
+    <string name="about_section_app">应用</string>
+    <string name="about_version_label">版本</string>
+    <string name="about_package_label">包名</string>
+    <string name="about_build_label">构建</string>
+    <string name="about_device_label">设备</string>
+    <string name="about_section_open_source">开源信息</string>
+    <string name="about_license_label">许可证</string>
+
+    <!-- 系统权限 -->
+    <string name="settings_notification_access">通知使用权</string>
+    <string name="settings_notification_access_summary">自动冻结需要它来跳过正在通知的应用</string>
+    <string name="settings_usage_access">使用情况访问权</string>
+    <string name="settings_usage_access_summary">用于跳过前台应用</string>
+    <string name="settings_device_owner">设备所有者命令</string>
+    <string name="settings_device_owner_summary">复制 dpm set-device-owner 命令</string>
+    <string name="version_value">%1$s（%2$d）</string>
+    <string name="licenses_components">组件</string>
 </resources>

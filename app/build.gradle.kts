@@ -124,6 +124,8 @@ dependencies {
     implementation(libs.miuix.glass)
     implementation(libs.miuix.glass.icons)
     implementation(libs.miuix.nav)
+    // 官方 squircle 形状：应用图标与品牌图标的 MIUIX 圆角轮廓
+    implementation(libs.miuix.squircle)
 
     // ---- 系统能力 ----
     implementation(libs.shizuku.api)

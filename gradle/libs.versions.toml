@@ -40,6 +40,7 @@ miuix-blur = { module = "top.yukonga.miuix.kmp:miuix-blur" }
 miuix-glass = { module = "top.yukonga.miuix.kmp:miuix-glass" }
 miuix-glass-icons = { module = "top.yukonga.miuix.kmp:miuix-glass-icons" }
 miuix-nav = { module = "top.yukonga.miuix.kmp:miuix-nav" }
+miuix-squircle = { module = "top.yukonga.miuix.kmp:miuix-squircle" }
 
 shizuku-api = { module = "dev.rikka.shizuku:api", version.ref = "shizuku" }
 shizuku-provider = { module = "dev.rikka.shizuku:provider", version.ref = "shizuku" }

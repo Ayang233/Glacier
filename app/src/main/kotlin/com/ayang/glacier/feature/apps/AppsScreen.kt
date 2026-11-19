@@ -1,17 +1,22 @@
 package com.ayang.glacier.feature.apps
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -31,32 +36,43 @@ import com.ayang.glacier.feature.common.AppAction
 import com.ayang.glacier.feature.common.AppActionRunner
 import com.ayang.glacier.feature.common.AppActionSheet
 import com.ayang.glacier.feature.common.AppRow
-import com.ayang.glacier.feature.common.SheetActionRow
+import com.ayang.glacier.feature.common.AppSearchResults
+import com.ayang.glacier.feature.common.SearchResultVerticalPadding
 import com.ayang.glacier.ui.LocalGlassActive
 import com.ayang.glacier.ui.LocalRootBackdrop
+import com.ayang.glacier.ui.LocalSearchTopInset
 import com.ayang.glacier.ui.components.EmptyState
 import com.ayang.glacier.ui.components.PageFrame
+import com.ayang.glacier.ui.components.PageMetrics
 import com.ayang.glacier.ui.components.TopBarAction
 import com.ayang.glacier.ui.components.pageContentPadding
 import kotlinx.coroutines.launch
+import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CardDefaults
+import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.glass.GlassBottomSheet
 import top.yukonga.miuix.kmp.glass.GlassSearchOverlay
+import top.yukonga.miuix.kmp.glass.GlassSearchOverlayDefaults
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.glass.Ok
+import top.yukonga.miuix.kmp.icon.glass.Close
 import top.yukonga.miuix.kmp.icon.glass.Filter
+import top.yukonga.miuix.kmp.icon.glass.Ok
 import top.yukonga.miuix.kmp.icon.glass.Search
 import top.yukonga.miuix.kmp.icon.glass.Sort
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.utils.PressFeedbackType
 
 /**
  * 应用页：全部应用 + 排序 + 筛选。
  *
  * 排序与筛选都是"离散选项"，按 OS4 惯例走底部弹层，而不是塞进顶栏的图标菜单。
+ *
+ * 浮层（搜索 / 排序 / 筛选 / 操作单）全部**常驻组合**，只由 `expanded` / `show` 驱动：
+ * 官方 [GlassSearchOverlay] 的 `active = expanded || transition.isRunning`（`GlassSearchOverlay.kt:229-240`）
+ * 与 [GlassBottomSheet] 的退出动画（`MiuixPopupUtils.kt:93-145`）都要求组件在退场期间仍在组合树里；
+ * 用 `if (open)` 包裹会砍掉退出动画、搜索结果 query 清理与返回键处理（规范 0.1 红线）。
  */
 @Composable
 fun AppsScreen() {
@@ -73,11 +89,16 @@ fun AppsScreen() {
     var filterOpen by remember { mutableStateOf(false) }
     var actionTarget by remember { mutableStateOf<String?>(null) }
 
+    // 弹层退场期间要保留最后一份内容：排序项在 pick 后立即改设置，退场动画里不应闪成新选中态。
+    var lastSort by remember { mutableStateOf(preferences.appSort) }
+    if (sortOpen) lastSort = preferences.appSort
+
     val scope = rememberCoroutineScope()
     val scrollBehavior = MiuixScrollBehavior()
     val runner = remember(repository) { AppActionRunner(context, repository) }
     val glassActive = LocalGlassActive.current
-    val backdrop = LocalRootBackdrop.current
+    // 搜索结果列表的滚动量要回传给搜索条：滚动后搜索条才转玻璃（官方 `IconPage.kt:499-544`）。
+    val searchListState = rememberLazyListState()
 
     val entries = remember(repository.snapshot, revision) { repository.apps() }
 
@@ -85,47 +106,62 @@ fun AppsScreen() {
         title = stringResource(R.string.nav_apps),
         subtitle = stringResource(R.string.app_count, entries.size),
         scrollBehavior = scrollBehavior,
-        topBarAlpha = if (searchOpen) 0f else 1f,
+        searchExpanded = searchOpen,
         topBarActions = {
             TopBarAction(MiuixIcons.Glass.Search, stringResource(R.string.search)) { searchOpen = true }
             TopBarAction(MiuixIcons.Glass.Sort, stringResource(R.string.sort)) { sortOpen = true }
             TopBarAction(MiuixIcons.Glass.Filter, stringResource(R.string.filter)) { filterOpen = true }
         },
         overlay = {
-            if (searchOpen) {
-                GlassSearchOverlay(
-                    expanded = true,
-                    onDismissRequest = { searchOpen = false },
-                    label = stringResource(R.string.search_hint),
-                    blurEnabled = glassActive,
-                ) { query ->
-                    com.ayang.glacier.feature.common.AppSearchResults(
-                        query = query,
-                        onPick = { entry ->
-                            searchOpen = false
-                            actionTarget = entry.packageName
-                        },
-                    )
-                }
-            }
-
-            if (sortOpen) {
-                SortSheet(
-                    current = preferences.appSort,
-                    onDismiss = { sortOpen = false },
-                    onPick = { sort ->
-                        preferences.appSort = sort
-                        preferences.bumpRevision()
-                        sortOpen = false
+            GlassSearchOverlay(
+                expanded = searchOpen,
+                onDismissRequest = { searchOpen = false },
+                label = stringResource(R.string.search_hint),
+                // 横向只让开刘海/显示挖孔：侧栏让位已经由 Shell 的 `railStartInset` 作用在整页上，
+                // 搜索浮层不再重复让位（官方等价写法 `IconPage.kt:518`、`GlassPage.kt:691`）。
+                horizontalInsetsModifier = Modifier.windowInsetsPadding(
+                    WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal),
+                ),
+                // 官方语义：宽屏侧栏折叠成顶部胶囊时搜索条下移（`AppContent.kt:239-245`）。
+                // 传 lambda 本身，让库在布局期逐帧读取，避免侧栏 morph 触发整页重组。
+                searchTopPadding = LocalSearchTopInset.current,
+                scrollMaterialThreshold = GlassSearchOverlayDefaults.VerticalPadding + SearchResultVerticalPadding,
+                scrollOffset = {
+                    when {
+                        searchListState.layoutInfo.totalItemsCount == 0 -> 0f
+                        searchListState.firstVisibleItemIndex > 0 -> Float.MAX_VALUE
+                        else -> searchListState.firstVisibleItemScrollOffset.toFloat()
+                    }
+                },
+                blurEnabled = glassActive,
+                searchIcon = MiuixIcons.Glass.Search,
+                closeIcon = MiuixIcons.Glass.Close,
+            ) { query ->
+                AppSearchResults(
+                    query = query,
+                    onPick = { entry ->
+                        searchOpen = false
+                        actionTarget = entry.packageName
                     },
+                    listState = searchListState,
                 )
             }
 
-            if (filterOpen) {
-                FilterSheet(
-                    onDismiss = { filterOpen = false },
-                )
-            }
+            SortSheet(
+                show = sortOpen,
+                current = lastSort,
+                onDismiss = { sortOpen = false },
+                onPick = { sort ->
+                    preferences.appSort = sort
+                    preferences.bumpRevision()
+                    sortOpen = false
+                },
+            )
+
+            FilterSheet(
+                show = filterOpen,
+                onDismiss = { filterOpen = false },
+            )
 
             AppActionSheet(
                 entry = actionTarget?.let { pkg -> repository.snapshot.all.firstOrNull { it.packageName == pkg } },
@@ -146,12 +182,21 @@ fun AppsScreen() {
         },
     ) { padding ->
         if (entries.isEmpty()) {
-            EmptyState(text = stringResource(R.string.empty_apps))
+            // 空态必须吃页面 padding（顶栏 / 底栏 / 安全区），否则文本被顶栏压住（规范 1.3、审计 5.2 P0）。
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(pageContentPadding(padding)),
+            ) {
+                EmptyState(text = stringResource(R.string.empty_apps))
+            }
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = pageContentPadding(padding, horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                // 页面左右 12dp = 官方卡片外边距（`MainPage.kt:312`），由 `pageContentPadding` 默认值给出。
+                contentPadding = pageContentPadding(padding),
+                // 卡片之间 12dp = 官方卡片间距（规范第 3 节 `PageMetrics.SectionGap`）。
+                verticalArrangement = Arrangement.spacedBy(PageMetrics.SectionGap),
             ) {
                 items(entries, key = { it.packageName }) { entry ->
                     AppCard(
@@ -171,52 +216,48 @@ private fun AppCard(
     inHome: Boolean,
     onClick: () -> Unit,
 ) {
+    // 点击与按压反馈交给官方 Card（Sink 反馈），行本身只负责排版，避免两层 clickable。
+    // `insideMargin` / `colors` 不传：默认值就是 0dp / `CardDefaults.defaultColors()`（`Card.kt:192-204`）。
     Card(
         modifier = Modifier.fillMaxWidth(),
-        insideMargin = PaddingValues(0.dp),
-        colors = CardDefaults.defaultColors(),
+        pressFeedbackType = PressFeedbackType.Sink,
+        onClick = onClick,
     ) {
         AppRow(
             packageName = entry.packageName,
             label = entry.label,
             summary = buildString {
                 append(entry.packageName)
-                if (entry.pinned) append(" · pinned")
-                if (entry.whitelisted) append(" · whitelisted")
-                if (!inHome) append(" · not on home")
+                if (entry.pinned) append(" · ").append(stringResource(R.string.badge_pinned))
+                if (entry.whitelisted) append(" · ").append(stringResource(R.string.badge_whitelisted))
+                if (!inHome) append(" · ").append(stringResource(R.string.badge_not_on_home))
             },
             frozen = entry.frozen,
-            onClick = onClick,
-            trailing = {
-                if (entry.frozen) {
-                    Text(
-                        text = stringResource(R.string.frozen),
-                        style = MiuixTheme.textStyles.footnote2,
-                        color = MiuixTheme.colorScheme.primary,
-                    )
-                }
-            },
+            // 外层 Card 承担点击，行不再注册 clickable（`AppRow` 语义：onClick = null）。
         )
     }
 }
 
+/**
+ * 排序弹层。
+ *
+ * 所有行统一 [BasicComponent]（同文字基线、同行高），选中态只把 `Ok` 图标放进 `endActions`，
+ * 不再混用"带图标行 / 不带图标行"两种结构（审计 5.2 排序弹层、规范 2.2）。
+ */
 @Composable
 private fun SortSheet(
+    show: Boolean,
     current: AppSort,
     onDismiss: () -> Unit,
     onPick: (AppSort) -> Unit,
 ) {
     GlassBottomSheet(
         onDismissRequest = onDismiss,
-        show = true,
+        show = show,
         backdrop = LocalRootBackdrop.current.takeIf { LocalGlassActive.current },
         title = stringResource(R.string.sort),
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp),
-        ) {
+        Column(Modifier.fillMaxWidth()) {
             AppSort.entries.forEach { sort ->
                 val label = stringResource(
                     when (sort) {
@@ -225,53 +266,47 @@ private fun SortSheet(
                         AppSort.Update -> R.string.sort_update
                     },
                 )
-                if (sort == current) {
-                    SheetActionRow(
-                        icon = MiuixIcons.Glass.Ok,
-                        label = label,
-                        onClick = { onPick(sort) },
-                    )
-                } else {
-                    PlainSheetRow(label = label, onClick = { onPick(sort) })
-                }
+                BasicComponent(
+                    title = label,
+                    // 选中态只放尾部 Ok 图标：所有行同一结构、同一文字基线（规范 2.2）。
+                    endActions = {
+                        if (sort == current) {
+                            Icon(
+                                imageVector = MiuixIcons.Glass.Ok,
+                                contentDescription = null,
+                                modifier = Modifier.size(24.dp),
+                                tint = MiuixTheme.colorScheme.primary,
+                            )
+                        }
+                    },
+                    onClick = { onPick(sort) },
+                )
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(PageMetrics.BottomGap))
         }
     }
 }
 
-/** 未选中的排序项：不带图标，保持与选中项同高。 */
+/**
+ * 筛选弹层。
+ *
+ * [SwitchPreference] 全部用默认 `insideMargin`（= [BasicComponentDefaults.InsideMargin]，16dp），
+ * 这里不覆盖任何行内边距；弹层常驻组合，由 `show` 驱动进出动画。
+ */
 @Composable
-private fun PlainSheetRow(label: String, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 4.dp, vertical = 14.dp),
-    ) {
-        Text(
-            text = label,
-            style = MiuixTheme.textStyles.body1,
-            color = MiuixTheme.colorScheme.onSurface,
-        )
-    }
-}
-
-@Composable
-private fun FilterSheet(onDismiss: () -> Unit) {
+private fun FilterSheet(
+    show: Boolean,
+    onDismiss: () -> Unit,
+) {
     val context = LocalContext.current
     val preferences = (context.applicationContext as GlacierApplication).preferences
     GlassBottomSheet(
         onDismissRequest = onDismiss,
-        show = true,
+        show = show,
         backdrop = LocalRootBackdrop.current.takeIf { LocalGlassActive.current },
         title = stringResource(R.string.filter),
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp),
-        ) {
+        Column(Modifier.fillMaxWidth()) {
             AppFilter.entries.forEach { filter ->
                 SwitchPreference(
                     checked = preferences.filterEnabled(filter),
@@ -286,10 +321,9 @@ private fun FilterSheet(onDismiss: () -> Unit) {
                             AppFilter.UnfrozenApps -> R.string.filter_unfrozen_apps
                         },
                     ),
-                    insideMargin = PaddingValues(horizontal = 0.dp, vertical = 4.dp),
                 )
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(PageMetrics.BottomGap))
         }
     }
 }

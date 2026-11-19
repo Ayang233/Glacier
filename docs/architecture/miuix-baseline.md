@@ -28,7 +28,7 @@ composite build（源码引入），路径由 `settings.gradle.kts` 决定：
 | buildTools | `37.0.0` |
 | JDK | `21` |
 | 本地补丁 | 无（HEAD 的 `BuildConfig.kt` 已带 `workingDir = rootDir`，composite build 不再 `exit 128`） |
-| 核对日期 | 2026-11-19 |
+| 核对日期 | 2026-11-19（第三轮复核：HEAD 未变；本轮未新增依赖，新增阅读 `example/shared` 的 `AppContent.kt` / `GlassPage.kt` / `AboutPage.kt` / `LicensePage.kt` / `PageUtils.kt` / `AdaptiveUtils.kt` 作为整改依据） |
 
 ## 引用的模块
 
@@ -41,6 +41,8 @@ miuix-blur         Backdrop / rememberLayerBackdrop / layerBackdrop
 miuix-glass        全部官方 Glass 组件
 miuix-glass-icons  MiuixIcons.Glass.*（512 个，Regular 为默认字重）
 miuix-nav          NavDisplay / NavBackStack / 预测性返回
+miuix-squircle     官方 squircle 轮廓（Modifier.squircleClip / squircleBorder /
+                   squircleBackground），第二轮新增：应用图标与品牌图标
 ```
 
 `miuix-glass` 已 `api` 传递 `blur` / `material` / `ui`；显式声明只是为了可读性与版本可追溯。

@@ -1,12 +1,22 @@
 package com.ayang.glacier.ui
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.captionBar
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -14,15 +24,22 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.offset
 import com.ayang.glacier.GlacierApplication
 import com.ayang.glacier.R
 import com.ayang.glacier.feature.about.AboutScreen
@@ -30,8 +47,9 @@ import com.ayang.glacier.feature.about.LicensesScreen
 import com.ayang.glacier.feature.apps.AppsScreen
 import com.ayang.glacier.feature.home.HomeScreen
 import com.ayang.glacier.feature.settings.SettingsScreen
-import kotlinx.coroutines.launch
+import com.ayang.glacier.ui.components.railStartInset
 import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.blur.Backdrop
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.glass.GlassNavigationBar
@@ -41,29 +59,35 @@ import top.yukonga.miuix.kmp.glass.GlassNavigationRail
 import top.yukonga.miuix.kmp.glass.GlassNavigationRailDefaults
 import top.yukonga.miuix.kmp.glass.rememberGlassNavigationRailState
 import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.glass.GridView
+import top.yukonga.miuix.kmp.icon.glass.HomeOutline
+import top.yukonga.miuix.kmp.icon.glass.SettingsOutline
 import top.yukonga.miuix.kmp.material.isRuntimeShaderSupported
 import top.yukonga.miuix.kmp.nav.core.NavDisplay
 import top.yukonga.miuix.kmp.nav.core.rememberNavBackStack
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.icon.glass.GridView
-import top.yukonga.miuix.kmp.icon.glass.HomeOutline
-import top.yukonga.miuix.kmp.icon.glass.SettingsOutline
+import top.yukonga.miuix.kmp.utils.PagerNavigationSpringSpec
+import top.yukonga.miuix.kmp.utils.springAnimateToPage
 
 /**
  * Glacier 的根容器。
  *
- * Glass 结构（与知识库结构 A 同构）：
+ * 结构对照 MIUIX 官方 example 的窄屏 `CompactScreenLayout`（`example/AppContent.kt:644-683`）
+ * 与 `GlassPage`（`example/GlassPage.kt:264-341`）：
  *
  * ```
- * Scaffold(Transparent, insets=0)              ← 弹层宿主（最外层）
+ * Scaffold(Transparent, insets = 0)              ← 弹层宿主（最外层）
+ * ├ bottomBar（窄屏）= 官方 GlassNavigationBar
+ * │  24dp 横向内边距 + 20dp 顶部间距 + 底部安全区（官方 example 原样数值）
+ * │  实测高度 → LocalShellBottomBarHeight
  * └ Box(fillMaxSize)
- *    ├ Box(fillMaxSize).layerBackdrop(root)    ★录制层 R（满屏，录在分页容器外）
+ *    ├ Box(fillMaxSize).layerBackdrop(root)      ★录制层 R（满屏，录在分页容器外）
  *    │  └ NavDisplay → 一级页 pager / 二级页
- *    ├ GlassNavigationBar(backdrop = root)     ← R 的兄弟（窄屏）
- *    └ GlassNavigationRail(backdrop = root)    ← R 的兄弟（宽屏）
+ *    └ GlassNavigationRail(backdrop = root)      ← R 的兄弟（宽屏覆盖式侧栏）
  * ```
  *
- * 弹层由最外层 Scaffold 绘制，天然位于 R 之外，采样 R 即可避免"跨分页差一页宽"的坐标问题。
+ * 底栏进 Scaffold 槽位后，正文与 FAB 的让位全部由 Scaffold 计算，
+ * 页面用 `LocalShellBottomBarHeight` 做透明占位，不再手写 `Height + 32dp` 之类的魔法值。
  */
 @Composable
 fun GlacierShell() {
@@ -73,29 +97,66 @@ fun GlacierShell() {
 
     val glassActive = preferences.glassEnabled && isRuntimeShaderSupported()
     val wide = isWideLayout()
+    val expandedRail = isExtraWideLayout()
 
     val backStack = rememberNavBackStack<Route>(Route.Main)
-    val scope = rememberCoroutineScope()
 
     var tab by rememberSaveable { mutableIntStateOf(0) }
     val pagerState = rememberPagerState(initialPage = tab) { 3 }
-    LaunchedEffect(pagerState.currentPage) { tab = pagerState.currentPage }
+    val pagerFlingBehavior = PagerDefaults.flingBehavior(
+        state = pagerState,
+        snapAnimationSpec = PagerNavigationSpringSpec,
+    )
     LaunchedEffect(tab) {
-        if (pagerState.currentPage != tab) pagerState.animateScrollToPage(tab)
+        if (pagerState.currentPage != tab) pagerState.springAnimateToPage(tab)
+    }
+    // 只用水手滑动后真正停稳的 settledPage 回写 tab。
+    // 不能用 currentPage：动画过程中 currentPage 会在两页之间来回跳，回写成 tab 会重启
+    // 上面的 LaunchedEffect，把正在进行的 spring 取消在半路（表现为两页各露一半）。
+    LaunchedEffect(pagerState) {
+        snapshotFlow { pagerState.settledPage }.collect { settled ->
+            if (tab != settled) tab = settled
+        }
+    }
+    // 旋转 / 分屏改变宽度后，分页器可能保留按旧页宽算出的偏移，出现"两页各露一半"。
+    val screenWidthDp = LocalConfiguration.current.screenWidthDp
+    LaunchedEffect(screenWidthDp) {
+        if (pagerState.currentPageOffsetFraction != 0f) pagerState.scrollToPage(tab)
     }
 
-    // 宽屏默认展开：库自身的默认值就是展开，平板/横屏上直接给出完整导航更符合预期。
-    var railExpanded by rememberSaveable { mutableStateOf(wide) }
-    val railState = rememberGlassNavigationRailState(initialExpanded = railExpanded)
-    LaunchedEffect(railExpanded) { railState.expanded = railExpanded }
-    // 让位量取"是否展开"这个布尔状态，而不是逐帧的 morph.progress：
-    // progress 在组合期读到 0 会让整页永远不让位，而按布尔切换只多一次整页测量。
-    val railInsetDp = if (wide && railExpanded) {
-        GlassNavigationRailDefaults.Margin + GlassNavigationRailDefaults.ExpandedWidth
-    } else {
-        0.dp
+    // 侧栏展开状态由宽度决定：≥1200dp 常驻展开，840–1200dp 折叠成顶部胶囊（官方 example 行为）。
+    val railState = rememberGlassNavigationRailState(initialExpanded = expandedRail)
+    LaunchedEffect(expandedRail) { railState.expanded = expandedRail }
+
+    val density = LocalDensity.current
+    val layoutDirection = LocalLayoutDirection.current
+    val systemStartInset = with(density) {
+        WindowInsets.systemBars
+            .union(WindowInsets.captionBar)
+            .union(WindowInsets.displayCutout)
+            .getLeft(this, layoutDirection)
+            .toDp()
     }
-    val railInset: () -> androidx.compose.ui.unit.Dp = { railInsetDp }
+    val railProgress = { railState.progress.coerceIn(0f, 1f) }
+    val railInset: () -> androidx.compose.ui.unit.Dp = {
+        if (wide) {
+            systemStartInset +
+                (GlassNavigationRailDefaults.Margin + GlassNavigationRailDefaults.ExpandedWidth) * railProgress()
+        } else {
+            0.dp
+        }
+    }
+    // 折叠胶囊在顶部居中，搜索浮层要下移让开它（官方 rememberAppPageInsets 的 searchTop）。
+    val searchTopInset: () -> androidx.compose.ui.unit.Dp = {
+        if (wide) {
+            (GlassNavigationRailDefaults.CollapsedTop + GlassNavigationRailDefaults.CollapsedHeight + 4.dp) *
+                (1f - railProgress())
+        } else {
+            0.dp
+        }
+    }
+    // 折叠胶囊会盖住页面标题：标题透明度跟随侧栏 morph（官方 LocalTopAppBarTitleAlpha）。
+    val titleAlpha: () -> Float = { if (wide) railProgress() else 1f }
 
     val surface = MiuixTheme.colorScheme.surface
     val rootBackdrop = rememberLayerBackdrop {
@@ -116,20 +177,39 @@ fun GlacierShell() {
         tab = index
     }
 
-    val navReserve = GlassNavigationBarDefaults.Height +
-        WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 32.dp
+    val navVisible = backStack.size == 1
+    var bottomBarHeight by remember { mutableStateOf(0.dp) }
 
     CompositionLocalProvider(
         LocalGlassRequested provides preferences.glassEnabled,
         LocalGlassActive provides glassActive,
         LocalRootBackdrop provides rootBackdrop.takeIf { glassActive },
         LocalRailInset provides railInset,
-        LocalNavReserve provides if (wide) 0.dp else navReserve,
+        LocalSearchTopInset provides searchTopInset,
+        LocalTopBarTitleAlpha provides titleAlpha,
+        LocalShellBottomBarHeight provides if (wide || !navVisible) 0.dp else bottomBarHeight,
     ) {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
             containerColor = Color.Transparent,
             contentWindowInsets = WindowInsets(0),
+            bottomBar = {
+                if (!wide) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .onSizeChanged { bottomBarHeight = with(density) { it.height.toDp() } },
+                    ) {
+                        GlacierBottomNavigation(
+                            items = navItems,
+                            selectedIndex = tab,
+                            onSelect = onSelectTab,
+                            backdrop = rootBackdrop.takeIf { glassActive },
+                            visible = navVisible,
+                        )
+                    }
+                }
+            },
         ) {
             Box(Modifier.fillMaxSize()) {
                 Box(
@@ -143,7 +223,7 @@ fun GlacierShell() {
                         // 否则侧栏位置没有像素可采，玻璃会失去背后内容。
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(start = railInsetDp),
+                            .railStartInset(railInset),
                         onBack = {
                             if (backStack.size > 1) backStack.removeAt(backStack.lastIndex)
                         },
@@ -152,6 +232,8 @@ fun GlacierShell() {
                             HorizontalPager(
                                 state = pagerState,
                                 modifier = Modifier.fillMaxSize(),
+                                flingBehavior = pagerFlingBehavior,
+                                verticalAlignment = Alignment.Top,
                                 beyondViewportPageCount = 0,
                             ) { page ->
                                 when (page) {
@@ -177,27 +259,79 @@ fun GlacierShell() {
                     }
                 }
 
-                val navVisible = backStack.size == 1
                 if (wide) {
                     GlassNavigationRail(
                         items = navItems,
-                        selectedIndex = tab,
+                        // 二级页没有对应的一级目的地：官方 example 用 -1 表示"无选中"。
+                        selectedIndex = if (navVisible) tab else -1,
                         onSelect = onSelectTab,
                         backdrop = rootBackdrop.takeIf { glassActive },
                         state = railState,
+                        // 官方行为：≥1200dp 展开面板；否则折叠成顶部胶囊，由胶囊上的按钮展开。
+                        showToggle = true,
                         modifier = Modifier.align(Alignment.CenterStart),
-                    )
-                } else {
-                    GlassNavigationBar(
-                        items = navItems,
-                        selectedIndex = tab,
-                        onSelect = onSelectTab,
-                        backdrop = rootBackdrop.takeIf { glassActive },
-                        visible = navVisible,
-                        modifier = Modifier.align(Alignment.BottomCenter),
                     )
                 }
             }
+        }
+    }
+}
+
+/**
+ * 窄屏底部导航胶囊。
+ *
+ * 数值照官方 `example/GlassPage.kt:272-334`：
+ * 24dp 横向内边距、20dp 顶部间距、底部 `max(24dp, safeBottom + 8dp)`；
+ * `defaultWindowInsetsPadding = false` 交给外层 layout 处理 insets。
+ */
+@Composable
+private fun GlacierBottomNavigation(
+    items: List<GlassNavigationItem>,
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit,
+    backdrop: Backdrop?,
+    visible: Boolean,
+) {
+    val density = LocalDensity.current
+    val safeBottom = with(density) {
+        WindowInsets.systemBars
+            .union(WindowInsets.captionBar)
+            .union(WindowInsets.displayCutout)
+            .getBottom(this)
+            .toDp()
+    }
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .windowInsetsPadding(
+                WindowInsets.displayCutout
+                    .only(WindowInsetsSides.Horizontal)
+                    .union(WindowInsets.navigationBars.only(WindowInsetsSides.Horizontal)),
+            )
+            .padding(start = 24.dp, end = 24.dp, top = 20.dp)
+            .layout { measurable, constraints ->
+                val bottom = maxOf(24.dp, safeBottom + 8.dp)
+                    .roundToPx()
+                    .coerceIn(0, constraints.maxHeight)
+                val placeable = measurable.measure(constraints.offset(vertical = -bottom))
+                layout(placeable.width, placeable.height + bottom) {
+                    placeable.placeRelative(0, 0)
+                }
+            },
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            GlassNavigationBar(
+                items = items,
+                selectedIndex = selectedIndex,
+                onSelect = onSelect,
+                backdrop = backdrop,
+                defaultWindowInsetsPadding = false,
+                visible = visible,
+            )
         }
     }
 }

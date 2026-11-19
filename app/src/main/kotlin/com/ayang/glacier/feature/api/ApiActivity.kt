@@ -17,11 +17,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
 import com.ayang.glacier.GlacierApplication
 import com.ayang.glacier.R
@@ -29,7 +29,6 @@ import com.ayang.glacier.app.GlacierApi
 import com.ayang.glacier.domain.AppEntry
 import com.ayang.glacier.domain.DEFAULT_TAG_ID
 import com.ayang.glacier.domain.WorkingMode
-import com.ayang.glacier.feature.common.AppAction
 import com.ayang.glacier.feature.common.AppActionRunner
 import com.ayang.glacier.feature.common.AppActionSheet
 import com.ayang.glacier.platform.PackageTools
@@ -67,45 +66,55 @@ class ApiActivity : ComponentActivity() {
         setContent {
             GlacierTheme(mode = app.preferences.themeMode) {
                 ApiRoot {
+                    // 弹层常驻组合，只用 show 驱动；保留最后一次的内容供退场动画使用。
+                    // （官方契约：浮层不允许用 `if (show)` 包裹，见 miuix-os4-contract.md 第 0 节红线 1。）
+                    var lastEntry by remember { mutableStateOf<AppEntry?>(null) }
+                    var lastError by remember { mutableStateOf<String?>(null) }
+                    var actionChosen by remember { mutableStateOf(false) }
                     val entry = sheetEntry
+                    if (entry != null) lastEntry = entry
+                    if (errorMessage != null) lastError = errorMessage
+
                     AppActionSheet(
-                        entry = entry,
+                        entry = lastEntry,
                         show = entry != null,
                         inHome = true,
-                        onDismiss = {
-                            sheetEntry = null
-                            finish()
-                        },
+                        onDismiss = { sheetEntry = null },
+                        // 退场动画结束后再关窗；动作路径由业务协程自己 finish()，这里不抢跑。
+                        onDismissFinished = { if (!actionChosen) finish() },
                         onAction = { action ->
-                            val target = entry
+                            val target = lastEntry
+                            actionChosen = true
                             sheetEntry = null
                             if (target != null) {
                                 lifecycleScope.launch {
-                                    runCatching {
+                                    val result = runCatching {
                                         AppActionRunner(this@ApiActivity, app.repository)
                                             .run(target, action)
-                                    }.onFailure { showError(it) }
-                                    finish()
+                                    }
+                                    result.onFailure { showError(it) }
+                                    // 成功即关窗；失败保留窗口，让下面的错误 Dialog 真的能被用户看到。
+                                    if (result.isSuccess) finish()
                                 }
                             }
                         },
                     )
 
-                    errorMessage?.let { message ->
-                        GlassDialog(
-                            onDismissRequest = { finish() },
-                            show = true,
-                            backdrop = LocalRootBackdrop.current,
-                            title = stringResource(R.string.app_name),
-                            summary = message,
+                    GlassDialog(
+                        onDismissRequest = { errorMessage = null },
+                        show = errorMessage != null,
+                        backdrop = LocalRootBackdrop.current,
+                        title = stringResource(R.string.app_name),
+                        summary = lastError,
+                        // 官方参数：等退出动画结束再 finish()，否则窗口立即销毁、动画被砍掉。
+                        onDismissFinished = { finish() },
+                    ) {
+                        GlassDialogButton(
+                            onClick = { errorMessage = null },
+                            role = GlassDialogButtonRole.Primary,
+                            modifier = Modifier.fillMaxWidth(),
                         ) {
-                            GlassDialogButton(
-                                onClick = { finish() },
-                                role = GlassDialogButtonRole.Primary,
-                                modifier = Modifier.fillMaxWidth(),
-                            ) {
-                                Text(stringResource(R.string.ok), style = MiuixTheme.textStyles.button)
-                            }
+                            Text(stringResource(R.string.ok), style = MiuixTheme.textStyles.button)
                         }
                     }
                 }

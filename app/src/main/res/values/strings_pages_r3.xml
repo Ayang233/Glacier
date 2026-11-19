@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  R3 整改：Settings / About / Licenses / ApiActivity 页面的新增文案。
+  只允许本文件新增这些页面的用户可见文本，避免多人改同一个 strings.xml。
+  纯标识符/专有名词标记 translatable="false"，只保留在默认资源里。
+-->
+<resources>
+    <!-- Settings -->
+    <string name="settings_font_size_value">%1$d sp</string>
+    <string name="settings_minutes_value">%1$d min</string>
+    <string name="settings_device_owner_command" translatable="false">adb shell dpm set-device-owner com.ayang.glacier/.platform.admin.GlacierDeviceAdminReceiver</string>
+
+    <!-- About -->
+    <string name="about_version_brand">v%1$s (%2$d)</string>
+    <string name="about_license_spdx" translatable="false">GPL-3.0</string>
+
+    <!-- Licenses: 组件名与许可证标识是专有名词/标识符，不翻译 -->
+    <string name="licenses_component_miuix" translatable="false">MIUIX</string>
+    <string name="licenses_component_androidx" translatable="false">AndroidX / Jetpack Compose</string>
+    <string name="licenses_component_shizuku" translatable="false">Shizuku</string>
+    <string name="licenses_component_dhizuku" translatable="false">Dhizuku</string>
+    <string name="licenses_component_appiconloader" translatable="false">AppIconLoader</string>
+    <string name="licenses_component_libxposed" translatable="false">libxposed API</string>
+    <string name="licenses_component_hail" translatable="false">Hail</string>
+    <string name="licenses_license_apache2" translatable="false">Apache-2.0</string>
+    <string name="licenses_license_gpl3" translatable="false">GPL-3.0-or-later</string>
+    <string name="licenses_gpl_heading">GNU General Public License v3</string>
+
+    <!-- Licenses: 组件说明 -->
+    <string name="licenses_note_miuix">OS4 theme, components and official glass surfaces.</string>
+    <string name="licenses_note_androidx">UI runtime and lifecycle.</string>
+    <string name="licenses_note_shizuku">Privileged binder access without root.</string>
+    <string name="licenses_note_dhizuku">Delegated device-owner access.</string>
+    <string name="licenses_note_appiconloader">Adaptive icon rendering.</string>
+    <string name="licenses_note_libxposed">Optional module entry point.</string>
+    <string name="licenses_note_hail">Original project by aistra0528. Glacier\'s freeze backends and data format derive from it.</string>
+</resources>
