@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Glacier</string>
+    <string name="app_description">用 OS4 玻璃界面冻结与解冻应用。</string>
+    <string name="app_subtitle">让不需要的应用安静地冻住。</string>
+
+    <!-- 导航 -->
+    <string name="nav_home">主页</string>
+    <string name="nav_apps">应用</string>
+    <string name="nav_settings">设置</string>
+    <string name="title_about">关于</string>
+    <string name="title_licenses">开源许可证</string>
+    <string name="title_tag_editor">编辑标签</string>
+
+    <!-- 通用 -->
+    <string name="unlock">解锁</string>
+    <string name="ok">确定</string>
+    <string name="cancel">取消</string>
+    <string name="done">完成</string>
+    <string name="delete">删除</string>
+    <string name="rename">重命名</string>
+    <string name="save">保存</string>
+    <string name="search">搜索</string>
+    <string name="search_hint">搜索应用</string>
+    <string name="close">关闭</string>
+    <string name="more">更多</string>
+    <string name="refresh">刷新</string>
+    <string name="sort">排序</string>
+    <string name="filter">筛选</string>
+    <string name="select_all">全选</string>
+    <string name="deselect_all">取消全选</string>
+    <string name="empty_home">这里还没有应用。\n去「应用」页添加。</string>
+    <string name="empty_apps">当前筛选条件下没有应用。</string>
+    <string name="empty_search">没有匹配结果</string>
+    <string name="label_default">默认</string>
+    <string name="frozen">已冻结</string>
+    <string name="unfrozen">未冻结</string>
+    <string name="app_count">%1$d 个应用</string>
+    <string name="selected_count">已选 %1$d 个</string>
+
+    <!-- 操作 -->
+    <string name="action_launch">启动</string>
+    <string name="action_freeze">冻结</string>
+    <string name="action_unfreeze">解冻</string>
+    <string name="action_freeze_all">全部冻结</string>
+    <string name="action_unfreeze_all">全部解冻</string>
+    <string name="action_freeze_non_whitelisted">冻结白名单外应用</string>
+    <string name="action_freeze_auto">自动冻结</string>
+    <string name="action_lock">锁屏</string>
+    <string name="action_lock_freeze">锁屏并冻结</string>
+    <string name="action_app_info">应用信息</string>
+    <string name="action_extract_apk">提取 APK</string>
+    <string name="action_uninstall">卸载</string>
+    <string name="action_reinstall">重新安装</string>
+    <string name="action_add_to_home">添加到主页</string>
+    <string name="action_remove_from_home">从主页移除</string>
+    <string name="action_add_pin_shortcut">添加桌面快捷方式</string>
+    <string name="action_pin">置顶</string>
+    <string name="action_unpin">取消置顶</string>
+    <string name="action_whitelist">加入白名单</string>
+    <string name="action_unwhitelist">移出白名单</string>
+    <string name="action_edit_tags">标签</string>
+    <string name="action_new_tag">新建标签</string>
+    <string name="action_delete_tag">删除标签</string>
+    <string name="action_rename_tag">重命名标签</string>
+    <string name="action_select">多选</string>
+    <string name="action_deferred_freeze">稍后冻结…</string>
+    <string name="action_none">无</string>
+
+    <!-- 排序与筛选 -->
+    <string name="sort_name">名称</string>
+    <string name="sort_install">安装时间</string>
+    <string name="sort_update">更新时间</string>
+    <string name="filter_user_apps">用户应用</string>
+    <string name="filter_system_apps">系统应用</string>
+    <string name="filter_frozen_apps">已冻结</string>
+    <string name="filter_unfrozen_apps">未冻结</string>
+
+    <!-- 设置 -->
+    <string name="settings_general">通用</string>
+    <string name="settings_appearance">外观</string>
+    <string name="settings_search">搜索</string>
+    <string name="settings_automation">自动化</string>
+    <string name="settings_system">系统</string>
+    <string name="settings_about">关于</string>
+    <string name="working_mode">工作模式</string>
+    <string name="working_mode_summary">%1$s · %2$s</string>
+    <string name="working_mode_unavailable">当前设备不支持</string>
+    <string name="biometric_login">启动校验</string>
+    <string name="biometric_login_summary">打开应用时要求生物识别或设备凭据</string>
+    <string name="app_theme">主题</string>
+    <string name="theme_follow_system">跟随系统</string>
+    <string name="theme_light">浅色</string>
+    <string name="theme_dark">深色</string>
+    <string name="glass_effect">玻璃效果</string>
+    <string name="glass_effect_summary">使用 MIUIX OS4 玻璃表面；关闭后为实心回退</string>
+    <string name="icon_pack">图标包</string>
+    <string name="icon_pack_summary">从已安装的图标包读取图标</string>
+    <string name="grayscale_icon">冻结图标去色</string>
+    <string name="grayscale_icon_summary">已冻结应用的图标显示为黑白</string>
+    <string name="compact_icon">紧凑主页网格</string>
+    <string name="compact_icon_summary">每行显示更多图标</string>
+    <string name="synthesize_adaptive_icons">合成自适应图标</string>
+    <string name="synthesize_adaptive_icons_summary">把旧版图标缩入自适应遮罩</string>
+    <string name="home_font_size">主页标签字号</string>
+    <string name="fuzzy_search">模糊搜索</string>
+    <string name="fuzzy_search_summary">容忍错字与缺字</string>
+    <string name="nine_key_search">T9 搜索</string>
+    <string name="nine_key_search_summary">在九宫格上匹配拼音</string>
+    <string name="auto_freeze">自动冻结</string>
+    <string name="auto_freeze_summary">锁屏后冻结主页列表</string>
+    <string name="auto_freeze_delay">延迟</string>
+    <string name="auto_freeze_delay_summary">熄屏后 %1$d 分钟执行</string>
+    <string name="skip_while_charging">充电时跳过</string>
+    <string name="skip_foreground_app">跳过前台应用</string>
+    <string name="skip_notifying_app">跳过有通知的应用</string>
+    <string name="tile_action">快捷设置磁贴动作</string>
+    <string name="dynamic_shortcut_action">桌面快捷方式动作</string>
+    <string name="notification_channel_auto_freeze">自动冻结</string>
+    <string name="notification_auto_freeze_title">自动冻结运行中</string>
+    <string name="notification_auto_freeze_text">等待屏幕关闭</string>
+
+    <!-- 工作模式 -->
+    <string name="mode_default">默认</string>
+    <string name="mode_shizuku_stop">Shizuku · 强制停止</string>
+    <string name="mode_shizuku_disable">Shizuku · 禁用</string>
+    <string name="mode_shizuku_hide">Shizuku · 隐藏</string>
+    <string name="mode_shizuku_suspend">Shizuku · 挂起</string>
+    <string name="mode_su_stop">Root · 强制停止</string>
+    <string name="mode_su_disable">Root · 禁用</string>
+    <string name="mode_su_hide">Root · 隐藏</string>
+    <string name="mode_su_suspend">Root · 挂起</string>
+    <string name="mode_jailbreak_disable">越狱 · 禁用</string>
+    <string name="mode_dhizuku_hide">Dhizuku · 隐藏</string>
+    <string name="mode_dhizuku_suspend">Dhizuku · 挂起</string>
+    <string name="mode_owner_hide">设备所有者 · 隐藏</string>
+    <string name="mode_owner_suspend">设备所有者 · 挂起</string>
+    <string name="mode_island_hide">Island · 冻结</string>
+    <string name="mode_island_suspend">Island · 挂起</string>
+    <string name="mode_privapp_stop">特权应用 · 强制停止</string>
+    <string name="mode_privapp_disable">特权应用 · 禁用</string>
+
+    <!-- 提示 -->
+    <string name="msg_freeze">已冻结 %1$s</string>
+    <string name="msg_unfreeze">已解冻 %1$s</string>
+    <string name="msg_freeze_many">已冻结 %1$s 个应用</string>
+    <string name="msg_unfreeze_many">已解冻 %1$s 个应用</string>
+    <string name="switch_on">已开启</string>
+    <string name="switch_off">已关闭</string>
+    <string name="backend_ready">可用</string>
+    <string name="backend_needs_permission">缺少权限</string>
+    <string name="permission_denied">权限不足</string>
+    <string name="operation_failed">%1$s 失败</string>
+    <string name="app_not_installed">应用未安装</string>
+    <string name="activity_not_found">没有可启动的 Activity</string>
+    <string name="package_not_checked">该应用不在主页列表中</string>
+    <string name="unknown_action">未知动作：\n%1$s</string>
+    <string name="tag_unavailable">标签不可用：\n%1$s</string>
+    <string name="apk_extracted">APK 已保存到 %1$s</string>
+    <string name="cannot_freeze_self">不能冻结 Glacier 自身</string>
+    <string name="working_mode_hint">请选择当前设备支持的后端。每个模式都需要各自的权限。</string>
+    <string name="tag_name_hint">标签名称</string>
+    <string name="delete_tag_message">该标签下的应用会移回默认标签。</string>
+    <string name="uninstall_message">确定卸载 %1$s？</string>
+
+    <!-- 关于 -->
+    <string name="about_version">版本 %1$s (%2$d)</string>
+    <string name="about_description">Glacier 冻结你很少使用的应用，让手机的其他部分保持安静。基于 MIUIX OS4 与官方玻璃表面构建。</string>
+    <string name="about_licenses">开源许可证</string>
+    <string name="about_source">源码参考</string>
+    <string name="about_license_notice">Glacier 以 GPL-3.0-or-later 授权，包含来自 aistra0528 的 Hail 项目的衍生代码，同样为 GPL-3.0-or-later。</string>
+    <string name="about_built_with">MIUIX OS4 · Jetpack Compose</string>
+    <string name="licenses_summary">GPL-3.0-or-later · 随包组件</string>
+    <string name="licenses_body">Glacier 打包或链接了以下开源项目，完整许可证文本按其发行版本收录。</string>
+
+    <!-- 磁贴 -->
+    <string name="tile_label">Glacier</string>
+    <string name="tile_frozen">已冻结</string>
+    <string name="tile_unfrozen">未冻结</string>
+
+    <!-- API -->
+    <string name="api_launch">启动</string>
+    <string name="api_freeze">冻结</string>
+    <string name="api_unfreeze">解冻</string>
+    <string name="api_missing_package">包名不能为空</string>
+    <string name="api_unknown_scheme">未知 scheme：\n%1$s</string>
+</resources>

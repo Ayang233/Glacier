@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Glacier</string>
+    <string name="app_description">Freeze and unfreeze apps with OS4 glass.</string>
+    <string name="app_subtitle">Freeze apps, quietly.</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">Home</string>
+    <string name="nav_apps">Apps</string>
+    <string name="nav_settings">Settings</string>
+    <string name="title_about">About</string>
+    <string name="title_licenses">Open source licenses</string>
+    <string name="title_tag_editor">Edit tags</string>
+
+    <!-- Common -->
+    <string name="unlock">Unlock</string>
+    <string name="ok">OK</string>
+    <string name="cancel">Cancel</string>
+    <string name="done">Done</string>
+    <string name="delete">Delete</string>
+    <string name="rename">Rename</string>
+    <string name="save">Save</string>
+    <string name="search">Search</string>
+    <string name="search_hint">Search apps</string>
+    <string name="close">Close</string>
+    <string name="more">More</string>
+    <string name="refresh">Refresh</string>
+    <string name="sort">Sort</string>
+    <string name="filter">Filter</string>
+    <string name="select_all">Select all</string>
+    <string name="deselect_all">Deselect all</string>
+    <string name="empty_home">No apps here yet.\nAdd apps from the Apps page.</string>
+    <string name="empty_apps">No apps match the current filter.</string>
+    <string name="empty_search">No results</string>
+    <string name="label_default">Default</string>
+    <string name="frozen">Frozen</string>
+    <string name="unfrozen">Unfrozen</string>
+    <string name="app_count">%1$d apps</string>
+    <string name="selected_count">%1$d selected</string>
+
+    <!-- Actions -->
+    <string name="action_launch">Launch</string>
+    <string name="action_freeze">Freeze</string>
+    <string name="action_unfreeze">Unfreeze</string>
+    <string name="action_freeze_all">Freeze all</string>
+    <string name="action_unfreeze_all">Unfreeze all</string>
+    <string name="action_freeze_non_whitelisted">Freeze non-whitelisted</string>
+    <string name="action_freeze_auto">Auto freeze</string>
+    <string name="action_lock">Lock screen</string>
+    <string name="action_lock_freeze">Lock and freeze</string>
+    <string name="action_app_info">App info</string>
+    <string name="action_extract_apk">Extract APK</string>
+    <string name="action_uninstall">Uninstall</string>
+    <string name="action_reinstall">Reinstall</string>
+    <string name="action_add_to_home">Add to home</string>
+    <string name="action_remove_from_home">Remove from home</string>
+    <string name="action_add_pin_shortcut">Add shortcut</string>
+    <string name="action_pin">Pin to top</string>
+    <string name="action_unpin">Unpin</string>
+    <string name="action_whitelist">Whitelist</string>
+    <string name="action_unwhitelist">Remove from whitelist</string>
+    <string name="action_edit_tags">Tags</string>
+    <string name="action_new_tag">New tag</string>
+    <string name="action_delete_tag">Delete tag</string>
+    <string name="action_rename_tag">Rename tag</string>
+    <string name="action_select">Select</string>
+    <string name="action_deferred_freeze">Freeze after…</string>
+    <string name="action_none">None</string>
+
+    <!-- Sort & filter -->
+    <string name="sort_name">Name</string>
+    <string name="sort_install">Install time</string>
+    <string name="sort_update">Update time</string>
+    <string name="filter_user_apps">User apps</string>
+    <string name="filter_system_apps">System apps</string>
+    <string name="filter_frozen_apps">Frozen</string>
+    <string name="filter_unfrozen_apps">Unfrozen</string>
+
+    <!-- Settings -->
+    <string name="settings_general">General</string>
+    <string name="settings_appearance">Appearance</string>
+    <string name="settings_search">Search</string>
+    <string name="settings_automation">Automation</string>
+    <string name="settings_system">System</string>
+    <string name="settings_about">About</string>
+    <string name="working_mode">Working mode</string>
+    <string name="working_mode_summary">%1$s · %2$s</string>
+    <string name="working_mode_unavailable">Not available on this device</string>
+    <string name="biometric_login">Require unlock</string>
+    <string name="biometric_login_summary">Ask for biometrics or device credential on launch</string>
+    <string name="app_theme">Theme</string>
+    <string name="theme_follow_system">Follow system</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="glass_effect">Glass effect</string>
+    <string name="glass_effect_summary">Use MIUIX OS4 glass surfaces. Turn off for a solid fallback.</string>
+    <string name="icon_pack">Icon pack</string>
+    <string name="icon_pack_summary">Load icons from an installed icon pack</string>
+    <string name="grayscale_icon">Grayscale frozen icons</string>
+    <string name="grayscale_icon_summary">Desaturate the icon of a frozen app</string>
+    <string name="compact_icon">Compact home grid</string>
+    <string name="compact_icon_summary">Fit more icons per row</string>
+    <string name="synthesize_adaptive_icons">Synthesize adaptive icons</string>
+    <string name="synthesize_adaptive_icons_summary">Shrink legacy icons into the adaptive mask</string>
+    <string name="home_font_size">Home label size</string>
+    <string name="fuzzy_search">Fuzzy search</string>
+    <string name="fuzzy_search_summary">Tolerate typos and missing letters</string>
+    <string name="nine_key_search">T9 search</string>
+    <string name="nine_key_search_summary">Match pinyin on the phone keypad</string>
+    <string name="auto_freeze">Auto freeze</string>
+    <string name="auto_freeze_summary">Freeze the home list when the screen locks</string>
+    <string name="auto_freeze_delay">Delay</string>
+    <string name="auto_freeze_delay_summary">%1$d minutes after the screen turns off</string>
+    <string name="skip_while_charging">Skip while charging</string>
+    <string name="skip_foreground_app">Skip the foreground app</string>
+    <string name="skip_notifying_app">Skip apps with notifications</string>
+    <string name="tile_action">Quick Settings action</string>
+    <string name="dynamic_shortcut_action">Launcher shortcut action</string>
+    <string name="notification_channel_auto_freeze">Auto freeze</string>
+    <string name="notification_auto_freeze_title">Auto freeze is running</string>
+    <string name="notification_auto_freeze_text">Waiting for the screen to turn off</string>
+
+    <!-- Working modes -->
+    <string name="mode_default">Default</string>
+    <string name="mode_shizuku_stop">Shizuku · force stop</string>
+    <string name="mode_shizuku_disable">Shizuku · disable</string>
+    <string name="mode_shizuku_hide">Shizuku · hide</string>
+    <string name="mode_shizuku_suspend">Shizuku · suspend</string>
+    <string name="mode_su_stop">Root · force stop</string>
+    <string name="mode_su_disable">Root · disable</string>
+    <string name="mode_su_hide">Root · hide</string>
+    <string name="mode_su_suspend">Root · suspend</string>
+    <string name="mode_jailbreak_disable">Jailbreak · disable</string>
+    <string name="mode_dhizuku_hide">Dhizuku · hide</string>
+    <string name="mode_dhizuku_suspend">Dhizuku · suspend</string>
+    <string name="mode_owner_hide">Device owner · hide</string>
+    <string name="mode_owner_suspend">Device owner · suspend</string>
+    <string name="mode_island_hide">Island · freeze</string>
+    <string name="mode_island_suspend">Island · suspend</string>
+    <string name="mode_privapp_stop">Privileged · force stop</string>
+    <string name="mode_privapp_disable">Privileged · disable</string>
+
+    <!-- Messages -->
+    <string name="msg_freeze">%1$s frozen</string>
+    <string name="msg_unfreeze">%1$s unfrozen</string>
+    <string name="msg_freeze_many">%1$s apps frozen</string>
+    <string name="msg_unfreeze_many">%1$s apps unfrozen</string>
+    <string name="switch_on">On</string>
+    <string name="switch_off">Off</string>
+    <string name="backend_ready">ready</string>
+    <string name="backend_needs_permission">needs permission</string>
+    <string name="permission_denied">Permission denied</string>
+    <string name="operation_failed">%1$s failed</string>
+    <string name="app_not_installed">App is not installed</string>
+    <string name="activity_not_found">No launchable activity</string>
+    <string name="package_not_checked">The app is not on the home list</string>
+    <string name="unknown_action">Unknown action:\n%1$s</string>
+    <string name="tag_unavailable">Tag unavailable:\n%1$s</string>
+    <string name="apk_extracted">APK saved to %1$s</string>
+    <string name="cannot_freeze_self">Glacier cannot freeze itself</string>
+    <string name="working_mode_hint">Pick a backend that this device supports. Every mode needs its own permission.</string>
+    <string name="tag_name_hint">Tag name</string>
+    <string name="delete_tag_message">Apps in this tag will move to the default tag.</string>
+    <string name="uninstall_message">Uninstall %1$s?</string>
+
+    <!-- About -->
+    <string name="about_version">Version %1$s (%2$d)</string>
+    <string name="about_description">Glacier freezes apps you rarely need, so the rest of the phone stays quiet. Built on MIUIX OS4 with official glass surfaces.</string>
+    <string name="about_licenses">Open source licenses</string>
+    <string name="about_source">Source references</string>
+    <string name="about_license_notice">Glacier is licensed under GPL-3.0-or-later. It contains code derived from Hail by aistra0528, also GPL-3.0-or-later.</string>
+    <string name="about_built_with">MIUIX OS4 · Jetpack Compose</string>
+    <string name="licenses_summary">GPL-3.0-or-later · bundled components</string>
+    <string name="licenses_body">Glacier bundles or links the following open source projects. Full license texts are reproduced from their distributions.</string>
+
+    <!-- Tile -->
+    <string name="tile_label">Glacier</string>
+    <string name="tile_frozen">Frozen</string>
+    <string name="tile_unfrozen">Unfrozen</string>
+
+    <!-- API -->
+    <string name="api_launch">Launch</string>
+    <string name="api_freeze">Freeze</string>
+    <string name="api_unfreeze">Unfreeze</string>
+    <string name="api_missing_package">Package must not be null</string>
+    <string name="api_unknown_scheme">Unknown scheme:\n%1$s</string>
+</resources>
