@@ -118,8 +118,12 @@
 
 | 产物 | 路径 | 大小 | SHA-256 |
 |---|---|---|---|
-| Debug | `app/build/outputs/apk/debug/Glacier-debug.apk` | 约 49.9 MB | — |
-| Release（最终交付） | `app/build/outputs/apk/release/Glacier-release.apk` | 4,287,928 B | `AB4B9234A34C608A960CA5ACC1C9A612A953E7817B80313193EB235597AC0F22` |
+| Debug | `app/build/outputs/apk/debug/Glacier-debug.apk` | 49,261,891 B | `5a41a4d95da50ea400022e7d032edc0228e86091204d769042adbec2297cb72d` |
+| Release（1.2.0，已发布） | `app/build/outputs/apk/release/Glacier-release.apk` | 4,287,936 B | `66fea1c43d30fa0232b099cf6ce5151049fe4348c279ca75d2c28e5fa7b307b1` |
 
 > 最终 Release APK 与"通过 delta 复核的 APK"仅差两处行为等价改动（`ApiActivity` 弹层 backdrop 的 `takeIf` 与注释），
-> 已重新安装并冒烟通过（`66-final-build-smoke.png`）。本轮**未 push、未创建新 Release**。
+> 已重新安装并冒烟通过（`66-final-build-smoke.png`）。
+>
+> **2026-11-20 已发布 1.2.0**：源码经 Git Data API 推送（远端 main `c8d21be`，tree 与本地一致），
+> Release v1.2.0 附件 `Glacier-release.apk`（4,287,936 B，`sha256:66fea1c4…07b1`）与 `SHA256SUMS.txt`；
+> 发布前完成 1.1.0 → 1.2.0 覆盖升级测试（数据保留）；仓库 Description / topics 同步更新。

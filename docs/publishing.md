@@ -30,11 +30,15 @@ sha256sum app/build/outputs/apk/release/Glacier-release.apk
 
 ## 4. 推送源码
 
-本机 `github.com` 被拦截，用 Git Data API：
+优先直接 `git push`。若本机到 `github.com` 的连接被拦截（`Recv failure: Connection was reset`、
+`Failed to connect to github.com:443`，此时 `api.github.com` 往往仍可用），改用 Git Data API：
 
 ```bash
 python tools/publish.py . Ayang233/Glacier /path/to/gh
 ```
+
+脚本按 tree sha 跳过远端已有的提交，因此本地与远端 SHA 不同也能增量推送；
+首次经 API 推送会重建提交 SHA（内容一致），之后 `git fetch` 再决定是否对齐本地引用。
 
 ## 5. 发 Release
 
@@ -49,10 +53,20 @@ gh release create v1.1.0 \
   --target main
 ```
 
-**本机实测限制（1.1.0 发布时遇到）**：`tools/gh/bin/gh.exe`（2.105.0）执行
-`gh release create` 会在本地校验阶段报 ``no matches found for `v1.1.0` ``，与网络无关；
-`gh api` / `gh release list` 正常。因此本机改用 REST API 直接发布（`api.github.com` 与
-`uploads.github.com` 均放行）：
+**本机记录（1.1.0 发布时）**：`tools/gh/bin/gh.exe`（2.105.0）执行 `gh release create` 曾在本地校验阶段
+报 ``no matches found for `v1.1.0` ``，因此当时改用 REST API 直接发布。**1.2.0 发布时 `gh release create`
+已可直接使用**，指定 `--target <远端提交 SHA>` 即可（tag 由 gh 创建），无需再手写 REST：
+
+```bash
+gh release create v1.2.0 \
+  app/build/outputs/apk/release/Glacier-release.apk \
+  SHA256SUMS.txt \
+  --title "Glacier 1.2.0" \
+  --notes-file docs/release-notes/1.2.0.md \
+  --target <远端 main 的提交 SHA>
+```
+
+下面的 REST 方式保留作为备选（`api.github.com` 与 `uploads.github.com` 均放行）：
 
 ```powershell
 $tok = (gh auth token)
@@ -77,3 +91,20 @@ tag 由 `target_commitish = main` 自动创建，指向远端 main 的最新提�
 - Release 页面附件大小与本地一致；
 - `SHA256SUMS.txt` 与 APK 匹配；
 - 在干净设备上 `adb install` 一次（覆盖安装验证签名链路）。
+
+## 7. 发布记录
+
+| 版本 | 日期 | 远端提交 | Release | 说明 |
+|---|---|---|---|---|
+| 1.0.0 | 2026-11-19 | 8ef81e9 | v1.0.0 | 首个公开版本 |
+| 1.1.0 | 2026-11-19 | 6efc12 | v1.1.0 | MIUIX OS4 结构整改 |
+| 1.2.0 | 2026-11-20 | c8d21be | v1.2.0 | R4 体验整改：长按叠层/标签栏/About 动效/滚动与转场/文案 |
+
+1.2.0 发布细节：
+- 源码经 Git Data API 推送（github.com 直连被拦），远端 main 树与本地 HEAD 树一致（1620cc3c…）；
+- Release 由 gh release create --target c8d21be… 创建，附件 Glacier-release.apk
+  （4,287,936 B，sha256:66fea1c4…07b1）与 SHA256SUMS.txt；
+- 仓库 Description 与 topics 同步更新；
+- 发布前做过覆盖升级测试：线上 1.1.0 → 1.2.0，首页数据保留（见
+  docs/verification/miuix-os4-r4/README.md D8）；
+- 历史 Release（1.0.0 / 1.1.0）正文未回溯改写。

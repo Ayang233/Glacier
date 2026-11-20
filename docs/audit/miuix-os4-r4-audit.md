@@ -277,14 +277,18 @@ R3 遗留（P1-6 部分整改、§17.5 未验证）：操作面板 10 行 `Colum
 玻璃审计发现的 `LocalPageBackdrop`（provider 在录制层子树内，谁读谁自采样崩溃）已删除；
 无消费者的 `LocalRailInset`、`LocalGlassRequested` 一并清理；HomeScreen 未使用的 `LocalRootBackdrop` 引用删除。
 
-### P2-3 README / 发布页（README 已改；GitHub 线上未改，需授权）
+### P2-3 README / 发布页（已发布 1.2.0）
 
 - `README.md`：新增「下载与安装」「使用前」（默认 default 模式不冻结、需选后端并授权），删除内部推送工作流说明，精简空洞宣传。
-- **GitHub 线上未做任何修改**（Description / README / Release 标题与正文 / topics 一个字符未动）。
-  只做了只读核查：账号 `Ayang233` 对仓库有 `{admin:true, push:true}` 权限；1.1.0 Release 正文与 `docs/release-notes/1.1.0.md` 逐字一致；
-  线上 APK digest = 本地 `SHA256SUMS.txt` = `0dd912ad…c1c3`。
-  可直接粘贴的新文案（Description / Release 正文 / README 段落）已写入 `docs/audit/r4-copy-audit.md`，
-  **未经用户明确授权不创建 Release、不 push、不改线上页面**。
+- **2026-11-20 已按本节文案完成发布（1.2.0）**：
+  - 源码推送：`github.com` 直连被拦，走 `tools/publish.py`（Git Data API），远端 `main` = `c8d21be`，
+    远端 tree `1620cc3c…` 与本地 HEAD tree 一致；
+  - Release v1.2.0：`gh release create --target c8d21be…`，附件 `Glacier-release.apk`
+    （4,287,936 B，`sha256:66fea1c4…07b1`）与 `SHA256SUMS.txt`；
+  - Repository Description 与 topics 同步更新（`gpl-3.0` 不被 GitHub 接受，改用 `gpl-3`）；
+  - 发布前完成覆盖升级测试：线上 1.1.0 → 1.2.0，首页数据保留（`docs/verification/miuix-os4-r4/README.md` D8）；
+  - 历史 Release（1.0.0 / 1.1.0）标题与正文未回溯改写；
+  - 发布过程与版本记录见 `docs/publishing.md` §4/§7。
 
 ### 本轮未发现 / 已复核无需改
 
@@ -333,7 +337,7 @@ R3 遗留（P1-6 部分整改、§17.5 未验证）：操作面板 10 行 `Colum
 | 五、Glass 是否真正完整 | L1 **通过**；L2 **本轮在新构建上重做并通过**；L3 **未验证**（无真实 GPU，不得标通过）。详见 `r4-glass-audit.md` |
 | 六、图标与主页排版 | 三处统一 `AppIconView`/`AppLabelTextStyle`；选中环跳变修复；图标包解码与 appfilter 解析健壮性修复。见 P1-9、P1-10 |
 | 七、文案精简 | 51 条中英文案重写 + 3 处代码级接线修复；许可证原文未改；未删用户必需信息。见 `r4-copy-audit.md` |
-| 八、GitHub 发布页去 AI 味 | 只读核查完成，问题清单 + 可直接粘贴文案已给出；**线上未改**（需授权）。见 P2-3 |
+| 八、GitHub 发布页去 AI 味 | 已按审计稿发布：1.2.0 Release + 新 README + Description/topics 更新；历史 Release 正文未回溯改写。见 P2-3 |
 
 ---
 
@@ -373,7 +377,7 @@ R3 遗留（P1-6 部分整改、§17.5 未验证）：操作面板 10 行 `Colum
 | 同名标签 | 不处理 | `GlassSegmentedTabRow`/`GlassTabRow` 内部 `key(label)` 的重复 key 是组件既有约束 |
 | 15 个无引用 string key | 保留（未删） | 需先确认没有并行改动引用；删除是纯清理，不影响功能（清单见 `r4-copy-audit.md` §1.4） |
 | ApiActivity 第二个深链（`onNewIntent`） | 未改（P2） | `singleInstance` 窗口存活期第二个深链会丢；修复需提升状态机，建议真机验证后再做 |
-| GitHub 线上发布页文案 | **未改**（需授权） | 只读核查完成，粘贴版在 `r4-copy-audit.md` |
+| GitHub 线上发布页文案 | **已发布（1.2.0）** | 源码/README 经 API 推送（远端 main `c8d21be`）；Release v1.2.0 已建、附件 SHA-256 已核对；Description/topics 已更新；历史 Release 未回溯改写 |
 | **冷启动首帧 Home 标签行可能未渲染** | 观察项（P3，未修） | 最终 APK 上观察到 2 次（升级后首启、00:05 冷启动），随后 7 次冷启动均 <1.2s 正常显示两个标签；数据未丢失。判定为"首帧 snapshot 就绪时序 + 无加载骨架"，与 R4 四处改动无关；后续可加骨架屏或把标签行改为不吃 snapshot 的空列表 |
 | **About 滚到底品牌占位仍留 ≈200px 空白** | 记录（非缺陷） | 官方 `AboutPage` 的 `logoSpacer` 同款结构（占位高度大于内容高度），滚动到边界时品牌区下方留白属官方行为 |
 | **2.0x 字体时 Settings 内容可滚到 Glass 底栏之下** | 记录（正常叠层） | 悬浮玻璃导航栏 + 内容滚动的正常层级；未见最后一项滚不出的证据 |

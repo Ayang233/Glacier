@@ -207,7 +207,7 @@ grep 全仓库 `app/src`（含 Manifest）后确认以下 key 当前无引用。
 
 ### 2.3 可直接粘贴版文案
 
-> 以下内容均为**建议稿**。线上页面当前一个字符都没有修改；复制粘贴/推送需要用户明确授权。
+> 以下为本次实际采用的发布文案。**2026-11-20 已随 1.2.0 发布**：Description 与 topics 已更新、远端 README 已替换、1.2.0 Release 正文即 `docs/release-notes/1.2.0.md`；历史 Release（1.0.0/1.1.0）正文未回溯改写。
 
 #### 2.3.1 Repository Description（推荐中文，一行）
 
@@ -337,23 +337,25 @@ Release APK 使用独立密钥签名（`keystore/` 与 `signing.properties` 不�
 
 ---
 
-## 三、未做事项（需用户/lead 明确授权）
+## 三、发布执行情况（2026-11-20 已执行）
 
 | 事项 | 状态 | 需要的操作（未执行） |
 | --- | --- | --- |
-| 修改 GitHub Repository Description | **未做** | `gh api -X PATCH repos/Ayang233/Glacier -f description="…"`（用 2.3.1 文案） |
-| 修改 Release `v1.1.0` 正文 | **未做** | 用 2.3.2 内容写文件后 `gh api -X PATCH repos/Ayang233/Glacier/releases/451502814 -F body=@body.md` |
-| 更新远端 README | **未做**（本地已改） | 需授权后走仓库现有 `tools/publish.py` 或 GitHub Contents API；本机 `git push` 不通 |
-| 同步本地发布说明 | **未做** | 若确认改线上正文，应同步改 `docs/release-notes/1.1.0.md`，避免下次发布又把旧文推上去 |
-| 设置 topics / homepage | **未做** | `gh api -X PUT repos/Ayang233/Glacier/topics -f names[]=…` 等 |
-| 删除无引用 string key | **未做** | 需 lead 确认（见 1.4） |
-| 代码级文案（Manifest receiver 描述、复制命令 toast、延时冻结 toast） | **未做** | 见 1.5，需对应 agent/lead 处理 |
-| 构建与截图验证 | **未做** | 按约束本轮不运行 gradle；应用内文案需 lead 统一构建后目检 |
+| 修改 GitHub Repository Description | **已做** | 已用 2.3.1 中文文案更新 |
+| 修改 Release `v1.1.0` 正文 | **未做（有意）** | 历史版本不回溯改写；1.2.0 正文按同一风格新写（`docs/release-notes/1.2.0.md`） |
+| 更新远端 README | **已做** | 随 1.2.0 源码经 `tools/publish.py`（Git Data API）推送，远端 README 已是新版本 |
+| 同步本地发布说明 | **已做** | 新增 `docs/release-notes/1.2.0.md`（与线上正文逐字一致）；1.1.0 本地文件未改 |
+| 设置 topics / homepage | **topics 已做** | topics：android/shizuku/root/app-freezer/miuix/jetpack-compose/gpl-3（`gpl-3.0` 被 GitHub 校验拒绝）；homepage 未设置 |
+| 删除无引用 string key | **未做（有意保留）** | 见 1.4，删除属纯清理，需确认无并行引用 |
+| 代码级文案（Manifest receiver 描述、复制命令 toast、延时冻结 toast） | **已修** | 新增 `device_admin_description`、`settings_device_owner_copied`、`home_deferred_freeze_scheduled` 三个 key 并接线 |
+| 构建与截图验证 | **已做** | Debug/Release 均 BUILD SUCCESSFUL；65 张验收截图 + 升级测试见 `docs/verification/miuix-os4-r4/` |
 
 ---
 
 ## 四、线上状态声明
 
-- **GitHub 线上未做任何修改**：Repository Description、README、Releases（含 `v1.1.0` / `v1.0.0` 标题与正文）、附件、topics 全部保持审计时状态。
-- 本轮对所有 GitHub 内容只执行了 `gh api` 的 GET 读取（repo、releases、release assets、readme、tags、commits）。
-- 应用内改动只落在本地资源文件；未运行构建，未安装，未截图。
+- **2026-11-20 已发布 1.2.0**：仓库 Description 与 topics 已更新，远端 README 已替换，Release v1.2.0 已发布（APK + SHA256SUMS.txt）。
+- **历史版本未回溯**：Release `v1.0.0` / `v1.1.0` 标题、正文与附件保持发布时状态。
+- 发布前审计时的只读事实仍有效：1.1.0 线上 APK digest 与本仓库 `SHA256SUMS.txt` 当时记录一致（`0dd912ad…c1c3`）。
+- 审计阶段对 GitHub 内容只做 GET 读取；**发布阶段（2026-11-20）**执行了 PATCH（Description）、PUT（topics）、源码推送（Git Data API）与 Release 创建（`gh release create`）。
+- 应用内文案改动只落在资源文件；构建、安装、65 张截图与升级测试由 lead/verifier 在发布前完成（见 `docs/verification/miuix-os4-r4/`）。
