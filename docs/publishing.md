@@ -103,6 +103,7 @@ tag 由 `target_commitish = main` 自动创建，指向远端 main 的最新提�
 | 1.0.0 | 2026-11-19 | 8ef81e9 | v1.0.0 | 首个公开版本 |
 | 1.1.0 | 2026-11-19 | 6efc12 | v1.1.0 | MIUIX OS4 结构整改 |
 | 1.2.0 | 2026-11-20 | c8d21be | v1.2.0 | R4 体验整改：长按叠层/标签栏/About 动效/滚动与转场/文案 |
+| 1.3.0 | 2026-11-20 | 763a269 | v1.3.0 | MIUIX 基线升级 v0.9.5-beta02（渐进模糊/GlassTextField/标题避让） |
 
 1.2.0 发布细节：
 - 源码经 Git Data API 推送（github.com 直连被拦），远端 main 树与本地 HEAD 树一致（1620cc3c…）；
@@ -112,3 +113,13 @@ tag 由 `target_commitish = main` 自动创建，指向远端 main 的最新提�
 - 发布前做过覆盖升级测试：线上 1.1.0 → 1.2.0，首页数据保留（见
   docs/verification/miuix-os4-r4/README.md D8）；
 - 历史 Release（1.0.0 / 1.1.0）正文未回溯改写。
+
+1.3.0 发布细节：
+- 源码经 Git Data API 推送（github.com 直连不可用），远端 main = 763a269（API 重写了提交 SHA），
+  远端树与本地 HEAD 树一致（bd92ca71…）；
+- Release 由 `gh release create --target 763a269…` 创建，附件 Glacier-release.apk
+  （4,369,372 B，sha256:bee840fd…75eb）与 SHA256SUMS.txt；
+- 基线见仓库根目录 `MIUIX_BASELINE.md`（MIUIX `66248bac` / `v0.9.5-beta02`）；
+- 发布前做过覆盖升级测试：线上 1.2.0 → 1.3.0，同签名覆盖安装成功、版本号 1.3.0、数据保留；
+- 本轮新增 `.github` 之外的 CI 方案记录在 `MIUIX_BASELINE.md` §9.1（token 缺 `workflow` scope，
+  含 workflow 的树会被 Git Data API 拒绝为 404）。
