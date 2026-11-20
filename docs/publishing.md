@@ -34,10 +34,14 @@ sha256sum app/build/outputs/apk/release/Glacier-release.apk
 `Failed to connect to github.com:443`，此时 `api.github.com` 往往仍可用），改用 Git Data API：
 
 ```bash
-python tools/publish.py . Ayang233/Glacier /path/to/gh
+python tools/push.py . Ayang233/Glacier /path/to/gh
 ```
 
-脚本按 tree sha 跳过远端已有的提交，因此本地与远端 SHA 不同也能增量推送；
+`tools/push.py` 用 Git Data API 的 `base_tree`，**只上传相对远端最新树发生变化的文件**，
+一次 4 文件的文档提交通常 3~5 秒完成。`tools/publish.py` 是早期的全量版（每提交重传整棵树），
+只在需要从空仓库初始化或修复异常状态时使用。
+
+脚本按 tree sha 判断哪些提交已存在于远端，因此本地与远端 SHA 不同也能增量推送；
 首次经 API 推送会重建提交 SHA（内容一致），之后 `git fetch` 再决定是否对齐本地引用。
 
 ## 5. 发 Release
