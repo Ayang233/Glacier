@@ -381,3 +381,22 @@ ffmpeg -i "$env:TEMP\push.mp4" -vf fps=30 "$env:TEMP\frames\f%03d.png"
 - 已用 adb 覆盖安装（install -r，数据保留）→ 冷启动 → 截图 `66-final-build-smoke.png`：
   Home 标题/标签行「默认 / q」/4 图标/FAB/底栏正常，`logcat -b crash` 空，无 ANR。
 - 该张不在上面的场景表内，仅作为"最终构建可用"的冒烟证据。
+
+---
+
+## D8. 覆盖升级测试（发布前，lead 执行 13:38–13:40）
+
+目的：确认线上 1.1.0 → 1.2.0 覆盖安装不丢首页数据（发布前唯一无法用单元测试覆盖的风险项）。
+
+1. 从 Release v1.1.0 下载线上 APK：Glacier-release.apk 4,252,852 B，SHA-256 `0dd912ad…c1c3`（与线上 digest 一致）。
+2. 干净安装 1.1.0（`versionName=1.1.0`，firstInstallTime 13:38:22），通过 UI 添加两个应用到首页 →
+   `files/v1/apps.json` 写入 `com.ayang.giftoolkit` / `me.weishu.kernelsu`（截图 `upgrade-before.png`，Home 显示「默认 · 2 个应用」）。
+3. `adb install -r` 安装 1.2.0（versionCode 3 / versionName 1.2.0）→ 启动：
+   - `dumpsys` 确认 versionName 1.2.0、versionCode 3；
+   - `files/v1/apps.json` 内容与升级前完全一致；
+   - Home 截图 `upgrade-after.png` 仍显示「默认 · 2 个应用」两个图标；
+   - `logcat -b crash` 空，无 ANR。
+4. 结论：**1.1.0 → 1.2.0 覆盖升级正常，数据保留**（同一签名密钥，证书 `CN=Glacier, OU=Release, O=Ayang`）。
+
+> 说明：上一轮验收时模拟器上的 App 数据曾在两次会话之间被清空（13:30 的 firstInstallTime 早于本次安装），
+> 因此上面的"干净安装→造数据→升级"是本次发布前重新做的正式升级测试，不是沿用旧数据。
