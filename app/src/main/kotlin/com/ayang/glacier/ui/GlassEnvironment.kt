@@ -57,6 +57,16 @@ val LocalTopBarTitleAlpha = staticCompositionLocalOf<() -> Float> { { 1f } }
 val LocalSearchTopInset = staticCompositionLocalOf<() -> Dp> { { 0.dp } }
 
 /**
+ * 顶栏居中标题要避开的左界（官方 `LocalTopAppBarCenterObstructionStart`）。
+ *
+ * 二级页在宽屏折叠态下标题不再淡出，而是由官方
+ * `TopAppBar` / `GlassTopAppBar` 的 `centerObstructionStart` 把居中标题整体右移，
+ * 避开顶部胶囊。一级页保持官方的"标题随侧栏 morph 淡出"，因此传
+ * [Dp.Unspecified]（不避让）。
+ */
+val LocalTopBarObstructionStart = staticCompositionLocalOf { Dp.Unspecified }
+
+/**
  * 宽屏断点：与 MIUIX 官方 example 的 `shouldShowSplitPane` 一致。
  * 宽度 ≥ 840dp，或 ≥ 600dp 且横向（高/宽 < 1.2）。
  */

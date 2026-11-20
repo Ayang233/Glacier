@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -35,10 +36,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
-import com.ayang.glacier.platform.Platform
 import com.ayang.glacier.ui.LocalGlassActive
 import com.ayang.glacier.ui.LocalPageStartReserved
 import com.ayang.glacier.ui.LocalShellBottomBarHeight
+import com.ayang.glacier.ui.LocalTopBarObstructionStart
 import com.ayang.glacier.ui.LocalTopBarTitleAlpha
 import com.ayang.glacier.ui.isWideLayout
 import com.ayang.glacier.ui.rememberSurfaceBackdrop
@@ -199,6 +200,17 @@ fun PageFrame(
     val mergedTitleAlpha = remember(topBarTitleAlpha, chromeTitleAlpha) {
         { (topBarTitleAlpha?.invoke() ?: 1f).coerceIn(0f, 1f) * chromeTitleAlpha().coerceIn(0f, 1f) }
     }
+    // 宽屏 pane 的 start 侧已由 Shell 的 railStartInset 让出（含 start 侧 cutout），
+    // 顶栏不能再让一次同一块 cutout（官方 PageUtils.kt:130-132 的 appPageTopBarInsets 同义）。
+    val startReserved = LocalPageStartReserved.current
+    val topBarEdgeInsets = if (startReserved) {
+        Modifier.windowInsetsPadding(
+            WindowInsets.displayCutout.only(WindowInsetsSides.End)
+                .union(WindowInsets.navigationBars.only(WindowInsetsSides.End)),
+        )
+    } else {
+        Modifier
+    }
 
     Box(modifier = modifier.fillMaxSize()) {
         Scaffold(
@@ -216,6 +228,9 @@ fun PageFrame(
                     scrollBehavior = scrollBehavior,
                     expandable = largeTitle,
                     titleAlpha = mergedTitleAlpha,
+                    modifier = topBarEdgeInsets,
+                    defaultWindowInsetsPadding = !startReserved,
+                    obstructionStart = LocalTopBarObstructionStart.current,
                     navigationIcon = navigationIcon,
                     actions = topBarActions,
                     bottomContent = { topBarBottom(backdrop.takeIf { glassActive }) },
@@ -286,6 +301,9 @@ fun PageTopBar(
     subtitle: String = "",
     expandable: Boolean = true,
     titleAlpha: () -> Float = { 1f },
+    modifier: Modifier = Modifier,
+    defaultWindowInsetsPadding: Boolean = true,
+    obstructionStart: Dp = Dp.Unspecified,
     navigationIcon: @Composable () -> Unit = {},
     actions: @Composable RowScope.() -> Unit = {},
     bottomContent: @Composable () -> Unit = {},
@@ -298,12 +316,17 @@ fun PageTopBar(
             backdrop = backdrop,
             scrollBehavior = scrollBehavior,
             expandable = expandable,
-            // AGSL 渐进模糊在模拟器上产出的像素不可信，交给库的 band 渐变路径。
-            progressiveBlur = !Platform.isEmulator,
+            // 官方新增的居中标题避让：宽屏折叠胶囊盖住标题位时把标题右移，而不是让它消失
+            // （`GlassTopAppBar.kt:293` / 官方 `GlassPage.kt:347`）。
+            centerObstructionStart = obstructionStart,
+            modifier = modifier,
+            defaultWindowInsetsPadding = defaultWindowInsetsPadding,
+            // 渐进模糊走库的官方管线（AGSL + 渐进纹理），不再按运行环境关掉。
+            progressiveBlur = true,
             // 官方搜索转场：缩放 + 模糊；整页透明度由 PageFrame 的 Scaffold 负责。
             contentModifier = Modifier.glassSearchBarTransition(
                 expanded = searchExpanded,
-                blurEnabled = !Platform.isEmulator,
+                blurEnabled = true,
                 barAlpha = { 1f },
             ),
             titleAlpha = titleAlpha,
@@ -313,7 +336,7 @@ fun PageTopBar(
         )
     } else {
         // 非玻璃档没有 titleAlpha 形参，用 titleColor / largeTitleColor 的 alpha 表达同一曲线
-        // （官方 TopAppBar 参数：`miuix-ui/.../basic/TopAppBar.kt:108-125`）。
+        // （官方 TopAppBar 参数：`miuix-ui/.../basic/TopAppBar.kt:113-133`）。
         // alpha == 1 时与原默认值逐字节等价，不影响未传 topBarTitleAlpha 的页面。
         // 代价：alpha 是组合期参数，滚动淡出会让顶栏文字每帧重组（Glass 档在绘制期读 lambda，
         // 没有这个问题）；二级页顶栏只有标题/副标题，成本可接受。
@@ -327,6 +350,9 @@ fun PageTopBar(
             titleColor = textColor,
             largeTitleColor = textColor,
             subtitleColor = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = alpha),
+            modifier = modifier,
+            defaultWindowInsetsPadding = defaultWindowInsetsPadding,
+            centerObstructionStart = obstructionStart,
             navigationIcon = navigationIcon,
             actions = actions,
             bottomContent = bottomContent,

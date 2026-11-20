@@ -1,0 +1,19 @@
+diff --git a/build-logic/src/main/kotlin/BuildConfig.kt b/build-logic/src/main/kotlin/BuildConfig.kt
+index ac20933b..254dd70c 100644
+--- a/build-logic/src/main/kotlin/BuildConfig.kt
++++ b/build-logic/src/main/kotlin/BuildConfig.kt
+@@ -18,12 +18,14 @@ object BuildConfig {
+ 
+ fun org.gradle.api.Project.getGitVersionCode(): Int {
+     return providers.exec {
++        workingDir = rootDir
+         commandLine("git", "rev-list", "--count", "HEAD")
+     }.standardOutput.asText.get().trim().toInt()
+ }
+ 
+ fun org.gradle.api.Project.getGitHashShort(): String {
+     return providers.exec {
++        workingDir = rootDir
+         commandLine("git", "rev-parse", "--short", "HEAD")
+     }.standardOutput.asText.get().trim()
+ }

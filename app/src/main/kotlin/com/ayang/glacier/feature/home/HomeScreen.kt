@@ -30,6 +30,8 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -91,6 +93,7 @@ import top.yukonga.miuix.kmp.glass.GlassFloatingActionButton
 import top.yukonga.miuix.kmp.glass.GlassSearchOverlay
 import top.yukonga.miuix.kmp.glass.GlassSearchOverlayDefaults
 import top.yukonga.miuix.kmp.glass.GlassSegmentedTabRow
+import top.yukonga.miuix.kmp.glass.GlassTextField
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.Add
 import top.yukonga.miuix.kmp.icon.glass.Close
@@ -645,19 +648,19 @@ private fun TagRow(
     val index = tags.indexOfFirst { it.id == selectedTag }.coerceAtLeast(0)
     // 分段轨道要求"有界宽度 + 互不相同的标签"（docs/zh_CN/components/glass/glasstabrow.md:72），
     // 标签太多时每格会被压到放不下；超过 4 个退回官方 TabRow（它本身就支持横向滚动）。
-    val useSegmented = LocalGlassActive.current && backdrop != null && names.size in 2..4
+    val segmentedBackdrop = backdrop.takeIf { LocalGlassActive.current }
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = PageMetrics.Horizontal)
             .padding(top = 6.dp, bottom = PageMetrics.Horizontal),
     ) {
-        if (useSegmented && backdrop != null) {
+        if (segmentedBackdrop != null && names.size in 2..4) {
             GlassSegmentedTabRow(
                 tabs = names,
                 selectedIndex = index,
                 onSelect = { onSelect(tags[it].id) },
-                backdrop = backdrop,
+                backdrop = segmentedBackdrop,
                 surfaceAlpha = surfaceAlpha,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -757,11 +760,14 @@ private fun TagNameDialog(
         is TagNameRequest.Rename -> request.tag.name
         else -> ""
     }
-    var text by remember(request) { mutableStateOf(initial) }
-    // 常驻组合后，每次重新打开都要回到该请求的初始文本（关闭时保留文本用于退场）。
-    LaunchedEffect(show) {
-        if (show) text = initial
+    // 官方新版输入框是 TextFieldState 驱动（旧的 value/onValueChange 重载已 @Deprecated）。
+    // 常驻组合下状态不会随关闭销毁，因此每次重新打开都显式写回该请求的初始文本。
+    val textState = rememberTextFieldState(initial)
+    LaunchedEffect(show, request) {
+        if (show) textState.setTextAndPlaceCursorAtEnd(initial)
     }
+    // 读 TextFieldState.text 会订阅快照状态：输入变化时按钮 enabled 与点击值同步更新。
+    val text = textState.text
     val titleRes = when (request) {
         is TagNameRequest.Create -> R.string.action_new_tag
         is TagNameRequest.Rename -> R.string.action_rename_tag
@@ -774,12 +780,21 @@ private fun TagNameDialog(
         backdrop = LocalRootBackdrop.current.takeIf { LocalGlassActive.current },
         title = stringResource(titleRes),
     ) {
-        TextField(
-            value = text,
-            onValueChange = { text = it },
-            modifier = Modifier.fillMaxWidth(),
-            label = stringResource(R.string.tag_name_hint),
-        )
+        // 玻璃档用官方 GlassTextField（官方文档指定用于 GlassDialog / GlassBottomSheet 这类
+        // 半透明的玻璃表面）；非玻璃档用普通 TextField，避免玻璃半透明底色落在实色弹层上。
+        if (LocalGlassActive.current) {
+            GlassTextField(
+                state = textState,
+                modifier = Modifier.fillMaxWidth(),
+                label = stringResource(R.string.tag_name_hint),
+            )
+        } else {
+            TextField(
+                state = textState,
+                modifier = Modifier.fillMaxWidth(),
+                label = stringResource(R.string.tag_name_hint),
+            )
+        }
         Spacer(Modifier.height(16.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             GlassDialogButton(
@@ -789,7 +804,7 @@ private fun TagNameDialog(
                 Text(stringResource(R.string.cancel), style = MiuixTheme.textStyles.button)
             }
             GlassDialogButton(
-                onClick = { if (text.isNotBlank()) onConfirm(request, text.trim()) },
+                onClick = { if (text.isNotBlank()) onConfirm(request, text.toString().trim()) },
                 enabled = text.isNotBlank(),
                 role = GlassDialogButtonRole.Primary,
                 modifier = Modifier.weight(1f),

@@ -51,20 +51,4 @@ object Platform {
             ?.maxByOrNull { it.lastTimeUsed }
             ?.packageName
     }
-
-    /**
-     * 模拟器探测。
-     *
-     * 只用于一个决策：顶栏是否走 `progressiveBlur`（AGSL 路径）。
-     * AVD（无论 `swiftshader_indirect` 还是 host GPU）上 AGSL 的产出一律不可信，
-     * 走库自带的 band 渐变而不是自绘替代视觉。
-     */
-    val isEmulator: Boolean by lazy {
-        Build.HARDWARE.contains("ranchu", true) ||
-            Build.HARDWARE.contains("goldfish", true) ||
-            Build.PRODUCT.startsWith("sdk_") ||
-            Build.FINGERPRINT.contains("generic", true) ||
-            Build.MODEL.contains("sdk_gphone", true) ||
-            Build.MODEL.contains("Emulator", true)
-    }
 }

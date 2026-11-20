@@ -41,6 +41,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.offset
@@ -165,8 +166,15 @@ fun GlacierShell() {
             0.dp
         }
     }
-    // 折叠胶囊会盖住页面标题：标题透明度跟随侧栏 morph（官方 LocalTopAppBarTitleAlpha）。
+    // 折叠胶囊会盖住页面标题：一级页标题透明度跟随侧栏 morph（官方 LocalTopAppBarTitleAlpha）。
     val titleAlpha: () -> Float = { if (wide) railProgress() else 1f }
+    // 二级页不淡出标题，改为由官方 centerObstructionStart 把居中标题右移，避开顶部胶囊
+    // （官方 AppContent.kt:228-234 / GlassPage.kt:347）。胶囊还没量出宽度时为 Unspecified。
+    val obstructionStart: Dp = if (wide && !railState.expanded && railState.collapsedWidth > 0.dp) {
+        railState.collapsedStart
+    } else {
+        Dp.Unspecified
+    }
 
     val surface = MiuixTheme.colorScheme.surface
     val rootBackdrop = rememberLayerBackdrop {
@@ -222,7 +230,6 @@ fun GlacierShell() {
         // 页面内容不要再让一次；窄屏为 false，页面自己让开切角/横屏导航条。
         LocalPageStartReserved provides wide,
         LocalSearchTopInset provides searchTopInset,
-        LocalTopBarTitleAlpha provides titleAlpha,
         LocalShellBottomBarHeight provides if (wide || !navVisible) 0.dp else bottomBarHeight,
     ) {
         Scaffold(
@@ -275,19 +282,25 @@ fun GlacierShell() {
                             // 这里显式关掉避免与分页器争横向拖拽。
                             swipeDismiss = NavSwipeDirection.None,
                         ) {
-                            HorizontalPager(
-                                state = pagerState,
-                                modifier = Modifier.fillMaxSize(),
-                                flingBehavior = pagerFlingBehavior,
-                                verticalAlignment = Alignment.Top,
-                                beyondViewportPageCount = 0,
-                            ) { page ->
-                                when (page) {
-                                    0 -> HomeScreen()
-                                    1 -> AppsScreen()
-                                    else -> SettingsScreen(
-                                        onOpenAbout = { backStack.add(Route.About) },
-                                    )
+                            CompositionLocalProvider(
+                                LocalTopBarTitleAlpha provides titleAlpha,
+                                // 一级页标题随侧栏淡出（官方 primaryTitleAlpha），不参与避让。
+                                LocalTopBarObstructionStart provides Dp.Unspecified,
+                            ) {
+                                HorizontalPager(
+                                    state = pagerState,
+                                    modifier = Modifier.fillMaxSize(),
+                                    flingBehavior = pagerFlingBehavior,
+                                    verticalAlignment = Alignment.Top,
+                                    beyondViewportPageCount = 0,
+                                ) { page ->
+                                    when (page) {
+                                        0 -> HomeScreen()
+                                        1 -> AppsScreen()
+                                        else -> SettingsScreen(
+                                            onOpenAbout = { backStack.add(Route.About) },
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -297,17 +310,29 @@ fun GlacierShell() {
                             // 这里只在没有横向滚动容器的二级页默认开启。
                             swipeDismiss = backSwipe,
                         ) {
-                            AboutScreen(
-                                onBack = { backStack.removeAt(backStack.lastIndex) },
-                                onOpenLicenses = { backStack.add(Route.Licenses) },
-                            )
+                            CompositionLocalProvider(
+                                // 二级页标题恒为 1：宽屏折叠态由官方 centerObstructionStart 让位，
+                                // 不再整条标题消失（官方 AppContent.kt:432-435 对二级页的同一处理）。
+                                LocalTopBarTitleAlpha provides { 1f },
+                                LocalTopBarObstructionStart provides obstructionStart,
+                            ) {
+                                AboutScreen(
+                                    onBack = { backStack.removeAt(backStack.lastIndex) },
+                                    onOpenLicenses = { backStack.add(Route.Licenses) },
+                                )
+                            }
                         }
                         entry<Route.Licenses>(
                             swipeDismiss = backSwipe,
                         ) {
-                            LicensesScreen(
-                                onBack = { backStack.removeAt(backStack.lastIndex) },
-                            )
+                            CompositionLocalProvider(
+                                LocalTopBarTitleAlpha provides { 1f },
+                                LocalTopBarObstructionStart provides obstructionStart,
+                            ) {
+                                LicensesScreen(
+                                    onBack = { backStack.removeAt(backStack.lastIndex) },
+                                )
+                            }
                         }
                     }
                 }

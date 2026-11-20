@@ -32,6 +32,7 @@ Glacier 不申请系统级冻结权限，冻结依赖设备侧的工作模式。
 export JAVA_HOME=/path/to/jdk-21
 ./gradlew :app:assembleDebug
 ./gradlew :app:assembleRelease
+./gradlew :app:testDebugUnitTest      # 纯 JVM 单元测试（搜索键/匹配）
 ```
 
 minSdk 33（`miuix-blur` 的 RuntimeShader 门槛）、targetSdk 36。
@@ -44,8 +45,14 @@ app/build/outputs/apk/release/Glacier-release.apk
 ```
 
 MIUIX 以 composite build 引入（默认 `../miuix`，可用 `MIUIX_DIR` 覆盖）。
-首次构建前请按 `settings.gradle.kts` 的提示准备 MIUIX 源码，基线记录在
-[docs/architecture/miuix-baseline.md](docs/architecture/miuix-baseline.md)。
+首次构建前请按 `settings.gradle.kts` 的提示准备 MIUIX 源码，并按
+[MIUIX_BASELINE.md](MIUIX_BASELINE.md) 的基线切到对应 commit：
+
+```bash
+tools/miuix-baseline.sh pin v0.9.5-beta02   # 切到基线 tag 并打本地补丁
+tools/miuix-baseline.sh verify              # 校验 commit 与补丁
+tools/miuix-baseline.sh status              # 看官方 main 领先了多少
+```
 
 ## 架构
 
@@ -95,8 +102,10 @@ Box
 页面 12dp 留白、官方脚手架/滚动/弹层动画、About 页结构与尺寸、squircle 应用图标）。
 审计与验收记录：
 
-- [审计报告](docs/audit/miuix-os4-audit.md) · [Glass 架构](docs/audit/miuix-os4-glass-audit.md)
-- [修改清单](docs/plan/r3-change-list.md) · [构建与运行验收](docs/verification/miuix-os4-r3/README.md)
+- **基线与升级流程**：[MIUIX_BASELINE.md](MIUIX_BASELINE.md)（当前 `v0.9.5-beta02` / `66248bac`）
+- [R5 审计与基线升级](docs/audit/miuix-os4-r5-audit.md) · [R5 验收](docs/verification/miuix-os4-r5/README.md)
+- [历史审计](docs/audit/miuix-os4-audit.md) · [Glass 架构](docs/audit/miuix-os4-glass-audit.md)
+- [修改清单](docs/plan/r3-change-list.md) · [构建与运行验收 R3](docs/verification/miuix-os4-r3/README.md)
 - [MIUIX 官方契约摘录](docs/reference/miuix-os4-contract.md) · [参考项目与许可证](docs/reference/reference-projects.md)
 
 ## 许可证

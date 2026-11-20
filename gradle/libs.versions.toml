@@ -2,7 +2,7 @@
 agp = "9.5.1"
 kotlin = "2.4.21"
 kotlinxSerialization = "1.13.0"
-composeBom = "2025.12.01"
+composeBom = "2026.11.01"
 activityCompose = "1.13.0"
 lifecycle = "2.10.0"
 coreKtx = "1.17.0"
@@ -14,6 +14,7 @@ hiddenapibypass = "6.1"
 libxposed = "102.0.0"
 appiconloader = "1.5.0"
 coroutines = "1.10.2"
+junit = "4.13.2"
 
 [libraries]
 androidx-compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
@@ -30,6 +31,7 @@ androidx-work-runtime = { module = "androidx.work:work-runtime-ktx", version.ref
 androidx-biometric = { module = "androidx.biometric:biometric-ktx", version.ref = "biometric" }
 kotlinx-serialization-core = { module = "org.jetbrains.kotlinx:kotlinx-serialization-core", version.ref = "kotlinxSerialization" }
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
+junit4 = { module = "junit:junit", version.ref = "junit" }
 
 # MIUIX OS4 —— 版本由 composite build（../miuix 源码）提供
 miuix-ui = { module = "top.yukonga.miuix.kmp:miuix-ui" }
