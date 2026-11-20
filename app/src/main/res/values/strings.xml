@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Glacier</string>
-    <string name="app_description">Freeze and unfreeze apps with OS4 glass.</string>
+    <string name="app_description">Freeze apps you rarely use.</string>
     <string name="app_subtitle">Freeze apps, quietly.</string>
 
     <!-- Navigation -->
@@ -29,8 +29,8 @@
     <string name="filter">Filter</string>
     <string name="select_all">Select all</string>
     <string name="deselect_all">Deselect all</string>
-    <string name="empty_home">No apps here yet.\nAdd apps from the Apps page.</string>
-    <string name="empty_apps">No apps match the current filter.</string>
+    <string name="empty_home">No apps on Home yet.\nAdd them on the Apps page.</string>
+    <string name="empty_apps">No apps match this filter.</string>
     <string name="empty_search">No results</string>
     <string name="label_default">Default</string>
     <string name="frozen">Frozen</string>
@@ -48,6 +48,8 @@
     <string name="action_freeze_auto">Auto freeze</string>
     <string name="action_lock">Lock screen</string>
     <string name="action_lock_freeze">Lock and freeze</string>
+    <!-- Shown in the system device-admin activation dialog; Glacier only uses force-lock. -->
+    <string name="device_admin_description">Lets Glacier lock the screen for \"Lock and freeze\". No other device policy is used.</string>
     <string name="action_app_info">App info</string>
     <string name="action_extract_apk">Extract APK</string>
     <string name="action_uninstall">Uninstall</string>
@@ -87,28 +89,28 @@
     <string name="working_mode_summary">%1$s · %2$s</string>
     <string name="working_mode_unavailable">Not available on this device</string>
     <string name="biometric_login">Require unlock</string>
-    <string name="biometric_login_summary">Ask for biometrics or device credential on launch</string>
+    <string name="biometric_login_summary">Require biometrics or screen lock on launch</string>
     <string name="app_theme">Theme</string>
     <string name="theme_follow_system">Follow system</string>
     <string name="theme_light">Light</string>
     <string name="theme_dark">Dark</string>
     <string name="glass_effect">Glass effect</string>
-    <string name="glass_effect_summary">Use MIUIX OS4 glass surfaces. Turn off for a solid fallback.</string>
+    <string name="glass_effect_summary">Use MIUIX OS4 glass surfaces. Turn off for solid backgrounds.</string>
     <string name="icon_pack">Icon pack</string>
-    <string name="icon_pack_summary">Load icons from an installed icon pack</string>
+    <string name="icon_pack_summary">Use icons from an installed icon pack</string>
     <string name="grayscale_icon">Grayscale frozen icons</string>
-    <string name="grayscale_icon_summary">Desaturate the icon of a frozen app</string>
+    <string name="grayscale_icon_summary">Turn off to keep the original icon colors</string>
     <string name="compact_icon">Compact home grid</string>
     <string name="compact_icon_summary">Fit more icons per row</string>
     <string name="synthesize_adaptive_icons">Synthesize adaptive icons</string>
-    <string name="synthesize_adaptive_icons_summary">Shrink legacy icons into the adaptive mask</string>
+    <string name="synthesize_adaptive_icons_summary">Fit legacy icons into the adaptive mask</string>
     <string name="home_font_size">Home label size</string>
     <string name="fuzzy_search">Fuzzy search</string>
     <string name="fuzzy_search_summary">Tolerate typos and missing letters</string>
     <string name="nine_key_search">T9 search</string>
     <string name="nine_key_search_summary">Match pinyin on the phone keypad</string>
     <string name="auto_freeze">Auto freeze</string>
-    <string name="auto_freeze_summary">Freeze the home list when the screen locks</string>
+    <string name="auto_freeze_summary">Freeze Home apps when the screen locks</string>
     <string name="auto_freeze_delay">Delay</string>
     <string name="auto_freeze_delay_summary">%1$d minutes after the screen turns off</string>
     <string name="skip_while_charging">Skip while charging</string>
@@ -151,27 +153,27 @@
     <string name="backend_needs_permission">needs permission</string>
     <string name="permission_denied">Permission denied</string>
     <string name="operation_failed">%1$s failed</string>
-    <string name="app_not_installed">App is not installed</string>
-    <string name="activity_not_found">No launchable activity</string>
-    <string name="package_not_checked">The app is not on the home list</string>
+    <string name="app_not_installed">This app is not installed</string>
+    <string name="activity_not_found">This app can\'t be launched</string>
+    <string name="package_not_checked">This app is not on Home</string>
     <string name="unknown_action">Unknown action:\n%1$s</string>
     <string name="tag_unavailable">Tag unavailable:\n%1$s</string>
     <string name="apk_extracted">APK saved to %1$s</string>
     <string name="cannot_freeze_self">Glacier cannot freeze itself</string>
-    <string name="working_mode_hint">Pick a backend that this device supports. Every mode needs its own permission.</string>
+    <string name="working_mode_hint">Pick a mode your device supports. Each mode has its own permission.</string>
     <string name="tag_name_hint">Tag name</string>
     <string name="delete_tag_message">Apps in this tag will move to the default tag.</string>
     <string name="uninstall_message">Uninstall %1$s?</string>
 
     <!-- About -->
     <string name="about_version">Version %1$s (%2$d)</string>
-    <string name="about_description">Glacier freezes apps you rarely need, so the rest of the phone stays quiet. Built on MIUIX OS4 with official glass surfaces.</string>
+    <string name="about_description">Freeze apps you rarely use so they stop running in the background.</string>
     <string name="about_licenses">Open source licenses</string>
     <string name="about_source">Source references</string>
     <string name="about_license_notice">Glacier is licensed under GPL-3.0-or-later. It contains code derived from Hail by aistra0528, also GPL-3.0-or-later.</string>
     <string name="about_built_with">MIUIX OS4 · Jetpack Compose</string>
     <string name="licenses_summary">GPL-3.0-or-later · bundled components</string>
-    <string name="licenses_body">Glacier bundles or links the following open source projects. Full license texts are reproduced from their distributions.</string>
+    <string name="licenses_body">Glacier bundles or links the open source projects below. License texts are reproduced from their distributions.</string>
 
     <!-- Tile -->
     <string name="tile_label">Glacier</string>
@@ -182,7 +184,7 @@
     <string name="api_launch">Launch</string>
     <string name="api_freeze">Freeze</string>
     <string name="api_unfreeze">Unfreeze</string>
-    <string name="api_missing_package">Package must not be null</string>
+    <string name="api_missing_package">Package name is required</string>
     <string name="api_unknown_scheme">Unknown scheme:\n%1$s</string>
 
     <!-- App rows -->
@@ -202,11 +204,11 @@
 
     <!-- System access -->
     <string name="settings_notification_access">Notification access</string>
-    <string name="settings_notification_access_summary">Auto freeze needs it to skip apps that are notifying</string>
+    <string name="settings_notification_access_summary">Lets auto freeze skip apps with notifications</string>
     <string name="settings_usage_access">Usage access</string>
-    <string name="settings_usage_access_summary">Used to skip the foreground app</string>
+    <string name="settings_usage_access_summary">Lets auto freeze skip the foreground app</string>
     <string name="settings_device_owner">Device owner command</string>
-    <string name="settings_device_owner_summary">Copy the dpm set-device-owner command</string>
+    <string name="settings_device_owner_summary">Copy the device owner setup command</string>
     <string name="version_value">%1$s (%2$d)</string>
     <string name="licenses_components">Components</string>
 </resources>

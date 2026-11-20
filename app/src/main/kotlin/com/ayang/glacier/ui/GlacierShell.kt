@@ -4,6 +4,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.captionBar
 import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,7 +17,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.pager.rememberPagerState
@@ -30,6 +32,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onSizeChanged
@@ -38,6 +41,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.offset
 import com.ayang.glacier.GlacierApplication
@@ -63,8 +67,13 @@ import top.yukonga.miuix.kmp.icon.glass.GridView
 import top.yukonga.miuix.kmp.icon.glass.HomeOutline
 import top.yukonga.miuix.kmp.icon.glass.SettingsOutline
 import top.yukonga.miuix.kmp.material.isRuntimeShaderSupported
+import top.yukonga.miuix.kmp.nav.core.NavCornerClipMode
 import top.yukonga.miuix.kmp.nav.core.NavDisplay
+import top.yukonga.miuix.kmp.nav.core.NavDisplayEffects
 import top.yukonga.miuix.kmp.nav.core.rememberNavBackStack
+import top.yukonga.miuix.kmp.nav.core.rememberNavSystemCornerRadius
+import top.yukonga.miuix.kmp.nav.transition.NavSwipeDirection
+import top.yukonga.miuix.kmp.nav.transition.NavTransitions
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PagerNavigationSpringSpec
 import top.yukonga.miuix.kmp.utils.springAnimateToPage
@@ -130,13 +139,14 @@ fun GlacierShell() {
 
     val density = LocalDensity.current
     val layoutDirection = LocalLayoutDirection.current
-    val systemStartInset = with(density) {
-        WindowInsets.systemBars
-            .union(WindowInsets.captionBar)
-            .union(WindowInsets.displayCutout)
-            .getLeft(this, layoutDirection)
-            .toDp()
-    }
+    // 侧栏让位取"start"侧系统 inset：用 asPaddingValues().calculateStartPadding 而不是
+    // getLeft()，语义与 Compose 的 layout-direction-aware 坐标一致（RTL 下 = 物理右侧），
+    // 侧栏本身用 Alignment.CenterStart 对齐，两者同向。
+    val systemStartInset = WindowInsets.systemBars
+        .union(WindowInsets.captionBar)
+        .union(WindowInsets.displayCutout)
+        .asPaddingValues()
+        .calculateStartPadding(layoutDirection)
     val railProgress = { railState.progress.coerceIn(0f, 1f) }
     val railInset: () -> androidx.compose.ui.unit.Dp = {
         if (wide) {
@@ -164,6 +174,31 @@ fun GlacierShell() {
         drawContent()
     }
 
+    // 二级页转场特效（官方 AppContent.kt:256-305）：
+    // - 系统屏幕圆角裁剪：窄屏跟随设备 RoundedCorner；宽屏是"分栏里的 pane"，按官方多窗格规则
+    //   圆角清零（miuix/docs/guide/miuix-nav.md:346）并在 NavDisplay 上 clipToBounds 裁 pane。
+    // - cornerClipMode = Leading：slide 风格只裁前缘（NavDisplayEffects.kt:19-31）。
+    // - dimAmount = 0.5f：官方 slide 风格默认上限（AppContent.kt:274-281）。
+    // - backdropColor = surface：官方同样传主题 surface（AppContent.kt:259、:283），
+    //   卡片式缩放把下层缩小时露出的宿主底色与页面读起来是同一张背景。
+    val navCornerRadius = if (wide) 0.dp else rememberNavSystemCornerRadius()
+    val navEffects = remember(navCornerRadius, surface) {
+        NavDisplayEffects(
+            enableCornerClip = true,
+            cornerClipRadius = navCornerRadius,
+            cornerClipMode = NavCornerClipMode.Leading,
+            dimAmount = 0.5f,
+            blockInputDuringTransition = false,
+            backdropColor = surface,
+        )
+    }
+    // 滑动返回方向是**物理方向**，RTL 必须镜像（官方 AppContent.kt:287-292）。
+    val backSwipe = if (layoutDirection == LayoutDirection.Rtl) {
+        NavSwipeDirection.RightToLeft
+    } else {
+        NavSwipeDirection.LeftToRight
+    }
+
     val navItems = listOf(
         GlassNavigationItem(MiuixIcons.Glass.HomeOutline, stringResource(R.string.nav_home)),
         GlassNavigationItem(MiuixIcons.Glass.GridView, stringResource(R.string.nav_apps)),
@@ -181,10 +216,11 @@ fun GlacierShell() {
     var bottomBarHeight by remember { mutableStateOf(0.dp) }
 
     CompositionLocalProvider(
-        LocalGlassRequested provides preferences.glassEnabled,
         LocalGlassActive provides glassActive,
         LocalRootBackdrop provides rootBackdrop.takeIf { glassActive },
-        LocalRailInset provides railInset,
+        // 宽屏 pane 的 start 侧已由 railStartInset 让出（含 start 侧系统 inset），
+        // 页面内容不要再让一次；窄屏为 false，页面自己让开切角/横屏导航条。
+        LocalPageStartReserved provides wide,
         LocalSearchTopInset provides searchTopInset,
         LocalTopBarTitleAlpha provides titleAlpha,
         LocalShellBottomBarHeight provides if (wide || !navVisible) 0.dp else bottomBarHeight,
@@ -221,14 +257,24 @@ fun GlacierShell() {
                         backStack = backStack,
                         // 让位只发生在内容层：录制层（外层 Box）保持满宽，
                         // 否则侧栏位置没有像素可采，玻璃会失去背后内容。
+                        // 宽屏是 pane：官方要求裁掉跑出 pane 的转场层（AppContent.kt:342、
+                        // miuix-nav.md:345 "Clip the pane"），否则滑入页会画到玻璃侧栏下面。
                         modifier = Modifier
                             .fillMaxSize()
-                            .railStartInset(railInset),
+                            .railStartInset(railInset)
+                            .then(if (wide) Modifier.clipToBounds() else Modifier),
+                        transition = NavTransitions.MiuixDefault,
+                        effects = navEffects,
                         onBack = {
                             if (backStack.size > 1) backStack.removeAt(backStack.lastIndex)
                         },
                     ) {
-                        entry<Route.Main> {
+                        entry<Route.Main>(
+                            // 一级页横向手势归 HorizontalPager（切页），不抢返回手势；
+                            // 官方示例的 swipeBack 默认也是关闭的（AppState.kt:40 enableSwipeBack=false），
+                            // 这里显式关掉避免与分页器争横向拖拽。
+                            swipeDismiss = NavSwipeDirection.None,
+                        ) {
                             HorizontalPager(
                                 state = pagerState,
                                 modifier = Modifier.fillMaxSize(),
@@ -245,13 +291,20 @@ fun GlacierShell() {
                                 }
                             }
                         }
-                        entry<Route.About> {
+                        entry<Route.About>(
+                            // 二级页启用官方交互式滑动返回（方向按 RTL 镜像）。
+                            // 官方 example 把它放在设置项后面；Glacier 无此设置项，
+                            // 这里只在没有横向滚动容器的二级页默认开启。
+                            swipeDismiss = backSwipe,
+                        ) {
                             AboutScreen(
                                 onBack = { backStack.removeAt(backStack.lastIndex) },
                                 onOpenLicenses = { backStack.add(Route.Licenses) },
                             )
                         }
-                        entry<Route.Licenses> {
+                        entry<Route.Licenses>(
+                            swipeDismiss = backSwipe,
+                        ) {
                             LicensesScreen(
                                 onBack = { backStack.removeAt(backStack.lastIndex) },
                             )

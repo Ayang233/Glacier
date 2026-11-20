@@ -1,16 +1,21 @@
 package com.ayang.glacier.feature.common
 
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.ayang.glacier.GlacierApplication
 import com.ayang.glacier.R
 import com.ayang.glacier.platform.rememberAppIcon
@@ -32,6 +37,14 @@ const val AppIconCornerRatio = 0.22f
  * 图标来源、去色、自适应合成由设置决定；这里只负责轮廓：
  * 圆角矩形（官方 squircle，shader 不可用时自动退回 RoundedCornerShape），
  * 不再使用圆形裁切，也不改第三方图标本身的颜色。
+ *
+ * 结构是「固定尺寸 Box + 图标铺满 + 叠加描边」：
+ * - 图标永远等于 `size`，选中与否都不参与布局，按住/选中不会让图标缩小或网格跳动；
+ * - 选中环用官方的延迟读取版 [squircleBorder]，半径与图标裁切半径相同（描边外缘与图标轮廓重合），
+ *   宽度 0→2dp 用 [animateDpAsState] 过渡，选中态不会突然出现一圈硬边。
+ *
+ * 旧实现把 `squircleBorder(...) + padding(2.dp)` 放在 `size` 内层，选中时图标内容被挤到 52dp，
+ * 而描边半径同时从 12.32 变 14.32 → 选中/取消选中产生 4dp 跳变且描边与轮廓不平行。
  */
 @Composable
 fun AppIconView(
@@ -51,40 +64,56 @@ fun AppIconView(
         synthesizeAdaptive = preferences.synthesizeAdaptiveIcons,
     )
     val radius = size * AppIconCornerRatio
-    // 选中环画在 2dp 的内缩框里：squircleBorder 是 onDrawBehind，
-    // 若不留出内缩，图标会盖住描边。
-    val frame = if (selected) {
-        Modifier
-            .squircleBorder(
-                width = 2.dp,
-                color = MiuixTheme.colorScheme.primary,
-                cornerRadius = radius + 2.dp,
+    val ringWidth by animateDpAsState(
+        targetValue = if (selected) 2.dp else 0.dp,
+        label = "appIconSelectionRing",
+    )
+    val ringColor = MiuixTheme.colorScheme.primary
+    Box(modifier = modifier.size(size)) {
+        if (bitmap != null) {
+            Icon(
+                bitmap = bitmap,
+                contentDescription = null,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .squircleClip(radius),
+                // 应用图标必须保持原色，不能被 LocalContentColor 染色。
+                tint = Color.Unspecified,
             )
-            .padding(2.dp)
-    } else {
-        Modifier
-    }
-    if (bitmap != null) {
-        Icon(
-            bitmap = bitmap,
-            contentDescription = null,
-            // size 在最外层：选中环的内缩不能把图标撑大（否则选中时网格会跳动）。
-            modifier = modifier
-                .size(size)
-                .then(frame)
-                .squircleClip(radius),
-            // 应用图标必须保持原色，不能被 LocalContentColor 染色。
-            tint = Color.Unspecified,
-        )
-    } else {
+        } else {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .squircleBackground(MiuixTheme.colorScheme.surfaceContainerHigh, radius),
+            )
+        }
+        // 描边叠在图标之上、不占布局：`squircleBorder` 把 2dp 描边内缩半个线宽绘制，
+        // 所以外缘正好落在与 `squircleClip(radius)` 相同的轮廓上。
         Box(
-            modifier = modifier
-                .size(size)
-                .then(frame)
-                .squircleBackground(MiuixTheme.colorScheme.surfaceContainerHigh, radius),
+            Modifier
+                .matchParentSize()
+                .squircleBorder(
+                    width = { ringWidth },
+                    color = { ringColor },
+                    cornerRadius = radius,
+                ),
         )
     }
 }
+
+/**
+ * 应用名称的统一文字层级（§9 一致性：Home 网格 / Apps 列表 / 搜索结果）。
+ *
+ * 列表行由官方 [BasicComponent] 排版（`headline1`=17sp + Medium，见 `Component.kt:89-95`）；
+ * 网格标签沿用同一字重，只把字号降到 `footnote1`（13sp，可被「主页图标字号」设置覆盖），
+ * 于是三处只在尺寸上有层级差异，字重 / 颜色角色 / 单行省略保持一致。
+ */
+@Composable
+fun AppLabelTextStyle(fontSize: Float): TextStyle =
+    MiuixTheme.textStyles.footnote1.copy(
+        fontSize = fontSize.sp,
+        fontWeight = FontWeight.Medium,
+    )
 
 /**
  * 底部操作单里的一行。
@@ -101,6 +130,9 @@ fun SheetActionRow(
     onClick: () -> Unit,
 ) {
     val color = if (destructive) MiuixTheme.colorScheme.error else MiuixTheme.colorScheme.onSurface
+    // 禁用态必须同时弱化图标：`BasicComponent` 只把 title 换成 disabledColor，
+    // startAction 是自己传进去的子树，不跟着变就会留下一个「亮图标 + 灰文字」的行（§7.4）。
+    val iconColor = if (enabled) color else MiuixTheme.colorScheme.disabledOnSecondaryVariant
     BasicComponent(
         title = label,
         titleColor = BasicComponentDefaults.titleColor(
@@ -112,7 +144,7 @@ fun SheetActionRow(
                 imageVector = icon,
                 contentDescription = null,
                 modifier = Modifier.size(24.dp),
-                tint = color,
+                tint = iconColor,
             )
         },
         enabled = enabled,
@@ -125,7 +157,11 @@ fun SheetActionRow(
  *
  * 行高（最小 56dp）、内边距（16dp）、图文间距（8dp）全部用 [BasicComponent] 默认值（规范 2.2 / 第 3 节）；
  * 应用图标 40dp 是规范第 3 节登记的"应用图标"token；冻结徽标按规范放 `endActions`。
- * 点击语义由调用方决定：外层 `Card(onClick, pressFeedbackType = Sink)` 承担点击时传 `null`。
+ * 点击语义：列表行把 `onClick` 交给行内的 `BasicComponent`，外层 `Card` 不注册点击
+ * （官方 `IconPage.kt:221-244`）；这样只有一层 indication，且会被 `Card` 的 squircle 表面裁成圆角。
+ *
+ * [selected] 与 Home 网格同一个选中语言（[AppIconView] 的 squircle 描边），
+ * 供列表页将来接多选时直接复用；默认 false，对现有调用点零影响。
  */
 @Composable
 fun AppRow(
@@ -134,11 +170,19 @@ fun AppRow(
     summary: String?,
     frozen: Boolean,
     onClick: (() -> Unit)? = null,
+    selected: Boolean = false,
 ) {
     BasicComponent(
         title = label,
         summary = summary?.takeIf { it.isNotBlank() },
-        startAction = { AppIconView(packageName = packageName, size = 40.dp, frozen = frozen) },
+        startAction = {
+            AppIconView(
+                packageName = packageName,
+                size = 40.dp,
+                frozen = frozen,
+                selected = selected,
+            )
+        },
         // 冻结徽标放 endActions（空间不够时官方组件会自动让位）；未冻结时不渲染任何尾部内容。
         endActions = {
             if (frozen) {

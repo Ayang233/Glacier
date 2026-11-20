@@ -8,7 +8,6 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,8 +18,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.lifecycleScope
 import com.ayang.glacier.GlacierApplication
@@ -29,6 +28,7 @@ import com.ayang.glacier.app.GlacierApi
 import com.ayang.glacier.domain.AppEntry
 import com.ayang.glacier.domain.DEFAULT_TAG_ID
 import com.ayang.glacier.domain.WorkingMode
+import com.ayang.glacier.feature.common.AppAction
 import com.ayang.glacier.feature.common.AppActionRunner
 import com.ayang.glacier.feature.common.AppActionSheet
 import com.ayang.glacier.platform.PackageTools
@@ -37,6 +37,7 @@ import com.ayang.glacier.ui.LocalGlassActive
 import com.ayang.glacier.ui.LocalRootBackdrop
 import com.ayang.glacier.ui.theme.GlacierTheme
 import kotlinx.coroutines.launch
+import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.blur.layerBackdrop
@@ -58,6 +59,19 @@ class ApiActivity : ComponentActivity() {
     private var errorMessage by mutableStateOf<String?>(null)
     private var sheetEntry by mutableStateOf<AppEntry?>(null)
 
+    /** 操作单对应的应用是否在主页；决定 "Add to Home / Remove from Home" 的文案与语义。 */
+    private var sheetInHome by mutableStateOf(true)
+
+    /**
+     * 深链/动作解析期间的加载态。
+     *
+     * 解析时要先 `repository.refresh()`，在慢设备上会有几百毫秒的空白窗口；
+     * 这里按官方 `InfiniteProgressIndicator`（`miuix-ui/.../basic/ProgressIndicator.kt:303`，
+     * 成熟用法见 InstallerX `LoadingContent.kt:20-35`）给一个居中加载态，
+     * 而不是让用户面对一个"什么都没有"的窗口。
+     */
+    private var loading by mutableStateOf(true)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -78,7 +92,11 @@ class ApiActivity : ComponentActivity() {
                     AppActionSheet(
                         entry = lastEntry,
                         show = entry != null,
-                        inHome = true,
+                        inHome = sheetInHome,
+                        // 独立窗口没有标签编辑 / 延时冻结的 UI 出口（AppActionRunner 对这两项是空实现），
+                        // 按 Apps 侧同样的约定把这些"看起来可点但无效"的行整行隐藏，
+                        // 而不是点完什么都不发生。
+                        unsupportedActions = setOf(AppAction.EditTags, AppAction.DeferredFreeze),
                         onDismiss = { sheetEntry = null },
                         // 退场动画结束后再关窗；动作路径由业务协程自己 finish()，这里不抢跑。
                         onDismissFinished = { if (!actionChosen) finish() },
@@ -103,7 +121,7 @@ class ApiActivity : ComponentActivity() {
                     GlassDialog(
                         onDismissRequest = { errorMessage = null },
                         show = errorMessage != null,
-                        backdrop = LocalRootBackdrop.current,
+                        backdrop = LocalRootBackdrop.current.takeIf { LocalGlassActive.current },
                         title = stringResource(R.string.app_name),
                         summary = lastError,
                         // 官方参数：等退出动画结束再 finish()，否则窗口立即销毁、动画被砍掉。
@@ -117,12 +135,23 @@ class ApiActivity : ComponentActivity() {
                             Text(stringResource(R.string.ok), style = MiuixTheme.textStyles.button)
                         }
                     }
+
+                    // 加载态只在"还没有任何内容可显示"时出现；弹层/错误弹出来之后它自动让位。
+                    if (loading && entry == null && errorMessage == null) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            InfiniteProgressIndicator()
+                        }
+                    }
                 }
             }
         }
 
         lifecycleScope.launch {
             runCatching { execute(intent) }.onFailure { showError(it) }
+            loading = false
         }
     }
 
@@ -134,6 +163,10 @@ class ApiActivity : ComponentActivity() {
         when (val action = intent.action) {
             Intent.ACTION_SHOW_APP_INFO -> {
                 val packageName = requirePackage(intent, showAppInfo = true)
+                // 操作单的 "Add to Home / Remove from Home" 依赖真实的主页归属：
+                // 深链过来的应用大多不在主页，旧实现固定 inHome = true 会把文案写成
+                // "从主页移除"，与实际行为相反。这里按快照里的 home 列表如实传入。
+                sheetInHome = repository.snapshot.home.any { it.packageName == packageName }
                 sheetEntry = repository.entryOf(packageName)
                     ?: AppEntry(
                         packageName = packageName,
@@ -295,16 +328,29 @@ class ApiActivity : ComponentActivity() {
     }
 
     private fun showError(throwable: Throwable) {
-        errorMessage = throwable.message ?: throwable.stackTraceToString()
+        // 弹层 summary 只放一句用户能读懂的话。不要把 stackTraceToString() 塞进 UI：
+        // 一是 GlassDialog 的 summary 不截断，2.0x 字体下整段堆栈会把对话框撑出屏幕；
+        // 二是堆栈属于开发信息，用户看懂的是 message（业务侧 message 已经是本地化字符串）。
+        errorMessage = throwable.message?.takeIf { it.isNotBlank() }
+            ?: throwable::class.java.simpleName
     }
 
     /**
      * 独立窗口的 Glass 根：一个整窗录制层 + 最外层 Scaffold（承载弹层）。
-     * 半透明底色画在录制层外侧，录制层内部始终是不透明 surface + 内容。
+     *
+     * 采样语义（与主窗口的 R 层对齐）：
+     * - 录制层 `backdrop` 先 `drawRect(surface)` 再录内容，录制层永远有完整像素；
+     * - 窗口本身也必须是**不透明**的：旧实现用 `surface.copy(alpha = 0.92f)` 当窗口底色，
+     *   屏幕上透出的那 8% 系统背景并不在录制层里，"可见像素 ≠ 录制像素"，
+     *   玻璃采样源天生与观感不一致（`miuix-glass/Glass.kt:49-50` 只允许采样本窗口子树）。
+     *   官方没有"半透明独立窗口"的窗口级采样范式，因此这里选择让两者相等：
+     *   `Scaffold.containerColor = surface`，正文录制层录到的正是屏幕上同一块 surface + 内容。
+     * - 弹层仍由根 Scaffold 的 popup 宿主绘制，天然在录制层之外，不会自采样。
      */
     @Composable
     private fun ApiRoot(content: @Composable () -> Unit) {
         val app = application as GlacierApplication
+        // 读的是 Compose 状态（GlacierPreferences.glassEnabled），开关切换会正常重组。
         val glassActive = app.preferences.glassEnabled && isRuntimeShaderSupported()
         val surface = MiuixTheme.colorScheme.surface
         val backdrop = rememberLayerBackdrop {
@@ -318,13 +364,12 @@ class ApiActivity : ComponentActivity() {
         ) {
             Scaffold(
                 modifier = Modifier.fillMaxSize(),
-                containerColor = Color.Transparent,
+                containerColor = surface,
                 contentWindowInsets = WindowInsets(0),
             ) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(surface.copy(alpha = if (glassActive) 0.92f else 1f))
                         .then(if (glassActive) Modifier.layerBackdrop(backdrop) else Modifier),
                 ) {
                     content()

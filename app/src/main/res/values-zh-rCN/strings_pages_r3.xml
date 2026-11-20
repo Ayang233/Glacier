@@ -15,11 +15,11 @@
     <string name="licenses_gpl_heading">GNU 通用公共许可证第 3 版</string>
 
     <!-- Licenses: 组件说明 -->
-    <string name="licenses_note_miuix">OS4 主题、组件与官方玻璃表面。</string>
-    <string name="licenses_note_androidx">UI 运行时与生命周期。</string>
-    <string name="licenses_note_shizuku">无需 root 的特权 binder 访问。</string>
-    <string name="licenses_note_dhizuku">设备所有者委托授权。</string>
-    <string name="licenses_note_appiconloader">自适应图标渲染。</string>
+    <string name="licenses_note_miuix">OS4 主题、组件与玻璃表面。</string>
+    <string name="licenses_note_androidx">Compose UI 运行时与生命周期。</string>
+    <string name="licenses_note_shizuku">无需 root 的特权 Binder 访问。</string>
+    <string name="licenses_note_dhizuku">委托的设备所有者授权。</string>
+    <string name="licenses_note_appiconloader">自适应图标的加载与渲染。</string>
     <string name="licenses_note_libxposed">可选的模块入口。</string>
-    <string name="licenses_note_hail">aistra0528 的原始项目，Glacier 的冻结后端与数据格式由其衍生。</string>
+    <string name="licenses_note_hail">Glacier 的冻结后端与数据格式源自该项目。</string>
 </resources>

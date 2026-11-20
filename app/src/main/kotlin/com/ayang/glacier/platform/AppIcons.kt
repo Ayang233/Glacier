@@ -46,7 +46,7 @@ class AppIconSource(
         cache.get(key)?.let { return it }
 
         val fromPack = iconPack?.let { pack ->
-            runCatching { IconPackSource.loadIcon(context, pack, packageName) }.getOrNull()
+            runCatching { IconPackSource.loadIcon(context, pack, packageName, sizePx) }.getOrNull()
         }
         val bitmap = fromPack ?: run {
             val info = PackageTools.applicationInfoOrNull(context, packageName) ?: return null
@@ -141,14 +141,67 @@ class AppIconSource(
 /** 图标包（ADW/Nova 规范的 appfilter.xml）读取。 */
 private object IconPackSource {
 
-    fun loadIcon(context: Context, packName: String, packageName: String): Bitmap? {
+    /**
+     * 从图标包取图。
+     *
+     * 两个必须按目标尺寸处理的原因：
+     * 1. 图标包里的 icon 常见 192–512px 的 PNG，直接 `decodeResource` 会按原尺寸解出位图，
+     *    主页一屏几十个图标时内存会翻几倍（低端机直接 OOM）。这里先读界再按 `inSampleSize`
+     *    降采样，最后缩放到目标像素。
+     * 2. 图标包也可能给 VectorDrawable / AdaptiveIconDrawable（XML），`decodeResource` 对它们返回
+     *    null，因此必须回退到 `getDrawable` + 画到位图。
+     */
+    fun loadIcon(context: Context, packName: String, packageName: String, sizePx: Int): Bitmap? {
         val resources: Resources = context.packageManager.getResourcesForApplication(packName)
         val drawableName = resolveDrawableName(resources, packName, packageName) ?: return null
         val id = resources.getIdentifier(drawableName, "drawable", packName)
         if (id == 0) return null
-        return BitmapFactory.decodeResource(resources, id)
+
+        val bitmap = decodeScaled(resources, id, sizePx)
+        if (bitmap != null) return bitmap
+
+        val drawable = runCatching { resources.getDrawable(id, context.theme) }.getOrNull() ?: return null
+        return runCatching {
+            val output = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(output)
+            // 图标包图标通常是满幅方形，直接铺满目标像素；外轮廓由 UI 层 squircle 裁切。
+            drawable.setBounds(0, 0, sizePx, sizePx)
+            drawable.draw(canvas)
+            output
+        }.getOrNull()
     }
 
+    /** 位图资源：先读界算 inSampleSize，再解码并缩放到 [sizePx]；非位图资源返回 null。 */
+    private fun decodeScaled(resources: Resources, id: Int, sizePx: Int): Bitmap? {
+        if (sizePx <= 0) return null
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeResource(resources, id, bounds)
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+
+        var sample = 1
+        while (bounds.outWidth / (sample * 2) >= sizePx && bounds.outHeight / (sample * 2) >= sizePx) {
+            sample *= 2
+        }
+        val options = BitmapFactory.Options().apply {
+            inSampleSize = sample
+            inScaled = false // 不受图标包自带 density 影响，尺寸完全由我们控制
+            inPreferredConfig = Bitmap.Config.ARGB_8888
+        }
+        val decoded = runCatching { BitmapFactory.decodeResource(resources, id, options) }.getOrNull() ?: return null
+        if (decoded.width == sizePx && decoded.height == sizePx) return decoded
+        return runCatching {
+            Bitmap.createScaledBitmap(decoded, sizePx, sizePx, true).also {
+                if (it !== decoded) decoded.recycle()
+            }
+        }.getOrNull() ?: decoded
+    }
+
+    /**
+     * 解析 `appfilter.xml`。
+     *
+     * 按属性名取值（`component` / `drawable`），不依赖属性顺序；只在 `item` 标签上匹配，
+     * 避免把其它标签里恰好出现的包名当成映射。
+     */
     private fun resolveDrawableName(
         resources: Resources,
         packName: String,
@@ -157,16 +210,19 @@ private object IconPackSource {
         val filterId = resources.getIdentifier("appfilter", "xml", packName)
         if (filterId == 0) return null
         val parser: XmlResourceParser = resources.getXml(filterId)
-        while (parser.eventType != XmlResourceParser.END_DOCUMENT) {
-            if (parser.eventType == XmlResourceParser.START_TAG &&
-                parser.attributeCount >= 2 &&
-                parser.getAttributeValue(0)?.contains(packageName) == true
-            ) {
-                return parser.getAttributeValue(1)
+        return runCatching {
+            while (parser.eventType != XmlResourceParser.END_DOCUMENT) {
+                if (parser.eventType == XmlResourceParser.START_TAG && parser.name == "item") {
+                    val component = parser.getAttributeValue(null, "component")
+                    val drawable = parser.getAttributeValue(null, "drawable")
+                    if (component != null && drawable != null && component.contains(packageName)) {
+                        return@runCatching drawable
+                    }
+                }
+                parser.next()
             }
-            parser.next()
-        }
-        return null
+            null
+        }.getOrNull().also { parser.close() }
     }
 }
 

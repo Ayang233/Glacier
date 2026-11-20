@@ -1,13 +1,29 @@
 # Glacier
 
-独立的 Android 应用冻结工具。用 MIUIX OS4 与官方 Glass 表面构建界面，
-把不常用的应用"冻"起来，让手机的其他部分保持安静。
+独立的 Android 应用冻结工具：把不常用的应用冻起来，减少后台运行。界面基于 MIUIX OS4 与 Glass 构建。
 
-- Application ID / Namespace / Kotlin 包名：`com.ayang.glacier`
-- minSdk 33（`miuix-blur` 的 RuntimeShader 门槛）
-- targetSdk 36
-- UI：Jetpack Compose + MIUIX OS4（无 Material3）
-- 设计体系：MIUIX OS4 官方主题 + 官方 Glass
+- 包名：`com.ayang.glacier`
+- 系统要求：Android 13（API 33）及以上
+- UI：Jetpack Compose + MIUIX OS4（不使用 Material3）
+
+## 下载与安装
+
+- 从 [Releases](https://github.com/Ayang233/Glacier/releases) 下载 `Glacier-release.apk`
+- `adb install Glacier-release.apk`，或直接在设备上打开 APK
+- 与 1.0.0 使用同一签名密钥，可直接覆盖升级
+
+## 使用前
+
+Glacier 不申请系统级冻结权限，冻结依赖设备侧的工作模式。刚装好时是 `default` 模式，
+此时不会真的冻结任何应用。请到「设置 → 通用 → 工作模式」选择本机支持的方式并完成授权：
+
+- Shizuku（强停 / 禁用 / 隐藏 / 挂起）
+- Root（强停 / 禁用 / 隐藏 / 挂起）
+- Dhizuku 或设备所有者（DeviceOwner）
+- Island（冻结 / 挂起）
+- 特权应用
+
+自动冻结还需要通知使用权与使用情况访问权，用来跳过正在通知或处于前台的应用。
 
 ## 构建
 
@@ -18,6 +34,8 @@ export JAVA_HOME=/path/to/jdk-21
 ./gradlew :app:assembleRelease
 ```
 
+minSdk 33（`miuix-blur` 的 RuntimeShader 门槛）、targetSdk 36。
+
 产物：
 
 ```
@@ -26,7 +44,8 @@ app/build/outputs/apk/release/Glacier-release.apk
 ```
 
 MIUIX 以 composite build 引入（默认 `../miuix`，可用 `MIUIX_DIR` 覆盖）。
-当前基线记录在 [docs/architecture/miuix-baseline.md](docs/architecture/miuix-baseline.md)。
+首次构建前请按 `settings.gradle.kts` 的提示准备 MIUIX 源码，基线记录在
+[docs/architecture/miuix-baseline.md](docs/architecture/miuix-baseline.md)。
 
 ## 架构
 
@@ -86,25 +105,10 @@ Glacier 以 **GPL-3.0-or-later** 发布，包含源自 [Hail](https://github.com
 （作者 aistra0528，同样 GPL-3.0-or-later）的衍生代码。完整许可证见 `LICENSE`，
 第三方组件与来源说明见 `NOTICE.md`，应用内也有"开源许可证"页面。
 
-Hail 的商标与品牌不用于 Glacier 的正常界面。
-
 ## 发布
 
 - 仓库：https://github.com/Ayang233/Glacier
-- 版本：https://github.com/Ayang233/Glacier/releases
+- Release：https://github.com/Ayang233/Glacier/releases
 
 Release APK 使用独立密钥签名（`keystore/` 与 `signing.properties` 不入库）。
 在缺少这两个文件的机器上，`assembleRelease` 会退回 debug 签名，仅用于本机构建。
-
-### 本机推送方式的说明
-
-这台机器的网络只放行 `api.github.com`，`github.com` 被代理拦截（`CONNECT tunnel failed, response 502`），
-所以 `git push` 不可用。仓库内容通过 Git Data API 推送：
-
-```bash
-python tools/publish.py . Ayang233/Glacier /path/to/gh
-```
-
-脚本是增量的：按 tree SHA 判断远端已有哪些提交，只推剩下的。需要已登录的 `gh`。
-因此**远端提交的 SHA 与本地不同**（内容一致）。若以后网络恢复，首次同步请用
-`git fetch origin && git reset --hard origin/main`，之后即可正常 `git push`。

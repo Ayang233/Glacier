@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Glacier</string>
-    <string name="app_description">用 OS4 玻璃界面冻结与解冻应用。</string>
+    <string name="app_description">冻结不常用的应用。</string>
     <string name="app_subtitle">让不需要的应用安静地冻住。</string>
 
     <!-- 导航 -->
@@ -29,8 +29,8 @@
     <string name="filter">筛选</string>
     <string name="select_all">全选</string>
     <string name="deselect_all">取消全选</string>
-    <string name="empty_home">这里还没有应用。\n去「应用」页添加。</string>
-    <string name="empty_apps">当前筛选条件下没有应用。</string>
+    <string name="empty_home">主页还没有应用。\n去「应用」页添加。</string>
+    <string name="empty_apps">没有符合当前筛选的应用。</string>
     <string name="empty_search">没有匹配结果</string>
     <string name="label_default">默认</string>
     <string name="frozen">已冻结</string>
@@ -48,6 +48,8 @@
     <string name="action_freeze_auto">自动冻结</string>
     <string name="action_lock">锁屏</string>
     <string name="action_lock_freeze">锁屏并冻结</string>
+    <!-- 设备管理器激活对话框里的说明；Glacier 只用 force-lock 一项策略。 -->
+    <string name="device_admin_description">供「锁屏并冻结」锁屏使用，不涉及其他设备策略。</string>
     <string name="action_app_info">应用信息</string>
     <string name="action_extract_apk">提取 APK</string>
     <string name="action_uninstall">卸载</string>
@@ -86,39 +88,39 @@
     <string name="working_mode">工作模式</string>
     <string name="working_mode_summary">%1$s · %2$s</string>
     <string name="working_mode_unavailable">当前设备不支持</string>
-    <string name="biometric_login">启动校验</string>
-    <string name="biometric_login_summary">打开应用时要求生物识别或设备凭据</string>
+    <string name="biometric_login">启动时验证</string>
+    <string name="biometric_login_summary">打开应用时要求生物识别或锁屏密码</string>
     <string name="app_theme">主题</string>
     <string name="theme_follow_system">跟随系统</string>
     <string name="theme_light">浅色</string>
     <string name="theme_dark">深色</string>
     <string name="glass_effect">玻璃效果</string>
-    <string name="glass_effect_summary">使用 MIUIX OS4 玻璃表面；关闭后为实心回退</string>
+    <string name="glass_effect_summary">使用 MIUIX OS4 玻璃表面；关闭后为纯色背景</string>
     <string name="icon_pack">图标包</string>
-    <string name="icon_pack_summary">从已安装的图标包读取图标</string>
+    <string name="icon_pack_summary">使用已安装图标包中的图标</string>
     <string name="grayscale_icon">冻结图标去色</string>
-    <string name="grayscale_icon_summary">已冻结应用的图标显示为黑白</string>
+    <string name="grayscale_icon_summary">关闭后保留图标原色</string>
     <string name="compact_icon">紧凑主页网格</string>
     <string name="compact_icon_summary">每行显示更多图标</string>
     <string name="synthesize_adaptive_icons">合成自适应图标</string>
-    <string name="synthesize_adaptive_icons_summary">把旧版图标缩入自适应遮罩</string>
+    <string name="synthesize_adaptive_icons_summary">把旧图标套进自适应图标遮罩</string>
     <string name="home_font_size">主页标签字号</string>
     <string name="fuzzy_search">模糊搜索</string>
     <string name="fuzzy_search_summary">容忍错字与缺字</string>
     <string name="nine_key_search">T9 搜索</string>
     <string name="nine_key_search_summary">在九宫格上匹配拼音</string>
     <string name="auto_freeze">自动冻结</string>
-    <string name="auto_freeze_summary">锁屏后冻结主页列表</string>
+    <string name="auto_freeze_summary">锁屏后冻结主页中的应用</string>
     <string name="auto_freeze_delay">延迟</string>
     <string name="auto_freeze_delay_summary">熄屏后 %1$d 分钟执行</string>
     <string name="skip_while_charging">充电时跳过</string>
     <string name="skip_foreground_app">跳过前台应用</string>
     <string name="skip_notifying_app">跳过有通知的应用</string>
-    <string name="tile_action">快捷设置磁贴动作</string>
-    <string name="dynamic_shortcut_action">桌面快捷方式动作</string>
+    <string name="tile_action">快捷设置磁贴操作</string>
+    <string name="dynamic_shortcut_action">桌面快捷方式操作</string>
     <string name="notification_channel_auto_freeze">自动冻结</string>
     <string name="notification_auto_freeze_title">自动冻结运行中</string>
-    <string name="notification_auto_freeze_text">等待屏幕关闭</string>
+    <string name="notification_auto_freeze_text">等待熄屏</string>
 
     <!-- 工作模式 -->
     <string name="mode_default">默认</string>
@@ -151,27 +153,27 @@
     <string name="backend_needs_permission">缺少权限</string>
     <string name="permission_denied">权限不足</string>
     <string name="operation_failed">%1$s 失败</string>
-    <string name="app_not_installed">应用未安装</string>
-    <string name="activity_not_found">没有可启动的 Activity</string>
-    <string name="package_not_checked">该应用不在主页列表中</string>
+    <string name="app_not_installed">该应用未安装</string>
+    <string name="activity_not_found">该应用无法启动</string>
+    <string name="package_not_checked">该应用不在主页</string>
     <string name="unknown_action">未知动作：\n%1$s</string>
     <string name="tag_unavailable">标签不可用：\n%1$s</string>
     <string name="apk_extracted">APK 已保存到 %1$s</string>
     <string name="cannot_freeze_self">不能冻结 Glacier 自身</string>
-    <string name="working_mode_hint">请选择当前设备支持的后端。每个模式都需要各自的权限。</string>
+    <string name="working_mode_hint">请选择设备支持的模式，每种模式需要单独授权。</string>
     <string name="tag_name_hint">标签名称</string>
     <string name="delete_tag_message">该标签下的应用会移回默认标签。</string>
     <string name="uninstall_message">确定卸载 %1$s？</string>
 
     <!-- 关于 -->
     <string name="about_version">版本 %1$s (%2$d)</string>
-    <string name="about_description">Glacier 冻结你很少使用的应用，让手机的其他部分保持安静。基于 MIUIX OS4 与官方玻璃表面构建。</string>
+    <string name="about_description">冻结很少使用的应用，减少后台运行。</string>
     <string name="about_licenses">开源许可证</string>
     <string name="about_source">源码参考</string>
     <string name="about_license_notice">Glacier 以 GPL-3.0-or-later 授权，包含来自 aistra0528 的 Hail 项目的衍生代码，同样为 GPL-3.0-or-later。</string>
     <string name="about_built_with">MIUIX OS4 · Jetpack Compose</string>
-    <string name="licenses_summary">GPL-3.0-or-later · 随包组件</string>
-    <string name="licenses_body">Glacier 打包或链接了以下开源项目，完整许可证文本按其发行版本收录。</string>
+    <string name="licenses_summary">GPL-3.0-or-later · 内置组件</string>
+    <string name="licenses_body">Glacier 使用了以下开源项目，许可证文本取自各项目的发布版本。</string>
 
     <!-- 磁贴 -->
     <string name="tile_label">Glacier</string>
@@ -182,7 +184,7 @@
     <string name="api_launch">启动</string>
     <string name="api_freeze">冻结</string>
     <string name="api_unfreeze">解冻</string>
-    <string name="api_missing_package">包名不能为空</string>
+    <string name="api_missing_package">缺少包名</string>
     <string name="api_unknown_scheme">未知 scheme：\n%1$s</string>
 
     <!-- 应用行 -->
@@ -202,11 +204,11 @@
 
     <!-- 系统权限 -->
     <string name="settings_notification_access">通知使用权</string>
-    <string name="settings_notification_access_summary">自动冻结需要它来跳过正在通知的应用</string>
+    <string name="settings_notification_access_summary">让自动冻结跳过有通知的应用</string>
     <string name="settings_usage_access">使用情况访问权</string>
-    <string name="settings_usage_access_summary">用于跳过前台应用</string>
+    <string name="settings_usage_access_summary">让自动冻结跳过前台应用</string>
     <string name="settings_device_owner">设备所有者命令</string>
-    <string name="settings_device_owner_summary">复制 dpm set-device-owner 命令</string>
+    <string name="settings_device_owner_summary">复制设备所有者设置命令</string>
     <string name="version_value">%1$s（%2$d）</string>
     <string name="licenses_components">组件</string>
 </resources>

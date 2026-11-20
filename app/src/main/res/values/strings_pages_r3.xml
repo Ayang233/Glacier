@@ -27,11 +27,11 @@
     <string name="licenses_gpl_heading">GNU General Public License v3</string>
 
     <!-- Licenses: 组件说明 -->
-    <string name="licenses_note_miuix">OS4 theme, components and official glass surfaces.</string>
-    <string name="licenses_note_androidx">UI runtime and lifecycle.</string>
+    <string name="licenses_note_miuix">OS4 theme, components and glass surfaces.</string>
+    <string name="licenses_note_androidx">Compose UI runtime and lifecycle.</string>
     <string name="licenses_note_shizuku">Privileged binder access without root.</string>
     <string name="licenses_note_dhizuku">Delegated device-owner access.</string>
-    <string name="licenses_note_appiconloader">Adaptive icon rendering.</string>
+    <string name="licenses_note_appiconloader">Adaptive icon loading and rendering.</string>
     <string name="licenses_note_libxposed">Optional module entry point.</string>
     <string name="licenses_note_hail">Original project by aistra0528. Glacier\'s freeze backends and data format derive from it.</string>
 </resources>

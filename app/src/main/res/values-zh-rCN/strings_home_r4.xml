@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  R4 整改：Home 页新增文案（简体中文）。
+  只允许本文件新增 Home 的用户可见文本，避免多人改同一个 strings.xml。
+-->
+<resources>
+    <!-- 延时冻结调度成功提示（原来误用菜单项标题 action_deferred_freeze） -->
+    <string name="home_deferred_freeze_scheduled">已安排 %1$d 分钟后冻结</string>
+</resources>

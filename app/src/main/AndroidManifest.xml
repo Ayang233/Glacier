@@ -62,7 +62,7 @@
             android:excludeFromRecents="true"
             android:exported="true"
             android:launchMode="singleInstance"
-            android:theme="@style/Theme.Glacier.Translucent">
+            android:theme="@style/Theme.Glacier.Api">
             <intent-filter>
                 <action android:name="android.intent.action.SHOW_APP_INFO" />
                 <action android:name="${applicationId}.action.LAUNCH" />
@@ -94,7 +94,7 @@
 
         <receiver
             android:name=".platform.admin.GlacierDeviceAdminReceiver"
-            android:description="@string/action_lock"
+            android:description="@string/device_admin_description"
             android:exported="false"
             android:permission="android.permission.BIND_DEVICE_ADMIN">
             <meta-data

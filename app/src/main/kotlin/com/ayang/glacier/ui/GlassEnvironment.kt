@@ -9,9 +9,6 @@ import androidx.compose.ui.unit.dp
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 
-/** 用户是否想要玻璃（设置项）。 */
-val LocalGlassRequested = staticCompositionLocalOf { true }
-
 /**
  * 玻璃是否**真的**生效：用户开关 && 设备能力。
  *
@@ -27,15 +24,14 @@ val LocalGlassActive = staticCompositionLocalOf { false }
 val LocalRootBackdrop = staticCompositionLocalOf<LayerBackdrop?> { null }
 
 /**
- * 页面正文录制层。
+ * 页面所在的 pane 是否已经由宿主让出了 **start 侧**安全区。
  *
- * **页面内的玻璃组件只能用它**：页面内容本身就在根录制层里，
- * 如果页面内的消费者去采根录制层，消费者就在自己采样源的子树里 —— 自采样会直接闪退。
+ * 宽屏时 Shell 的 `railStartInset` 已经把「侧栏宽度 + start 侧系统 inset」从 pane 左缘扣除，
+ * 页面内再让一次同一块 cutout 就是双算（官方用 `startAlreadyReserved` 精确表达同一语义：
+ * `example/utils/PageUtils.kt:99-103`：`startAlreadyReserved` 为 true 时 `safeInsets` 只保留
+ * End + Vertical）。窄屏（底栏档）为 false，页面照常自己让开切角/横屏导航条。
  */
-val LocalPageBackdrop = staticCompositionLocalOf<LayerBackdrop?> { null }
-
-/** 侧栏展开时内容需要让出的起始内边距。函数形式，避免组合期解包逐帧动画值。 */
-val LocalRailInset = staticCompositionLocalOf<() -> Dp> { { 0.dp } }
+val LocalPageStartReserved = staticCompositionLocalOf { false }
 
 /**
  * 底栏实测总高度（含 20dp 顶部间距 + 胶囊 + 底部安全区）。

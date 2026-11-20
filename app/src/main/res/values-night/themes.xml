@@ -8,9 +8,10 @@
         <item name="android:windowLightNavigationBar">false</item>
     </style>
 
-    <style name="Theme.Glacier.Translucent" parent="Theme.Glacier">
-        <item name="android:windowIsTranslucent">true</item>
-        <item name="android:windowBackground">@android:color/transparent</item>
+    <!-- 外部 API 窗口；不透明是为了"可见像素 = 录制像素"（见 values/themes.xml 同名样式注释）。 -->
+    <style name="Theme.Glacier.Api" parent="Theme.Glacier">
+        <item name="android:windowIsTranslucent">false</item>
+        <item name="android:windowBackground">@color/glacier_window_background</item>
         <item name="android:windowNoTitle">true</item>
         <item name="android:backgroundDimEnabled">false</item>
     </style>

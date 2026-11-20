@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  R4 整改：Settings 页新增文案。
+  只允许本文件新增 Settings 页用户可见文本；与 values-zh-rCN/strings_settings_r4.xml 成对维护。
+  纯标识符/专有名词标记 translatable="false"，只保留在默认资源里。
+-->
+<resources>
+    <!-- 设备所有者命令复制成功后的反馈（原实现误用 R.string.ok） -->
+    <string name="settings_device_owner_copied">Setup command copied</string>
+
+    <!-- 权限未授予时，依赖该权限的开关禁用并在 summary 说明原因（InstallerX 同款做法） -->
+    <string name="settings_skip_foreground_needs_access">Needs usage access</string>
+    <string name="settings_skip_notifying_needs_access">Needs notification access</string>
+</resources>

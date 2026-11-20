@@ -2,17 +2,16 @@ package com.ayang.glacier.feature.apps
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -26,16 +25,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import com.ayang.glacier.GlacierApplication
 import com.ayang.glacier.R
-import com.ayang.glacier.domain.AppEntry
 import com.ayang.glacier.domain.AppFilter
 import com.ayang.glacier.domain.AppSort
 import com.ayang.glacier.feature.common.AppAction
 import com.ayang.glacier.feature.common.AppActionRunner
 import com.ayang.glacier.feature.common.AppActionSheet
-import com.ayang.glacier.feature.common.AppRow
+import com.ayang.glacier.feature.common.AppListCardRow
 import com.ayang.glacier.feature.common.AppSearchResults
 import com.ayang.glacier.feature.common.SearchResultVerticalPadding
 import com.ayang.glacier.ui.LocalGlassActive
@@ -47,22 +44,31 @@ import com.ayang.glacier.ui.components.PageMetrics
 import com.ayang.glacier.ui.components.TopBarAction
 import com.ayang.glacier.ui.components.pageContentPadding
 import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
+import top.yukonga.miuix.kmp.basic.rememberScrollBarAdapter
 import top.yukonga.miuix.kmp.glass.GlassBottomSheet
 import top.yukonga.miuix.kmp.glass.GlassSearchOverlay
 import top.yukonga.miuix.kmp.glass.GlassSearchOverlayDefaults
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.Close
 import top.yukonga.miuix.kmp.icon.glass.Filter
-import top.yukonga.miuix.kmp.icon.glass.Ok
 import top.yukonga.miuix.kmp.icon.glass.Search
 import top.yukonga.miuix.kmp.icon.glass.Sort
+import top.yukonga.miuix.kmp.interfaces.ExperimentalScrollBarApi
+import top.yukonga.miuix.kmp.preference.RadioButtonPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.PressFeedbackType
+import top.yukonga.miuix.kmp.utils.overScrollVertical
+import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+
+/**
+ * Apps 页上「点击了但没有实现」的动作：不渲染，避免看起来可点却无效（任务书 §7.4）。
+ *
+ * 标签编辑与定时冻结目前只有主页有完整入口（`HomeScreen.kt` 的 TagNameDialog / DeferredSheet）；
+ * Apps 页没有这两个弹层，若仍渲染，`AppActionRunner` 的默认回调是空实现，用户点了不会有任何反应。
+ * 需要补齐时先在这两个入口实现，再把对应 [AppAction] 从集合里移除即可。
+ */
+private val AppsUnsupportedActions = setOf(AppAction.EditTags, AppAction.DeferredFreeze)
 
 /**
  * 应用页：全部应用 + 排序 + 筛选。
@@ -73,7 +79,13 @@ import top.yukonga.miuix.kmp.utils.PressFeedbackType
  * 官方 [GlassSearchOverlay] 的 `active = expanded || transition.isRunning`（`GlassSearchOverlay.kt:229-240`）
  * 与 [GlassBottomSheet] 的退出动画（`MiuixPopupUtils.kt:93-145`）都要求组件在退场期间仍在组合树里；
  * 用 `if (open)` 包裹会砍掉退出动画、搜索结果 query 清理与返回键处理（规范 0.1 红线）。
+ *
+ * 滚动修饰（overscroll / 滚动结束触觉）由 [PageFrame] 统一提供，本页不再重复挂
+ * （官方 `utils/PageUtils.kt:168-183`；重复挂载会与 PageFrame 的 nestedScroll 双份，见
+ * `PullToRefreshPage.kt:156` 的官方警告）。滚动条是官方示例的"每页显式添加"能力
+ * （`MainPage.kt:341-345`），这里把主列表的 [LazyListState] 交给 PageFrame 的 `scrollBarAdapter`。
  */
+@OptIn(ExperimentalScrollBarApi::class)
 @Composable
 fun AppsScreen() {
     val context = LocalContext.current
@@ -99,14 +111,23 @@ fun AppsScreen() {
     val glassActive = LocalGlassActive.current
     // 搜索结果列表的滚动量要回传给搜索条：滚动后搜索条才转玻璃（官方 `IconPage.kt:499-544`）。
     val searchListState = rememberLazyListState()
+    // 主列表状态：滚动条（PageFrame.scrollBarAdapter）与列表滚动共用同一个 state。
+    val listState = rememberLazyListState()
 
     val entries = remember(repository.snapshot, revision) { repository.apps() }
+    // 「不在主页」徽标需要的集合：与搜索结果行共用同一份摘要文案（`appRowSummary`）。
+    val homePackages = remember(repository.snapshot) {
+        repository.snapshot.home.mapTo(HashSet()) { it.packageName }
+    }
 
     PageFrame(
         title = stringResource(R.string.nav_apps),
         subtitle = stringResource(R.string.app_count, entries.size),
         scrollBehavior = scrollBehavior,
         searchExpanded = searchOpen,
+        // 官方滚动条是每页显式添加的能力（`example/MainPage.kt:341-345`）；轨道内边距由 PageFrame
+        // 按 Scaffold 实测值计算，页面只提供主列表的 state。空列表不挂（此时正文是空态，没有滚动容器）。
+        scrollBarAdapter = rememberScrollBarAdapter(listState).takeIf { entries.isNotEmpty() },
         topBarActions = {
             TopBarAction(MiuixIcons.Glass.Search, stringResource(R.string.search)) { searchOpen = true }
             TopBarAction(MiuixIcons.Glass.Sort, stringResource(R.string.sort)) { sortOpen = true }
@@ -167,6 +188,8 @@ fun AppsScreen() {
                 entry = actionTarget?.let { pkg -> repository.snapshot.all.firstOrNull { it.packageName == pkg } },
                 show = actionTarget != null,
                 inHome = repository.snapshot.home.any { it.packageName == actionTarget },
+                // Apps 页没有标签编辑 / 定时冻结入口：隐藏这两行，不留「看起来可点但无效」的控件。
+                unsupportedActions = AppsUnsupportedActions,
                 onDismiss = { actionTarget = null },
                 onAction = { action ->
                     val entry = actionTarget?.let { pkg -> repository.snapshot.all.firstOrNull { it.packageName == pkg } }
@@ -192,6 +215,7 @@ fun AppsScreen() {
             }
         } else {
             LazyColumn(
+                state = listState,
                 modifier = Modifier.fillMaxSize(),
                 // 页面左右 12dp = 官方卡片外边距（`MainPage.kt:312`），由 `pageContentPadding` 默认值给出。
                 contentPadding = pageContentPadding(padding),
@@ -199,10 +223,12 @@ fun AppsScreen() {
                 verticalArrangement = Arrangement.spacedBy(PageMetrics.SectionGap),
             ) {
                 items(entries, key = { it.packageName }) { entry ->
-                    AppCard(
+                    // 与搜索结果行同一实现：官方 Card + BasicComponent 行（`IconPage.kt:221-244`）。
+                    AppListCardRow(
                         entry = entry,
-                        inHome = repository.snapshot.home.any { it.packageName == entry.packageName },
+                        inHome = entry.packageName in homePackages,
                         onClick = { actionTarget = entry.packageName },
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
             }
@@ -210,39 +236,20 @@ fun AppsScreen() {
     }
 }
 
-@Composable
-private fun AppCard(
-    entry: AppEntry,
-    inHome: Boolean,
-    onClick: () -> Unit,
-) {
-    // 点击与按压反馈交给官方 Card（Sink 反馈），行本身只负责排版，避免两层 clickable。
-    // `insideMargin` / `colors` 不传：默认值就是 0dp / `CardDefaults.defaultColors()`（`Card.kt:192-204`）。
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        pressFeedbackType = PressFeedbackType.Sink,
-        onClick = onClick,
-    ) {
-        AppRow(
-            packageName = entry.packageName,
-            label = entry.label,
-            summary = buildString {
-                append(entry.packageName)
-                if (entry.pinned) append(" · ").append(stringResource(R.string.badge_pinned))
-                if (entry.whitelisted) append(" · ").append(stringResource(R.string.badge_whitelisted))
-                if (!inHome) append(" · ").append(stringResource(R.string.badge_not_on_home))
-            },
-            frozen = entry.frozen,
-            // 外层 Card 承担点击，行不再注册 clickable（`AppRow` 语义：onClick = null）。
-        )
-    }
-}
-
 /**
  * 排序弹层。
  *
- * 所有行统一 [BasicComponent]（同文字基线、同行高），选中态只把 `Ok` 图标放进 `endActions`，
- * 不再混用"带图标行 / 不带图标行"两种结构（审计 5.2 排序弹层、规范 2.2）。
+ * 排序是单选项，用官方 [RadioButtonPreference]（`miuix-preference/.../RadioButtonPreference.kt:50-143`）：
+ * - 选中态由官方 RadioButton + 主色标题表达，并带选中/取消触觉（同文件 `:127-138`）；
+ * - `role = Role.RadioButton`，无障碍语义正确（R3 的 `Ok` 图标版没有选中语义）；
+ * - 行全部同构（都是 RadioButtonPreference），不再混用带图标 / 不带图标两种结构（规范 2.2）。
+ *
+ * 行分组用 [Card]（官方 BottomSheet 写法 `BottomSheetSection.kt:219-237`）：Card 的
+ * `squircleSurface` 负责把行的矩形 MiuixIndication 裁成圆角，不会出现方形按压层。
+ *
+ * 内容用 [LazyColumn] 同官方 BottomSheet 示例（`BottomSheetSection.kt:209-213`），
+ * 大字体 / 横屏下超过弹层可用高度时可滚动（弹层本身 `heightIn(max = windowHeight - topInset)`，
+ * `BottomSheetContentLayout.kt:653-700`，`Column` 会被直接裁掉）。
  */
 @Composable
 private fun SortSheet(
@@ -251,38 +258,38 @@ private fun SortSheet(
     onDismiss: () -> Unit,
     onPick: (AppSort) -> Unit,
 ) {
+    val navigationBarBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     GlassBottomSheet(
         onDismissRequest = onDismiss,
         show = show,
         backdrop = LocalRootBackdrop.current.takeIf { LocalGlassActive.current },
         title = stringResource(R.string.sort),
     ) {
-        Column(Modifier.fillMaxWidth()) {
-            AppSort.entries.forEach { sort ->
-                val label = stringResource(
-                    when (sort) {
-                        AppSort.Name -> R.string.sort_name
-                        AppSort.Install -> R.string.sort_install
-                        AppSort.Update -> R.string.sort_update
-                    },
-                )
-                BasicComponent(
-                    title = label,
-                    // 选中态只放尾部 Ok 图标：所有行同一结构、同一文字基线（规范 2.2）。
-                    endActions = {
-                        if (sort == current) {
-                            Icon(
-                                imageVector = MiuixIcons.Glass.Ok,
-                                contentDescription = null,
-                                modifier = Modifier.size(24.dp),
-                                tint = MiuixTheme.colorScheme.primary,
-                            )
-                        }
-                    },
-                    onClick = { onPick(sort) },
-                )
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxWidth()
+                .scrollEndHaptic()
+                .overScrollVertical(),
+            contentPadding = PaddingValues(bottom = navigationBarBottom + PageMetrics.SectionGap),
+        ) {
+            item(key = "sort-options") {
+                Card(Modifier.fillMaxWidth()) {
+                    AppSort.entries.forEach { sort ->
+                        val label = stringResource(
+                            when (sort) {
+                                AppSort.Name -> R.string.sort_name
+                                AppSort.Install -> R.string.sort_install
+                                AppSort.Update -> R.string.sort_update
+                            },
+                        )
+                        RadioButtonPreference(
+                            title = label,
+                            selected = sort == current,
+                            onClick = { onPick(sort) },
+                        )
+                    }
+                }
             }
-            Spacer(Modifier.height(PageMetrics.BottomGap))
         }
     }
 }
@@ -290,8 +297,9 @@ private fun SortSheet(
 /**
  * 筛选弹层。
  *
- * [SwitchPreference] 全部用默认 `insideMargin`（= [BasicComponentDefaults.InsideMargin]，16dp），
+ * [SwitchPreference] 全部用默认 `insideMargin`（= [top.yukonga.miuix.kmp.basic.BasicComponentDefaults.InsideMargin]，16dp），
  * 这里不覆盖任何行内边距；弹层常驻组合，由 `show` 驱动进出动画。
+ * 分组同样是官方 Card（`BottomSheetSection.kt:219-237`），内容用 LazyColumn 保证大字体可滚动。
  */
 @Composable
 private fun FilterSheet(
@@ -300,30 +308,40 @@ private fun FilterSheet(
 ) {
     val context = LocalContext.current
     val preferences = (context.applicationContext as GlacierApplication).preferences
+    val navigationBarBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     GlassBottomSheet(
         onDismissRequest = onDismiss,
         show = show,
         backdrop = LocalRootBackdrop.current.takeIf { LocalGlassActive.current },
         title = stringResource(R.string.filter),
     ) {
-        Column(Modifier.fillMaxWidth()) {
-            AppFilter.entries.forEach { filter ->
-                SwitchPreference(
-                    checked = preferences.filterEnabled(filter),
-                    onCheckedChange = { checked ->
-                        preferences.setFilter(filter, checked)
-                    },
-                    title = stringResource(
-                        when (filter) {
-                            AppFilter.UserApps -> R.string.filter_user_apps
-                            AppFilter.SystemApps -> R.string.filter_system_apps
-                            AppFilter.FrozenApps -> R.string.filter_frozen_apps
-                            AppFilter.UnfrozenApps -> R.string.filter_unfrozen_apps
-                        },
-                    ),
-                )
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxWidth()
+                .scrollEndHaptic()
+                .overScrollVertical(),
+            contentPadding = PaddingValues(bottom = navigationBarBottom + PageMetrics.SectionGap),
+        ) {
+            item(key = "filters") {
+                Card(Modifier.fillMaxWidth()) {
+                    AppFilter.entries.forEach { filter ->
+                        SwitchPreference(
+                            checked = preferences.filterEnabled(filter),
+                            onCheckedChange = { checked ->
+                                preferences.setFilter(filter, checked)
+                            },
+                            title = stringResource(
+                                when (filter) {
+                                    AppFilter.UserApps -> R.string.filter_user_apps
+                                    AppFilter.SystemApps -> R.string.filter_system_apps
+                                    AppFilter.FrozenApps -> R.string.filter_frozen_apps
+                                    AppFilter.UnfrozenApps -> R.string.filter_unfrozen_apps
+                                },
+                            ),
+                        )
+                    }
+                }
             }
-            Spacer(Modifier.height(PageMetrics.BottomGap))
         }
     }
 }

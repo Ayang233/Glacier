@@ -29,6 +29,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -47,7 +48,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.ayang.glacier.GlacierApplication
 import com.ayang.glacier.R
 import com.ayang.glacier.domain.AppEntry
@@ -57,7 +57,10 @@ import com.ayang.glacier.domain.Tag
 import com.ayang.glacier.feature.common.AppAction
 import com.ayang.glacier.feature.common.AppActionRunner
 import com.ayang.glacier.feature.common.AppActionSheet
+import com.ayang.glacier.feature.common.AppIconCornerRatio
 import com.ayang.glacier.feature.common.AppIconView
+import com.ayang.glacier.feature.common.AppLabelTextStyle
+import com.ayang.glacier.feature.common.AppRow
 import com.ayang.glacier.feature.common.SheetActionRow
 import com.ayang.glacier.platform.UiFeedback
 import com.ayang.glacier.ui.LocalGlassActive
@@ -78,6 +81,7 @@ import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.TabRow
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
+import top.yukonga.miuix.kmp.basic.rememberScrollBarAdapter
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.glass.GlassBottomSheet
 import top.yukonga.miuix.kmp.glass.GlassDialog
@@ -86,8 +90,7 @@ import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import top.yukonga.miuix.kmp.glass.GlassFloatingActionButton
 import top.yukonga.miuix.kmp.glass.GlassSearchOverlay
 import top.yukonga.miuix.kmp.glass.GlassSearchOverlayDefaults
-import top.yukonga.miuix.kmp.glass.GlassTabRow
-import top.yukonga.miuix.kmp.glass.GlassTabRowDefaults
+import top.yukonga.miuix.kmp.glass.GlassSegmentedTabRow
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.Add
 import top.yukonga.miuix.kmp.icon.glass.Close
@@ -100,6 +103,8 @@ import top.yukonga.miuix.kmp.icon.glass.Search
 import top.yukonga.miuix.kmp.icon.glass.Tags
 import top.yukonga.miuix.kmp.icon.glass.Timer
 import top.yukonga.miuix.kmp.icon.glass.UnlockOutline
+import top.yukonga.miuix.kmp.interfaces.ExperimentalScrollBarApi
+import top.yukonga.miuix.kmp.squircle.squircleClip
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
@@ -112,6 +117,15 @@ private object HomeGridMetrics {
     val IconLabelGap = 6.dp
     val HorizontalSpacing = 8.dp
     val VerticalSpacing = 16.dp
+
+    /**
+     * 网格单元按压/长按叠层的裁剪半径。
+     *
+     * 与图标是同一根 squircle 曲线：`GridAppIcon(56dp) * AppIconCornerRatio(0.22) = 12.32dp`。
+     * 官方图标网格单元也是整格先 `squircleClip(12.dp)` 再 `clickable`（`IconPage.kt:403-411`），
+     * 这里不引入新的圆角数值。
+     */
+    val CellCorner = PageMetrics.GridAppIcon * AppIconCornerRatio
 
     /** 单元目标宽度：与官方 `example/IconPage.kt` 的图标网格公式一致（80dp 一列）。 */
     val CellWidth = 80.dp
@@ -147,7 +161,7 @@ private val SearchResultVerticalPadding = 4.dp
  * （浮层永远在 Scaffold 之后组合）。所有弹层都“常驻组合 + show 驱动”，
  * 关闭时保留最后一次内容，保证退出动画、键盘与返回键都由官方组件处理。
  */
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalScrollBarApi::class)
 @Composable
 fun HomeScreen() {
     val context = LocalContext.current
@@ -170,8 +184,10 @@ fun HomeScreen() {
     val scrollBehavior = MiuixScrollBehavior()
     val runner = remember(repository) { AppActionRunner(context, repository) }
     val glassActive = LocalGlassActive.current
-    val backdrop = LocalRootBackdrop.current
     val searchListState = rememberLazyListState()
+    // 网格滚动状态只有一个用途：告诉顶栏下的标签行"内容是否已经滚进顶栏"，
+    // 决定玻璃档 surfaceAlpha（官方 `IconPage.kt:283`：`if (blurActive && contentUnderTopBar) 1f else 0f`）。
+    val gridState = rememberLazyGridState()
 
     // 标签被删除后，选中项要回到默认标签，否则页面会空白。
     if (snapshot.tags.none { it.id == selectedTag }) {
@@ -205,6 +221,8 @@ fun HomeScreen() {
         subtitle = if (inSelection) "" else "$tagLabel · ${stringResource(R.string.app_count, entries.size)}",
         scrollBehavior = scrollBehavior,
         searchExpanded = searchOpen,
+        // 官方图标网格页每页显式加滚动条（`example/IconPage.kt` / `MainPage.kt:341-345`）。
+        scrollBarAdapter = rememberScrollBarAdapter(gridState).takeIf { entries.isNotEmpty() },
         topBarActions = {
             // 官方顶栏动作间距：`GlassPage.kt:363` 用 `Arrangement.spacedBy(8.dp)`。
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -261,6 +279,7 @@ fun HomeScreen() {
                     selectedTag = selectedTag,
                     labelOf = { repository.tagLabel(it) },
                     backdrop = topBarBackdrop,
+                    surfaceAlpha = if (gridState.canScrollBackward) 1f else 0f,
                     onSelect = { selectedTag = it },
                 )
             }
@@ -409,7 +428,11 @@ fun HomeScreen() {
                             true,
                             minutes,
                         )
-                        UiFeedback.toast(context, R.string.action_deferred_freeze)
+                        // 提示语是"已安排 N 分钟后冻结"，不是菜单项标题「延时冻结」。
+                        UiFeedback.toast(
+                            context,
+                            context.getString(R.string.home_deferred_freeze_scheduled, minutes.toInt()),
+                        )
                     }
                     deferredTarget = null
                 },
@@ -423,6 +446,7 @@ fun HomeScreen() {
             val columns = HomeGridMetrics.columns(available, preferences.compactGrid)
             LazyVerticalGrid(
                 columns = GridCells.Fixed(columns),
+                state = gridState,
                 modifier = Modifier.fillMaxSize(),
                 // 页面留白走统一 token（12dp），不再出现 16dp 硬编码。
                 contentPadding = contentPadding,
@@ -469,9 +493,19 @@ fun HomeScreen() {
 /**
  * 网格单元。
  *
- * 点击热区是整格 [Column]（含标签），长按进入多选；不再用
- * `clip(RoundedCornerShape(18.dp))` 手搓一个与 squircle 图标不同形状的按压层。
- * 选中态仍由 [AppIconView] 的官方 squircle 描边表达。
+ * 点击热区是整格 [Column]（含标签），长按进入多选。
+ *
+ * **按压/长按叠层的形状**：`combinedClickable` 默认 `indication = LocalIndication`，
+ * 而 MIUIX 主题把它设成 [top.yukonga.miuix.kmp.utils.MiuixIndication]（`MiuixTheme.kt:37/67`），
+ * 后者的绘制是 `drawRect(color, alpha, size)` —— 一整块矩形、没有任何圆角
+ * （`MiuixIndication.kt:129-135`，KDoc 第 36 行写明 "draws a rectangular overlay"）。
+ * 只要 no-clip，整格（含标签、宽度=格宽）就会被盖上一块方角灰底，也就是实拍里的"正方形叠层"。
+ *
+ * 修法与官方图标网格完全一致：**先裁 squircle 再 clickable**，让叠层被裁剪到与图标同一条
+ * squircle 轮廓（`IconPage.kt:403-411`：`squircleClip(12.dp)` → `clickable{...}` → `padding(...)`；
+ * MIUIX 自己的 `TabRow` 同样用 `squircleClip(cornerRadius)` 包住带 indication 的 `selectable`
+ * （`TabRow.kt:410-418`）。`Modifier.clip`/`squircleClip` 只裁绘制、不裁命中测试，
+ * 整格热区（含标签）保持不变，不需要把叠层缩小到图标上，也不会引入缩放/位移。
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -486,6 +520,7 @@ private fun HomeAppItem(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
             .fillMaxWidth()
+            .squircleClip(HomeGridMetrics.CellCorner)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick),
     ) {
         AppIconView(
@@ -497,9 +532,9 @@ private fun HomeAppItem(
         Spacer(Modifier.height(HomeGridMetrics.IconLabelGap))
         Text(
             text = entry.label,
-            // footnote1 是官方 13sp 行高；字号设置用 style.copy 覆盖，
-            // 不再 style 与 fontSize 双源（上一版 14sp 硬编码）。
-            style = MiuixTheme.textStyles.footnote1.copy(fontSize = labelSize.sp),
+            // 与列表行同一个排版权威（`AppLabelTextStyle`：footnote1 字号 + Medium 字重），
+            // 字号仍由「主页图标字号」设置覆盖，但不再与列表标题出现字重/截断方式的分叉。
+            style = AppLabelTextStyle(labelSize),
             color = if (entry.frozen) MiuixTheme.colorScheme.onSurfaceVariantSummary
             else MiuixTheme.colorScheme.onSurface,
             maxLines = 1,
@@ -512,8 +547,9 @@ private fun HomeAppItem(
 /**
  * 搜索结果列表。
  *
- * 官方结构：`Card + BasicComponent`（`IconPage.kt:215-244`），行内图标 40dp 应用图标、
- * 标题 + 包名 summary；不再手搓 `Row + clickable`。
+ * 官方结构：`Card + BasicComponent`（`IconPage.kt:215-244`）；这里直接用共享的
+ * [AppRow]（内部就是官方 [BasicComponent] + 40dp [AppIconView]），与 Apps 列表、
+ * Apps 搜索结果同一份行实现。
  */
 @Composable
 private fun HomeSearchResults(
@@ -554,33 +590,20 @@ private fun HomeSearchResults(
             }
         } else {
             lazyItems(results, key = { it.packageName }) { entry ->
+                // 与 Apps 列表 / 搜索结果共用同一个 `AppRow`（官方 `BasicComponent` 行 + 40dp
+                // `AppIconView` + 包名 summary + 冻结徽标），保证三处的图标轮廓、字体层级、
+                // 图文间距、单行结构与点击反馈是同一套，而不是这里再手搓一份。
                 Card(
                     modifier = Modifier.padding(
                         horizontal = PageMetrics.Horizontal,
                         vertical = SearchResultVerticalPadding,
                     ),
                 ) {
-                    BasicComponent(
-                        title = entry.label,
+                    AppRow(
+                        packageName = entry.packageName,
+                        label = entry.label,
                         summary = entry.packageName,
-                        startAction = {
-                            AppIconView(
-                                packageName = entry.packageName,
-                                size = PageMetrics.ListAppIcon,
-                                frozen = entry.frozen,
-                            )
-                        },
-                        endActions = if (entry.frozen) {
-                            {
-                                Text(
-                                    text = stringResource(R.string.frozen),
-                                    style = MiuixTheme.textStyles.footnote2,
-                                    color = MiuixTheme.colorScheme.primary,
-                                )
-                            }
-                        } else {
-                            null
-                        },
+                        frozen = entry.frozen,
                         onClick = { onPick(entry) },
                     )
                 }
@@ -592,9 +615,22 @@ private fun HomeSearchResults(
 /**
  * 标签页签。
  *
- * 玻璃档用官方 [GlassTabRow]，采样由顶栏上下文自动接管（它在 `bottomContent` 里组合，
- * `LocalGlassTopAppBarContext` 会给出顶栏的 backdrop 与材质）；非玻璃档用官方 [TabRow]。
- * 外层留白照官方 `GlassPage.kt:394-401`：横向 12dp + top 6dp + bottom 12dp。
+ * 两档都是官方"页面级标签"的范式（不是组件演示页的特例档）：
+ *
+ * - **Glass 开**：官方 [GlassSegmentedTabRow]。官方 example 的图标网格页
+ *   （`IconPage.kt:274-285`，和 Home 一样是"顶栏 bottomContent + 网格"）以及 Mishka 的
+ *   Provider 页（`ProviderScreen.kt:133-146`）都用它做页面标签：相连轨道 + 滑动指示器，
+ *   选中态只是 6%（浅色）/13.3%（深色）的半透明指示器，文字才是强调元素。
+ *   `surfaceAlpha` 按内容是否滚进顶栏给：顶栏下没有内容时轨道回到静止底色，
+ *   与官方 `IconPage.kt:283` 的 `if (blurActive && contentUnderTopBar) 1f else 0f` 同义。
+ * - **Glass 关**：官方 [TabRow]（`IconPage.kt:308-315` 的非玻璃分支），
+ *   选中指示器是 `surfaceContainer`（浅色白 / 深色近黑）胶囊，与页面同为中性色。
+ *
+ * 旧实现在玻璃档用 `GlassTabRow(colors = neutralColors())`：neutral 是"内容强调色过强时"的
+ * 单色档，官方唯一示例是组件演示页且必须配 `NeutralHeight = 35dp`
+ * （`GlassTabRow.kt:210-262` KDoc、`docs/zh_CN/components/glass/glasstabrow.md:44-58`、
+ * `GlassPage.kt:237-249`），它的选中填充在浅色下是 `#383838`（`GlassTabRow.kt:237-243`）——
+ * 也就是实拍里的"黑色胶囊 + 白字"。既不是页面标签的官方范式，也与 Glass 关档的轻指示器割裂。
  */
 @Composable
 private fun TagRow(
@@ -602,25 +638,28 @@ private fun TagRow(
     selectedTag: Int,
     labelOf: (Tag) -> String,
     backdrop: LayerBackdrop?,
+    surfaceAlpha: Float,
     onSelect: (Int) -> Unit,
 ) {
     val names = remember(tags) { tags.map(labelOf) }
     val index = tags.indexOfFirst { it.id == selectedTag }.coerceAtLeast(0)
+    // 分段轨道要求"有界宽度 + 互不相同的标签"（docs/zh_CN/components/glass/glasstabrow.md:72），
+    // 标签太多时每格会被压到放不下；超过 4 个退回官方 TabRow（它本身就支持横向滚动）。
+    val useSegmented = LocalGlassActive.current && backdrop != null && names.size in 2..4
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = PageMetrics.Horizontal)
             .padding(top = 6.dp, bottom = PageMetrics.Horizontal),
     ) {
-        if (LocalGlassActive.current) {
-            GlassTabRow(
+        if (useSegmented && backdrop != null) {
+            GlassSegmentedTabRow(
                 tabs = names,
                 selectedIndex = index,
                 onSelect = { onSelect(tags[it].id) },
                 backdrop = backdrop,
-                // 官方文档：页面内容本身已经有强调色（应用图标）时，页签用中性配色，
-                // 不要用 primaryColors 再抢一层强调色（GlassTabRow.kt:269-270 KDoc）。
-                colors = GlassTabRowDefaults.neutralColors(),
+                surfaceAlpha = surfaceAlpha,
+                modifier = Modifier.fillMaxWidth(),
             )
         } else {
             TabRow(
