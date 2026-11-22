@@ -220,6 +220,7 @@ fun GlacierShell() {
         tab = index
     }
 
+    // 一级页才有对应的导航目的地；二级页只看得到"无选中"的底栏。
     val navVisible = backStack.size == 1
     var bottomBarHeight by remember { mutableStateOf(0.dp) }
 
@@ -230,7 +231,8 @@ fun GlacierShell() {
         // 页面与顶栏只消费 appPageHorizontalInsets / appPageTopBarInsets / searchTop。
         LocalAppPageInsets provides pageInsets,
         // 宿主自己的底栏高度：页面用它做正文底部占位（MIUIX 无对应组件）。
-        LocalShellBottomBarHeight provides if (wide || !navVisible) 0.dp else bottomBarHeight,
+        // 二级页底栏同样常驻（见 GlacierBottomNavigation 的 visible），所以这里不再按 navVisible 归零。
+        LocalShellBottomBarHeight provides if (wide) 0.dp else bottomBarHeight,
     ) {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
@@ -248,7 +250,6 @@ fun GlacierShell() {
                             selectedIndex = tab,
                             onSelect = onSelectTab,
                             backdrop = rootBackdrop.takeIf { glassActive },
-                            visible = navVisible,
                         )
                     }
                 }
@@ -363,6 +364,12 @@ fun GlacierShell() {
  * 横向让位用官方 `appPageHorizontalInsets()`，24dp 内边距、20dp 顶部间距、
  * 底部 `max(24dp, safeBottom + 8dp)` 由外层 layout 统一处理，
  * `defaultWindowInsetsPadding = false` 避免组件再让一次系统 inset。
+ *
+ * **常驻不动**：官方 example 的 `GlassNavigationBar` 从不传 `visible`
+ * （`example/AppContent.kt:791-799`），即二级页（About / Licenses）里底栏原地不动，
+ * 不做 0.6 倍缩放淡出。`visible = false` 是库给"整页切换到无导航语义的目的地"
+ * （如全屏播放、独立窗口）准备的，不是二级页转场的一部分；此前 Glacier 用它退场，
+ * 结果每次进二级页底栏都会缩小再弹回，和 OS4 行为不符。
  */
 @Composable
 private fun GlacierBottomNavigation(
@@ -370,7 +377,6 @@ private fun GlacierBottomNavigation(
     selectedIndex: Int,
     onSelect: (Int) -> Unit,
     backdrop: Backdrop?,
-    visible: Boolean,
 ) {
     // 只取系统底部安全区：宿主自己的底栏高度不能参与，否则会把胶囊再抬高一次。
     // Glacier 的 AppPageInsets 不带 hostPadding（底栏在宿主 Scaffold 里单独占位），
@@ -403,7 +409,6 @@ private fun GlacierBottomNavigation(
                 onSelect = onSelect,
                 backdrop = backdrop,
                 defaultWindowInsetsPadding = false,
-                visible = visible,
             )
         }
     }

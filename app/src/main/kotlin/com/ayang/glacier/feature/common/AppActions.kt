@@ -21,6 +21,7 @@ import com.ayang.glacier.data.GlacierRepository
 import com.ayang.glacier.domain.AppEntry
 import com.ayang.glacier.domain.WorkingMode
 import com.ayang.glacier.platform.UiFeedback
+import com.ayang.glacier.system.FreezeOutcome
 import com.ayang.glacier.ui.rememberAppSafePadding
 import com.ayang.glacier.ui.LocalGlassActive
 import com.ayang.glacier.ui.LocalRootBackdrop
@@ -332,4 +333,30 @@ fun lockNow(repository: GlacierRepository, context: Context): Boolean {
     val ok = repository.lockScreen()
     if (!ok) UiFeedback.toast(context, R.string.permission_denied)
     return ok
+}
+
+/**
+ * 批量冻结 / 解冻的结果提示。
+ *
+ * 主页与 Apps 页的批量动作共用这一出口：同一操作在两页的措辞、是否提示权限失败必须一致，
+ * 否则同一个"批量冻结"在两页会有两种反馈（规范 §9 一致性）。
+ */
+fun reportFreezeBatch(
+    context: Context,
+    outcome: FreezeOutcome,
+    frozen: Boolean,
+) {
+    when (outcome) {
+        is FreezeOutcome.Applied -> {
+            if (outcome.count == 0) {
+                UiFeedback.toast(context, R.string.permission_denied)
+            } else {
+                val res = if (frozen) R.string.msg_freeze_many else R.string.msg_unfreeze_many
+                UiFeedback.toast(context, context.getString(res, outcome.count.toString()))
+            }
+        }
+
+        FreezeOutcome.Denied ->
+            UiFeedback.toast(context, R.string.permission_denied)
+    }
 }

@@ -26,6 +26,7 @@ import com.ayang.glacier.ui.components.PageMetrics
 import com.ayang.glacier.ui.pageBottomPadding
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.glass.GlassSearchOverlayDefaults
+import top.yukonga.miuix.kmp.utils.PressFeedbackType
 
 /** 官方搜索结果行的上下间距：`example/IconPage.kt:104`（`SearchResultVerticalPadding = 4.dp`）。 */
 internal val SearchResultVerticalPadding = 4.dp
@@ -33,14 +34,23 @@ internal val SearchResultVerticalPadding = 4.dp
 /**
  * 应用列表行与搜索结果行**共用的唯一实现**。
  *
- * 官方行结构是 `Card` + `BasicComponent`（`example/IconPage.kt:221-244`，搜索行）：
- * - 点击/按压语义交给行内的官方 `BasicComponent`（`AppRow` → `BasicComponent(onClick)`，
- *   `miuix-ui/basic/Component.kt:148-160`）；
- * - `Card` 只负责分组表面，不注册点击（`Card(colors=...)` 无交互版，`miuix-ui/basic/Card.kt:50-67`）。
+ * 行结构是官方 `Card`（交互版）+ `BasicComponent`：`Card` 负责分组表面**和**点击/长按，
+ * 行内 `AppRow` 不带 `onClick`，因此只有一层按压反馈。
  *
- * 这样只有一层 indication；且 [Card] 的 `squircleSurface` 会把行内的 MiuixIndication 矩形叠层
- * 裁成圆角（`miuix-squircle/SquircleBackground.kt:124-165` + `Card.kt:174-183`），
- * 不会出现「正方形按压层」。搜索行与 Apps 列表行因此是同一份代码、同一视觉。
+ * 为什么由 `Card` 而不是行内 `BasicComponent` 承担手势：`BasicComponent` 只有 `clickable`，
+ * 没有长按（`miuix-ui/basic/Component.kt:148-160`）；`Card` 的交互版有官方
+ * `onClick` / `onLongPress` / `holdDownState` / `showIndication` 组合
+ * （`miuix-ui/basic/Card.kt:87-154`），官方示例的长按写法就是它
+ * （`example/component/CardSection.kt:110-143`：长按弹层 + `holdDownState` 保持按下态）。
+ *
+ * 语义：
+ * - 点按 = 选中 / 取消选中该应用（[selected] 走 [AppRow] 的 squircle 描边，与主页网格同一套语言）；
+ * - 长按 = 弹出该应用的操作单；弹层打开期间 [holdDown] 为 true，
+ *   `Card` 用官方 `HoldDownObserver` 保持 0.10 alpha 的按下态，弹层退场后复位。
+ *
+ * `showIndication = true` + `pressFeedbackType = None`：反馈是 `Card` 的 squircle 表面
+ * 裁切过的 `MiuixIndication` 叠层，与设置页 / 弹层行（`BasicComponent`）同一种按压语言，
+ * 不引入第二套缩放反馈。
  */
 @Composable
 fun AppListCardRow(
@@ -48,14 +58,24 @@ fun AppListCardRow(
     inHome: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    selected: Boolean = false,
+    onLongClick: (() -> Unit)? = null,
+    holdDown: Boolean = false,
 ) {
-    Card(modifier = modifier) {
+    Card(
+        modifier = modifier,
+        showIndication = true,
+        pressFeedbackType = PressFeedbackType.None,
+        holdDownState = holdDown,
+        onClick = onClick,
+        onLongPress = onLongClick,
+    ) {
         AppRow(
             packageName = entry.packageName,
             label = entry.label,
             summary = appRowSummary(entry, inHome),
             frozen = entry.frozen,
-            onClick = onClick,
+            selected = selected,
         )
     }
 }
@@ -83,12 +103,23 @@ fun appRowSummary(entry: AppEntry, inHome: Boolean): String {
  * （官方 `IconPage.kt:537-540`：`safeInsets.top + searchTop + BarHeight + VerticalPadding * 2`）。
  *
  * 行结构直接复用 [AppListCardRow]，与 Apps 列表同一实现；本文件不做任何手写 `Row + clickable`。
+ *
+ * 手势语义与 Apps 列表完全一致（点按 = 选中、长按 = 操作单），[selected] / [onLongPick]
+ * 由调用方按自己的多选状态传入；不在 Apps 页的多选场景（如主页搜索）不传这两个参数即可。
+ *
+ * @param onPick 点按一行。
+ * @param selected 已选中的应用包名集合，用于画行内图标的 squircle 选中环。
+ * @param onLongPick 长按一行；`null` = 该入口不支持长按。
+ * @param holdDownPackage 操作单正在打开的应用：该行保持官方长按按下态，弹层退场后复位。
  */
 @Composable
 fun AppSearchResults(
     query: String,
     onPick: (AppEntry) -> Unit,
     listState: LazyListState = rememberLazyListState(),
+    selected: Set<String> = emptySet(),
+    onLongPick: ((AppEntry) -> Unit)? = null,
+    holdDownPackage: String? = null,
 ) {
     val context = LocalContext.current
     val app = context.applicationContext as GlacierApplication
@@ -148,6 +179,9 @@ fun AppSearchResults(
                 entry = entry,
                 inHome = entry.packageName in homePackages,
                 onClick = { onPick(entry) },
+                selected = entry.packageName in selected,
+                onLongClick = onLongPick?.let { pick -> { pick(entry) } },
+                holdDown = entry.packageName == holdDownPackage,
                 // 官方搜索结果行间距：横向页面留白 12dp + 上下 4dp（`IconPage.kt:221`）。
                 modifier = Modifier.padding(
                     horizontal = PageMetrics.Horizontal,

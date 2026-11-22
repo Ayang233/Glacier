@@ -165,11 +165,13 @@ fun SheetActionRow(
  *
  * 行高（最小 56dp）、内边距（16dp）、图文间距（8dp）全部用 [BasicComponent] 默认值（规范 2.2 / 第 3 节）；
  * 应用图标 40dp 是规范第 3 节登记的"应用图标"token；冻结徽标按规范放 `endActions`。
- * 点击语义：列表行把 `onClick` 交给行内的 `BasicComponent`，外层 `Card` 不注册点击
- * （官方 `IconPage.kt:221-244`）；这样只有一层 indication，且会被 `Card` 的 squircle 表面裁成圆角。
+ *
+ * 手势：行本身可选注册 [onClick]（搜索等"点一下就走"的入口用）；
+ * 列表页需要同时支持点按与长按时，`onClick` 传 `null`，由外层官方 `Card(onClick, onLongPress)`
+ * 统一承担（`AppListCardRow`），避免同一行出现两层点击/两层反馈。
  *
  * [selected] 与 Home 网格同一个选中语言（[AppIconView] 的 squircle 描边），
- * 供列表页将来接多选时直接复用；默认 false，对现有调用点零影响。
+ * 由 Apps 列表的多选态直接复用。
  */
 @Composable
 fun AppRow(

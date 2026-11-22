@@ -1,5 +1,13 @@
 package com.ayang.glacier.feature.home
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.CapturedAnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -56,11 +64,13 @@ import com.ayang.glacier.feature.common.AppIconView
 import com.ayang.glacier.feature.common.AppLabelTextStyle
 import com.ayang.glacier.feature.common.AppSearchResults
 import com.ayang.glacier.feature.common.SheetActionRow
+import com.ayang.glacier.feature.common.reportFreezeBatch
 import com.ayang.glacier.platform.UiFeedback
 import com.ayang.glacier.ui.LocalGlassActive
 import com.ayang.glacier.ui.LocalRootBackdrop
 import com.ayang.glacier.ui.LocalAppPageInsets
 import com.ayang.glacier.ui.appPageHorizontalInsets
+import com.ayang.glacier.ui.components.AnimatedTopBarActions
 import com.ayang.glacier.ui.components.EmptyState
 import com.ayang.glacier.ui.components.PageFrame
 import com.ayang.glacier.ui.components.PageMetrics
@@ -81,6 +91,7 @@ import top.yukonga.miuix.kmp.glass.GlassDialog
 import top.yukonga.miuix.kmp.glass.GlassDialogButton
 import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import top.yukonga.miuix.kmp.glass.GlassFloatingActionButton
+import top.yukonga.miuix.kmp.glass.GlassMotion
 import top.yukonga.miuix.kmp.glass.GlassSearchOverlay
 import top.yukonga.miuix.kmp.glass.GlassSearchOverlayDefaults
 import top.yukonga.miuix.kmp.glass.GlassSegmentedTabRow
@@ -210,6 +221,12 @@ fun HomeScreen() {
 
     val inSelection = selecting || selection.isNotEmpty()
 
+    // 多选态下返回键先退出多选，而不是结束 Activity（与 Apps 页同一出口）。
+    BackHandler(enabled = inSelection) {
+        selecting = false
+        selection = emptySet()
+    }
+
     // 浮层退场期间继续使用最后一次内容（规范 0 节红线 1）。
     var lastActionEntry by remember { mutableStateOf<AppEntry?>(null) }
     var lastTagNameRequest by remember { mutableStateOf<TagNameRequest?>(null) }
@@ -234,14 +251,27 @@ fun HomeScreen() {
         // 官方图标网格页每页显式加滚动条（`example/IconPage.kt` / `MainPage.kt:341-345`）。
         scrollBarAdapter = rememberScrollBarAdapter(gridState).takeIf { entries.isNotEmpty() },
         topBarActions = {
-            // 官方顶栏动作间距：`GlassPage.kt:363` 用 `Arrangement.spacedBy(8.dp)`。
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (inSelection) {
+            // 普通档（搜索/多选/编辑标签）与多选档（冻结/解冻/标签/更多/关闭）走官方的两态切换动画
+            // （`AnimatedTopBarActions`），而不是整排图标在一帧里替换。
+            AnimatedTopBarActions(
+                selectionMode = inSelection,
+                normal = {
+                    TopBarAction(MiuixIcons.Glass.Search, stringResource(R.string.search)) {
+                        searchOpen = true
+                    }
+                    TopBarAction(MiuixIcons.Glass.MultiSelect, stringResource(R.string.action_select)) {
+                        selecting = true
+                    }
+                    TopBarAction(MiuixIcons.Glass.Edit, stringResource(R.string.title_tag_editor)) {
+                        tagEditorOpen = true
+                    }
+                },
+                selection = {
                     TopBarAction(MiuixIcons.Glass.QuietMode, stringResource(R.string.action_freeze)) {
                         val targets = selection
                         scope.launch {
                             val outcome = repository.setFrozenBatch(targets, true)
-                            reportBatch(outcome, true, context, targets.size)
+                            reportFreezeBatch(context, outcome, true)
                             selecting = false
                             selection = emptySet()
                         }
@@ -250,7 +280,7 @@ fun HomeScreen() {
                         val targets = selection
                         scope.launch {
                             val outcome = repository.setFrozenBatch(targets, false)
-                            reportBatch(outcome, false, context, targets.size)
+                            reportFreezeBatch(context, outcome, false)
                             selecting = false
                             selection = emptySet()
                         }
@@ -267,23 +297,20 @@ fun HomeScreen() {
                         selecting = false
                         selection = emptySet()
                     }
-                } else {
-                    TopBarAction(MiuixIcons.Glass.Search, stringResource(R.string.search)) {
-                        searchOpen = true
-                    }
-                    TopBarAction(MiuixIcons.Glass.MultiSelect, stringResource(R.string.action_select)) {
-                        selecting = true
-                    }
-                    TopBarAction(MiuixIcons.Glass.Edit, stringResource(R.string.title_tag_editor)) {
-                        tagEditorOpen = true
-                    }
-                }
-            }
+                },
+            )
         },
         // 页签是顶栏的子级（官方 `GlassPage.kt:394-401` 的 bottomContent）：
         // 玻璃档由顶栏上下文自动继承 backdrop，不能放进正文网格。
+        // 多选态下页签让位给选择态：用官方 `CapturedAnimatedVisibility` 收起/展开（默认
+        // `fadeIn + expandVertically` 的顶栏子内容显隐范式，官方 `AppContent.kt:720-728` 的导航条同理），
+        // 否则顶栏会在一帧里突然矮下去、正文跟着跳。
         topBarBottom = { topBarBackdrop ->
-            if (snapshot.tags.size > 1 && !inSelection) {
+            CapturedAnimatedVisibility(
+                visible = snapshot.tags.size > 1 && !inSelection,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically(),
+            ) {
                 TagRow(
                     tags = snapshot.tags,
                     selectedTag = selectedTag,
@@ -296,8 +323,14 @@ fun HomeScreen() {
         },
         // FAB 的位置交给 Scaffold：新版 PageFrame 已把底栏高度计入 bottomBar，
         // 这里不再手算 `padding(bottom = reserve - 20.dp)`。
+        // 显隐同样走官方动画（`CapturedAnimatedVisibility` + `GlassMotion.scaleIn/scaleOut`），
+        // 不再直接 `if` 掉——进多选时它是"缩着淡出"而不是凭空消失。
         floatingActionButton = { fabBackdrop ->
-            if (!inSelection && entries.isNotEmpty()) {
+            CapturedAnimatedVisibility(
+                visible = !inSelection && entries.isNotEmpty(),
+                enter = fadeIn(GlassMotion.barExpand()) + scaleIn(GlassMotion.scaleIn(), initialScale = 0.8f),
+                exit = fadeOut(GlassMotion.barCollapse()) + scaleOut(GlassMotion.scaleOut(), targetScale = 0.8f),
+            ) {
                 GlassFloatingActionButton(
                     onClick = {
                         val targets = entries.filter { !it.frozen }.map { it.packageName }
@@ -305,7 +338,7 @@ fun HomeScreen() {
                         val set = if (unfreeze) entries.map { it.packageName } else targets
                         scope.launch {
                             val outcome = repository.setFrozenBatch(set, !unfreeze)
-                            reportBatch(outcome, !unfreeze, context, set.size)
+                            reportFreezeBatch(context, outcome, !unfreeze)
                         }
                     },
                     backdrop = fabBackdrop,
@@ -833,25 +866,4 @@ private sealed interface TagNameRequest {
     data object Create : TagNameRequest
     data class Rename(val tag: Tag) : TagNameRequest
     data class Assign(val packageName: String) : TagNameRequest
-}
-
-private fun reportBatch(
-    outcome: com.ayang.glacier.system.FreezeOutcome,
-    frozen: Boolean,
-    context: android.content.Context,
-    requested: Int,
-) {
-    when (outcome) {
-        is com.ayang.glacier.system.FreezeOutcome.Applied -> {
-            if (outcome.count == 0) {
-                UiFeedback.toast(context, R.string.permission_denied)
-            } else {
-                val res = if (frozen) R.string.msg_freeze_many else R.string.msg_unfreeze_many
-                UiFeedback.toast(context, context.getString(res, outcome.count.toString()))
-            }
-        }
-
-        com.ayang.glacier.system.FreezeOutcome.Denied ->
-            UiFeedback.toast(context, R.string.permission_denied)
-    }
 }

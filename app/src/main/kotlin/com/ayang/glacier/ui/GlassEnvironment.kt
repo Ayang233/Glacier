@@ -30,6 +30,9 @@ val LocalRootBackdrop = staticCompositionLocalOf<LayerBackdrop?> { null }
  * 由 Shell 的 bottomBar 实测后写入；页面在自己的 Scaffold 里用它做透明占位，
  * 让正文底部 padding 与 FAB 位置都由 Scaffold 计算，不再手动猜。
  *
+ * 底栏在所有目的地（含二级页 About / Licenses）都常驻不动，所以这个值在二级页同样有效——
+ * 二级页正文要让出它，否则最后一行会被悬浮底栏压住。
+ *
  * 这是**宿主自己的**底栏尺寸，MIUIX 没有对应组件（官方 example 的底栏由宿主 Scaffold
  * 的 padding 传入）；系统安全区与侧栏让位不在这里，见 [AppPageInsets]。
  */
