@@ -75,7 +75,18 @@ gh release create v1.2.0 \
   --target <远端 main 的提交 SHA>
 ```
 
-下面的 REST 方式保留作为备选（`api.github.com` 与 `uploads.github.com` 均放行）：
+本机没有 gh 时（1.4.0 / 1.5.0 发布都是这种状态），用 `tools/release_api.py` 走同一套 REST：
+
+```bash
+python tools/release_api.py v1.5.0 <远端 main 的提交 SHA> \
+  docs/release-notes/1.5.0.md \
+  app/build/outputs/apk/release/Glacier-release.apk SHA256SUMS.txt
+```
+
+脚本只碰 `api.github.com` 与 `uploads.github.com`，token 取 `GITHUB_TOKEN` 或 git credential manager
+里存好的 github.com 凭据。它打印的 asset `digest` 应与本地 `sha256sum` 一致。
+
+下面的手工脚本版本保留作为备选（`api.github.com` 与 `uploads.github.com` 均放行）：
 
 ```powershell
 $tok = (gh auth token)
@@ -110,6 +121,7 @@ tag 由 `target_commitish = main` 自动创建，指向远端 main 的最新提�
 | 1.2.0 | 2026-11-20 | c8d21be | v1.2.0 | R4 体验整改：长按叠层/标签栏/About 动效/滚动与转场/文案 |
 | 1.3.0 | 2026-11-20 | 763a269 | v1.3.0 | MIUIX 基线升级 v0.9.5-beta02（渐进模糊/GlassTextField/标题避让） |
 | 1.4.0 | 2026-11-22 | 9b8caa9 | v1.4.0 | R6 界面底子重做（官方 inset 契约）+ MIUIX 基线 `44f1d315` |
+| 1.5.0 | 2026-11-22 | d45e5a3 | v1.5.0 | R7 交互整改（底栏归属 / 应用页点选 / 动作动画）+ R8 宽屏间距与自定值清查 |
 
 1.2.0 发布细节：
 - 源码经 Git Data API 推送（github.com 直连被拦），远端 main 树与本地 HEAD 树一致（1620cc3c…）；
@@ -142,3 +154,14 @@ tag 由 `target_commitish = main` 自动创建，指向远端 main 的最新提�
 - 覆盖升级实测：从线上 v1.3.0 的 release APK（`bee840fd…75eb`）`adb install -r` 到 1.4.0，
   同签名覆盖成功，`versionCode 4 → 5`、`versionName 1.3.0 → 1.4.0`，启动无 crash；
 - 基线见 `MIUIX_BASELINE.md`（MIUIX `44f1d315` / `v0.9.5-beta03` + 18）。
+
+1.5.0 发布细节：
+- 源码用 `tools/push_api.py` 推送，6 个提交的 SHA 与本地完全一致，远端 main = `d45e5a3`；
+- Release 由 `tools/release_api.py` 创建（本机仍无 gh）：`POST /releases`（`tag_name=v1.5.0`、
+  `target_commitish=d45e5a3`）+ `uploads.github.com` 上传附件，tag `v1.5.0` → `d45e5a3`；
+- 附件：`Glacier-release.apk` 4,434,912 B（sha256 `6b8b90c7…e13c`）、`SHA256SUMS.txt`（172 B）；
+  API 返回的 asset `digest` 与本地一致；
+- 签名证书未变（`CN=Glacier, OU=Release, O=Ayang, C=CN`，证书 sha256 `46b3f848…82cf4`）；
+- 覆盖升级实测：从已装的 1.4.0 release 包 `adb install -r` 到 1.5.0，
+  同签名覆盖成功，`versionCode 5 → 6`、`versionName 1.4.0 → 1.5.0`，启动无 crash；
+- README 同步重写了交互说明与 Glass 结构（底栏现在装在一级页里）。
