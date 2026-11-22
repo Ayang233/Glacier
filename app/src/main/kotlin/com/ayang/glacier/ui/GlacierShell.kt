@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.pager.rememberPagerState
@@ -383,7 +384,14 @@ fun GlacierShell() {
                         state = railState,
                         // 官方行为：≥1200dp 展开面板；否则折叠成顶部胶囊，由胶囊上的按钮展开。
                         showToggle = true,
-                        modifier = Modifier.align(Alignment.CenterStart),
+                        // 让位与官方一致：由宿主给 `windowInsets`（系统栏 ∪ 刘海 ∪ 宿主 padding），
+                        // 组件自己的默认 padding 关掉，避免两套 inset 语义各算一次
+                        // （官方 `AppContent.kt:585-589`：`windowInsetsPadding(pageInsets.windowInsets)`
+                        // + `defaultWindowInsetsPadding = false`）。
+                        modifier = Modifier
+                            .align(Alignment.CenterStart)
+                            .windowInsetsPadding(pageInsets.windowInsets),
+                        defaultWindowInsetsPadding = false,
                     )
                 }
             }

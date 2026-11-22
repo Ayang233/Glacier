@@ -458,13 +458,20 @@ fun AnimatedTopBarActions(
 /**
  * 页面内容内边距。
  *
- * 形态与官方 `example/utils/PageUtils.kt:209-245` 一致：返回**惰性** [PaddingValues]，
- * `calculate*Padding()` 在布局阶段才读取安全区与侧栏让位，因此侧栏 300ms morph
+ * 形态与官方 `example/utils/PageUtils.kt:209-245` 的 `pageContentPadding` 一致：返回**惰性**
+ * [PaddingValues]，`calculate*Padding()` 在布局阶段才读取安全区与侧栏让位，因此侧栏 300ms morph
  * 只重新布局、不重组整页。
  *
- * - start/end = `max(页面横向留白, 安全区 + 悬浮侧栏让位)`
+ * - start/end = `max(安全区, 侧栏让位, 宿主 padding) + 页面横向留白`
  * - top = Scaffold 给的顶栏高度 + extraTop
  * - bottom = Scaffold 给的底栏高度 + 末尾留白 + extraBottom
+ *
+ * **横向留白是"相加"不是"取大"**：官方页面把 12dp 卡片外边距挂在每张卡片上
+ * （`example/MainPage.kt:349`、`IconPage.kt:193` 的 `Modifier.padding(horizontal = 12.dp)`），
+ * 而 `pageContentPadding` 只管安全区与侧栏让位，于是"侧栏让位 262dp + 卡片外边距 12dp"叠出来的
+ * 是 274dp。早先 Glacier 把它写成 `max(让位, 12dp)`，窄屏看不出问题，一旦展开侧栏（让位 262dp）
+ * 那 12dp 就被吞掉，卡片直接贴住玻璃侧栏 —— 这是自造的写法，已按官方语义改成相加
+ * （实测：展开侧栏时卡片左边距从 262dp 变回官方同款 274dp）。
  *
  * 不要再包一层 `remember`：MIUIX Scaffold 的 contentPadding 是"实例不变、内部 holder 变化"的
  * [PaddingValues]，缓存它会拿到第一帧（顶栏还没量出来）的旧值。
@@ -488,15 +495,15 @@ fun pageContentPadding(
                 innerPadding.calculateLeftPadding(layoutDirection),
                 outerPadding.calculateLeftPadding(layoutDirection),
                 pagePadding.calculateLeftPadding(layoutDirection),
-                horizontal,
-            ) + if (layoutDirection == LayoutDirection.Ltr) extraStart else extraEnd
+            ) + (if (layoutDirection == LayoutDirection.Ltr) horizontal else 0.dp) +
+                if (layoutDirection == LayoutDirection.Ltr) extraStart else extraEnd
 
             override fun calculateRightPadding(layoutDirection: LayoutDirection): Dp = maxOf(
                 innerPadding.calculateRightPadding(layoutDirection),
                 outerPadding.calculateRightPadding(layoutDirection),
                 pagePadding.calculateRightPadding(layoutDirection),
-                horizontal,
-            ) + if (layoutDirection == LayoutDirection.Rtl) extraStart else extraEnd
+            ) + (if (layoutDirection == LayoutDirection.Rtl) horizontal else 0.dp) +
+                if (layoutDirection == LayoutDirection.Rtl) extraStart else extraEnd
 
             override fun calculateTopPadding(): Dp =
                 maxOf(

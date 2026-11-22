@@ -4,7 +4,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
@@ -60,23 +61,37 @@ val LocalTopBarTitleAlpha = staticCompositionLocalOf<() -> Float> { { 1f } }
 val LocalTopBarObstructionStart = compositionLocalOf { Dp.Unspecified }
 
 /**
- * 宽屏断点：与 MIUIX 官方 example 的 `shouldShowSplitPane` 一致。
+ * 宽屏断点：与 MIUIX 官方 example 的 `shouldShowSplitPane` 一致
+ * （`example/shared/.../utils/AdaptiveUtils.kt:17-31`）。
  * 宽度 ≥ 840dp，或 ≥ 600dp 且横向（高/宽 < 1.2）。
+ *
+ * **量的是窗口，不是屏幕**：官方读 `LocalWindowInfo.current.containerSize`，
+ * 不是 `LocalConfiguration.screenWidthDp`。分屏 / 自由窗口 / 桌面模式下两者不相等，
+ * 用屏幕宽度会让"窗口很窄但物理屏很宽"的设备误判成宽屏，把 250dp 侧栏塞进窄窗口，
+ * 内容被挤到边上（这就是"侧栏贴着内容"的另一种成因）。
  */
 @Composable
 fun isWideLayout(): Boolean {
-    val configuration = LocalConfiguration.current
-    val width = configuration.screenWidthDp
-    val height = configuration.screenHeightDp
-    return width >= 840 || (width >= 600 && height.toFloat() / width < 1.2f)
+    val containerSize = LocalWindowInfo.current.containerSize
+    val density = LocalDensity.current
+    return with(density) {
+        val width = containerSize.width.toDp()
+        val height = containerSize.height.toDp()
+        width >= 840.dp || (width >= 600.dp && height / width < 1.2f)
+    }
 }
 
 /**
- * 侧栏展开断点：与 MIUIX 官方 example 的 `shouldExpandNavigationRail` 一致。
- * 宽度 < 1200dp 时玻璃侧栏折叠成顶部胶囊，由用户点开。
+ * 侧栏展开断点：与 MIUIX 官方 example 的 `shouldExpandNavigationRail` 一致
+ * （`utils/AdaptiveUtils.kt:39-46`，同样读窗口尺寸）。
+ * 窗口宽度 < 1200dp 时玻璃侧栏折叠成顶部胶囊，由用户点开。
  */
 @Composable
-fun isExtraWideLayout(): Boolean = LocalConfiguration.current.screenWidthDp >= 1200
+fun isExtraWideLayout(): Boolean {
+    val containerSize = LocalWindowInfo.current.containerSize
+    val density = LocalDensity.current
+    return with(density) { containerSize.width.toDp() >= 1200.dp }
+}
 
 /**
  * 页面正文录制层：先垫页面真实底色，再录内容。
