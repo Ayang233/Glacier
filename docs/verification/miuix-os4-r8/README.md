@@ -18,3 +18,6 @@
 | `v2-914-collapsed.png` / `v2-914-current.png` | 同轮宽屏状态记录 |
 | `g-wide-home.png` / `ex-wide-home.png` | 1333dp 下双方内容起点均为 411px |
 | `n-home.png` / `n-apps.png` / `final-narrow-home.png` | 窄屏回归：12dp 外边距、底栏均正常 |
+| `fix2-narrow-apps.png` | **修复"左有右无"后**：竖屏卡片 32px…1048px（左右各 12dp） |
+| `fix2-914-apps.png` | 914dp 横屏：卡片 721px…2367px，左距面板 12.6dp、右距屏幕 12.6dp |
+| `fix2-narrow-settings.png` / `fix2-narrow-home.png` | 设置页（卡片自带 12dp）与主页窄屏回归 |

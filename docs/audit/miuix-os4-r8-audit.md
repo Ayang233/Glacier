@@ -42,6 +42,25 @@ maxOf(inner, outer, pagePadding, horizontal)   // ← 错
 并补了"为什么是相加"的注释。`SettingsScreen` / `LicensesScreen` 传 `horizontal = 0.dp`
 并各自给卡片加 12dp（与官方写法一致），因此不受影响。
 
+### 修复后的第二次翻车：左右留白被写成了方向性的
+第一版把 `horizontal` 和 `extraStart/extraEnd` 混在同一个三元表达式里：
+
+```kotlin
++ (if (layoutDirection == LayoutDirection.Ltr) horizontal else 0.dp) +   // ← 右缘在 LTR 下变 0
+```
+
+结果左边有 12dp、右边贴屏幕边（竖屏、横屏都一样），用户一眼看出"左右边距不同"。
+`horizontal` 是**两侧都要加**的页面留白，只有 `extraStart/extraEnd` 才随书写方向换边：
+
+```kotlin
+left  = maxOf(inner, outer, pagePadding) + horizontal + (if (Ltr) extraStart else extraEnd)
+right = maxOf(inner, outer, pagePadding) + horizontal + (if (Rtl) extraStart else extraEnd)
+```
+
+实测（修复后）：竖屏 1080×2400 卡片 32px … 1048px（左右各 12.2dp）；
+914dp 横屏卡片 721px … 2367px（左右各 12.6dp，左侧距面板同为 12.6dp）。
+
+
 ---
 
 ## 2. 同类问题：宽屏断点量的是"屏幕"而不是"窗口"

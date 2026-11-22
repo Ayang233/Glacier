@@ -462,7 +462,7 @@ fun AnimatedTopBarActions(
  * [PaddingValues]，`calculate*Padding()` 在布局阶段才读取安全区与侧栏让位，因此侧栏 300ms morph
  * 只重新布局、不重组整页。
  *
- * - start/end = `max(安全区, 侧栏让位, 宿主 padding) + 页面横向留白`
+ * - left/right = `max(安全区, 侧栏让位, 宿主 padding) + 页面横向留白`（两侧都加，与书写方向无关）
  * - top = Scaffold 给的顶栏高度 + extraTop
  * - bottom = Scaffold 给的底栏高度 + 末尾留白 + extraBottom
  *
@@ -491,18 +491,21 @@ fun pageContentPadding(
     val pagePadding = remember(insets, density) { insets.asPaddingValues(density) }
     return remember(innerPadding, outerPadding, pagePadding, horizontal, extraTop, extraStart, extraEnd, extraBottom) {
         object : PaddingValues {
+            // 左右两侧都加 [horizontal]（页面横向留白与书写方向无关），
+            // extraStart / extraEnd 才按 LTR/RTL 换边。两者不能合成一个 if，
+            // 否则在 LTR 下右缘会变成 0，卡片贴住屏幕右边（R8 修过一次这个错）。
             override fun calculateLeftPadding(layoutDirection: LayoutDirection): Dp = maxOf(
                 innerPadding.calculateLeftPadding(layoutDirection),
                 outerPadding.calculateLeftPadding(layoutDirection),
                 pagePadding.calculateLeftPadding(layoutDirection),
-            ) + (if (layoutDirection == LayoutDirection.Ltr) horizontal else 0.dp) +
+            ) + horizontal +
                 if (layoutDirection == LayoutDirection.Ltr) extraStart else extraEnd
 
             override fun calculateRightPadding(layoutDirection: LayoutDirection): Dp = maxOf(
                 innerPadding.calculateRightPadding(layoutDirection),
                 outerPadding.calculateRightPadding(layoutDirection),
                 pagePadding.calculateRightPadding(layoutDirection),
-            ) + (if (layoutDirection == LayoutDirection.Rtl) horizontal else 0.dp) +
+            ) + horizontal +
                 if (layoutDirection == LayoutDirection.Rtl) extraStart else extraEnd
 
             override fun calculateTopPadding(): Dp =
