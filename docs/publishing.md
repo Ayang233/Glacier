@@ -34,10 +34,15 @@ sha256sum app/build/outputs/apk/release/Glacier-release.apk
 `Failed to connect to github.com:443`，此时 `api.github.com` 往往仍可用），改用 Git Data API：
 
 ```bash
-python tools/push.py . Ayang233/Glacier /path/to/gh
+python tools/push.py . Ayang233/Glacier /path/to/gh      # 需要 gh
+python tools/push_api.py . Ayang233/Glacier main         # 无 gh：直接 urllib + token
 ```
 
-`tools/push.py` 用 Git Data API 的 `base_tree`，**只上传相对远端最新树发生变化的文件**，
+`tools/push_api.py` 是 1.4.0 起补的免 gh 版本：token 取 `GITHUB_TOKEN` 或 git credential
+manager 里记住的 github.com 凭据，把本地提交的 author/committer（含 ISO 时间）原样带上，
+**远端生成的提交 SHA 与本地一致**，推完不需要再 `git fetch` 对齐引用。
+
+两个脚本都用 Git Data API 的 `base_tree`，**只上传相对远端最新树发生变化的文件**，
 一次 4 文件的文档提交通常 3~5 秒完成。`tools/publish.py` 是早期的全量版（每提交重传整棵树），
 只在需要从空仓库初始化或修复异常状态时使用。
 
@@ -104,6 +109,7 @@ tag 由 `target_commitish = main` 自动创建，指向远端 main 的最新提�
 | 1.1.0 | 2026-11-19 | 6efc12 | v1.1.0 | MIUIX OS4 结构整改 |
 | 1.2.0 | 2026-11-20 | c8d21be | v1.2.0 | R4 体验整改：长按叠层/标签栏/About 动效/滚动与转场/文案 |
 | 1.3.0 | 2026-11-20 | 763a269 | v1.3.0 | MIUIX 基线升级 v0.9.5-beta02（渐进模糊/GlassTextField/标题避让） |
+| 1.4.0 | 2026-11-22 | 9b8caa9 | v1.4.0 | R6 界面底子重做（官方 inset 契约）+ MIUIX 基线 `44f1d315` |
 
 1.2.0 发布细节：
 - 源码经 Git Data API 推送（github.com 直连被拦），远端 main 树与本地 HEAD 树一致（1620cc3c…）；
@@ -123,3 +129,16 @@ tag 由 `target_commitish = main` 自动创建，指向远端 main 的最新提�
 - 发布前做过覆盖升级测试：线上 1.2.0 → 1.3.0，同签名覆盖安装成功、版本号 1.3.0、数据保留；
 - 本轮新增 `.github` 之外的 CI 方案记录在 `MIUIX_BASELINE.md` §9.1（token 缺 `workflow` scope，
   含 workflow 的树会被 Git Data API 拒绝为 404）。
+
+1.4.0 发布细节：
+- 源码经 Git Data API 推送（`git push` 仍报 `RPC failed; curl 55 Send failure: Connection was reset`）。
+  本轮新增免 gh 的 `tools/push_api.py`，两个提交的 **SHA 与本地完全一致**
+  （`c89212a` / `9b8caa9`），远端 main = `9b8caa9`，无需事后对齐引用；
+- 本机没有 `gh`，Release 由 REST 创建：`POST /releases`（`tag_name=v1.4.0`、
+  `target_commitish=9b8caa9`）+ `uploads.github.com` 上传附件；
+  tag `v1.4.0` → `9b8caa9`；
+- 附件：`Glacier-release.apk` 4,418,528 B（sha256 `38a613da…e53d`）、`SHA256SUMS.txt`；
+  API 返回的 asset `digest` 与本地 `sha256sum` 一致；
+- 覆盖升级实测：从线上 v1.3.0 的 release APK（`bee840fd…75eb`）`adb install -r` 到 1.4.0，
+  同签名覆盖成功，`versionCode 4 → 5`、`versionName 1.3.0 → 1.4.0`，启动无 crash；
+- 基线见 `MIUIX_BASELINE.md`（MIUIX `44f1d315` / `v0.9.5-beta03` + 18）。
