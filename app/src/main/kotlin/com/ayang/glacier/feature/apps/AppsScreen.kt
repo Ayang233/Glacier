@@ -3,16 +3,11 @@ package com.ayang.glacier.feature.apps
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -35,19 +30,20 @@ import com.ayang.glacier.feature.common.AppActionSheet
 import com.ayang.glacier.feature.common.AppListCardRow
 import com.ayang.glacier.feature.common.AppSearchResults
 import com.ayang.glacier.feature.common.SearchResultVerticalPadding
+import com.ayang.glacier.ui.rememberAppSafePadding
 import com.ayang.glacier.ui.LocalGlassActive
 import com.ayang.glacier.ui.LocalRootBackdrop
-import com.ayang.glacier.ui.LocalSearchTopInset
+import com.ayang.glacier.ui.LocalAppPageInsets
+import com.ayang.glacier.ui.appPageHorizontalInsets
 import com.ayang.glacier.ui.components.EmptyState
 import com.ayang.glacier.ui.components.PageFrame
 import com.ayang.glacier.ui.components.PageMetrics
 import com.ayang.glacier.ui.components.TopBarAction
-import com.ayang.glacier.ui.components.pageContentPadding
 import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.rememberScrollBarAdapter
 import top.yukonga.miuix.kmp.glass.GlassBottomSheet
+import top.yukonga.miuix.kmp.glass.GlassCard
 import top.yukonga.miuix.kmp.glass.GlassSearchOverlay
 import top.yukonga.miuix.kmp.glass.GlassSearchOverlayDefaults
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -138,14 +134,12 @@ fun AppsScreen() {
                 expanded = searchOpen,
                 onDismissRequest = { searchOpen = false },
                 label = stringResource(R.string.search_hint),
-                // 横向只让开刘海/显示挖孔：侧栏让位已经由 Shell 的 `railStartInset` 作用在整页上，
-                // 搜索浮层不再重复让位（官方等价写法 `IconPage.kt:518`、`GlassPage.kt:691`）。
-                horizontalInsetsModifier = Modifier.windowInsetsPadding(
-                    WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal),
-                ),
-                // 官方语义：宽屏侧栏折叠成顶部胶囊时搜索条下移（`AppContent.kt:239-245`）。
+                // 与页面正文同一套官方契约：横向 = contentInsets，顶部 = safeInsets.top，
+                // 折叠胶囊 = searchTop（官方 `IconPage.kt:495-498`）。
+                horizontalInsetsModifier = Modifier.appPageHorizontalInsets(),
+                topInsets = LocalAppPageInsets.current.safeInsets.only(WindowInsetsSides.Top),
                 // 传 lambda 本身，让库在布局期逐帧读取，避免侧栏 morph 触发整页重组。
-                searchTopPadding = LocalSearchTopInset.current,
+                searchTopPadding = LocalAppPageInsets.current.searchTop,
                 scrollMaterialThreshold = GlassSearchOverlayDefaults.VerticalPadding + SearchResultVerticalPadding,
                 scrollOffset = {
                     when {
@@ -203,13 +197,13 @@ fun AppsScreen() {
                 },
             )
         },
-    ) { padding ->
+    ) { contentPadding ->
         if (entries.isEmpty()) {
             // 空态必须吃页面 padding（顶栏 / 底栏 / 安全区），否则文本被顶栏压住（规范 1.3、审计 5.2 P0）。
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(pageContentPadding(padding)),
+                    .padding(contentPadding),
             ) {
                 EmptyState(text = stringResource(R.string.empty_apps))
             }
@@ -217,8 +211,8 @@ fun AppsScreen() {
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
-                // 页面左右 12dp = 官方卡片外边距（`MainPage.kt:312`），由 `pageContentPadding` 默认值给出。
-                contentPadding = pageContentPadding(padding),
+                // 页面左右 12dp = 官方卡片外边距（`MainPage.kt:312`），由 PageFrame 统一算好。
+                contentPadding = contentPadding,
                 // 卡片之间 12dp = 官方卡片间距（规范第 3 节 `PageMetrics.SectionGap`）。
                 verticalArrangement = Arrangement.spacedBy(PageMetrics.SectionGap),
             ) {
@@ -258,7 +252,9 @@ private fun SortSheet(
     onDismiss: () -> Unit,
     onPick: (AppSort) -> Unit,
 ) {
-    val navigationBarBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    // 弹层内容自己让出系统底部安全区（官方 BottomSheet KDoc 的同款做法），
+    // 值来自官方 safeInsets 契约，不再逐处手写 WindowInsets。
+    val navigationBarBottom = rememberAppSafePadding().calculateBottomPadding()
     GlassBottomSheet(
         onDismissRequest = onDismiss,
         show = show,
@@ -273,7 +269,7 @@ private fun SortSheet(
             contentPadding = PaddingValues(bottom = navigationBarBottom + PageMetrics.SectionGap),
         ) {
             item(key = "sort-options") {
-                Card(Modifier.fillMaxWidth()) {
+                GlassCard(Modifier.fillMaxWidth()) {
                     AppSort.entries.forEach { sort ->
                         val label = stringResource(
                             when (sort) {
@@ -308,7 +304,16 @@ private fun FilterSheet(
 ) {
     val context = LocalContext.current
     val preferences = (context.applicationContext as GlacierApplication).preferences
-    val navigationBarBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    // filterEnabled() 直接读 SharedPreferences，不是 Compose 快照状态；setFilter() 写入后
+    // 只 bump revision。本函数是独立 Composable，父级读 revision 不会传导到这里，
+    // 所以必须自己订阅 revision，并用它做 key 重新读取，开关才能点击后立即回显。
+    val filterRevision = preferences.revision.intValue
+    val filterStates = remember(filterRevision) {
+        AppFilter.entries.associateWith(preferences::filterEnabled)
+    }
+    // 弹层内容自己让出系统底部安全区（官方 BottomSheet KDoc 的同款做法），
+    // 值来自官方 safeInsets 契约，不再逐处手写 WindowInsets。
+    val navigationBarBottom = rememberAppSafePadding().calculateBottomPadding()
     GlassBottomSheet(
         onDismissRequest = onDismiss,
         show = show,
@@ -323,10 +328,10 @@ private fun FilterSheet(
             contentPadding = PaddingValues(bottom = navigationBarBottom + PageMetrics.SectionGap),
         ) {
             item(key = "filters") {
-                Card(Modifier.fillMaxWidth()) {
+                GlassCard(Modifier.fillMaxWidth()) {
                     AppFilter.entries.forEach { filter ->
                         SwitchPreference(
-                            checked = preferences.filterEnabled(filter),
+                            checked = filterStates[filter] == true,
                             onCheckedChange = { checked ->
                                 preferences.setFilter(filter, checked)
                             },

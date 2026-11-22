@@ -25,7 +25,7 @@ Scaffold(containerColor = Transparent, contentWindowInsets = 0)     ← 弹层�
 └ Box(fillMaxSize)
    ├ Box(fillMaxSize).layerBackdrop(rootBackdrop)                   ★R 满屏录制层
    │  │   (rootBackdrop 先 drawRect(surface))
-   │  └ NavDisplay(railStartInset)                                  ← 让位只在内容层
+   │  └ NavDisplay(Modifier.fillMaxSize())                          ← 容器满宽，让位只在内容层
    │     ├ Route.Main → HorizontalPager
    │     │   └ 页面 PageFrame
    │     │      Box                                                  ← 浮层宿主
@@ -76,18 +76,32 @@ val tabBackdrop = if (tabsInTopBar) backdrop else wallpaperBackdrop
 因此标签栏搬到顶栏 `bottomContent`，玻璃档直接用 `GlassTabRow`，非玻璃档用普通 `TabRow`。
 这既是官方 example 的用法，也不再需要在正文列表里放导航控件。
 
-### 2. 让位不能在组合期解包
+### 2. 让位不能在组合期解包，也不能挪动容器
 
-`railStartInset` 用 `Modifier.layout` 实现，在量测期读 `inset()`；
-侧栏 morph 的每一帧只触发重新测量，不重组整页。
+官方 Glass 迁移指南 §4.2 与 `AppContent.kt:330-370` 是同一条要求：
+**`NavDisplay` 保持 `fillMaxSize()`，侧栏宽度只通过内容让位下发**。
+早期版本用 `Modifier.layout` 把整个 `NavDisplay` 右移（`railStartInset`），
+背景与顶栏模糊带会被硬截断，R6 已删除。
 
-第二轮又补了两个坑：
+现在的落点是 `ui/PageInsets.kt`（官方 `utils/PageUtils.kt` 的逐字节移植）：
+
+```
+AppPageInsets(overlayStart = { (rail.Margin + rail.ExpandedWidth) * progress })
+  ├ contentInsets   → Modifier.appPageHorizontalInsets() / pageContentPadding(...)
+  └ safeInsets      → Modifier.appPageTopBarInsets() / rememberAppSafePadding()
+```
+
+两个仍然有效的坑：
 
 - 让位必须带 `if (wide)`。窄屏没有侧栏，若还读 `railState.progress`（旋转前留下的 1.0），
   竖屏内容会被挤到屏幕右侧（实测现象：整页缩到右侧、标题折行）。
 - 侧栏状态用 `rememberGlassNavigationRailState` 内部是 `rememberSaveable`，
   竖屏时的 `false` 会被带到横屏 → 侧栏以折叠胶囊出现在顶部。必须
-  `LaunchedEffect(wide) { railState.expanded = wide }` 同步。
+  `LaunchedEffect(expandedRail) { railState.expanded = expandedRail }` 同步。
+
+`contentInsets` / `safeInsets` 内部的 `overlayStart()` / `searchTop()` 只能在
+量测 / 布局 / 绘制阶段读取：`pageContentPadding` 返回惰性 `PaddingValues`，
+顶栏与搜索浮层把 modifier 交给布局，组合期不解包成 `Dp`。
 
 ## 回退策略
 

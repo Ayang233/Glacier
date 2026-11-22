@@ -23,6 +23,7 @@ import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.BasicComponentDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.glass.GlassMotion
 import top.yukonga.miuix.kmp.squircle.squircleBackground
 import top.yukonga.miuix.kmp.squircle.squircleBorder
 import top.yukonga.miuix.kmp.squircle.squircleClip
@@ -56,16 +57,23 @@ fun AppIconView(
 ) {
     val context = LocalContext.current
     val preferences = (context.applicationContext as GlacierApplication).preferences
+    // 这三项设置都是直接读 SharedPreferences 的普通属性，不是快照状态；
+    // 订阅 revision 并作为图标重载 key，设置页改完返回后图标才会立即重绘。
+    val iconRevision = preferences.revision.intValue
     val bitmap = rememberAppIcon(
         packageName = packageName,
         size = size,
         grayscale = frozen && preferences.grayscaleFrozenIcons,
         iconPack = preferences.iconPack,
         synthesizeAdaptive = preferences.synthesizeAdaptiveIcons,
+        revision = iconRevision,
     )
     val radius = size * AppIconCornerRatio
+    // 用官方 GlassMotion 的物理曲线，而不是 Compose 默认 spring：选中环与 MIUIX
+    // 分段轨道指示器共用 0.95/0.35 的 Folme 弹簧（GlassMotion.default）。
     val ringWidth by animateDpAsState(
         targetValue = if (selected) 2.dp else 0.dp,
+        animationSpec = GlassMotion.default(),
         label = "appIconSelectionRing",
     )
     val ringColor = MiuixTheme.colorScheme.primary

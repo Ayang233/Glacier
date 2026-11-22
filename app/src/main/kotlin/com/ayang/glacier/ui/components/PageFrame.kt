@@ -7,21 +7,13 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.calculateEndPadding
-import androidx.compose.foundation.layout.calculateStartPadding
-import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.union
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -29,19 +21,21 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import com.ayang.glacier.ui.LocalAppPageInsets
 import com.ayang.glacier.ui.LocalGlassActive
-import com.ayang.glacier.ui.LocalPageStartReserved
 import com.ayang.glacier.ui.LocalShellBottomBarHeight
 import com.ayang.glacier.ui.LocalTopBarObstructionStart
 import com.ayang.glacier.ui.LocalTopBarTitleAlpha
+import com.ayang.glacier.ui.appPageTopBarInsets
 import com.ayang.glacier.ui.isWideLayout
+import com.ayang.glacier.ui.rememberAppSafePadding
 import com.ayang.glacier.ui.rememberSurfaceBackdrop
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
@@ -103,7 +97,7 @@ object PageMetrics {
 /**
  * 页面骨架。
  *
- * 结构对照官方 `GlassPage`（`miuix/example/shared/src/commonMain/kotlin/GlassPage.kt:264-341`）：
+ * 结构对照官方 `GlassPage`（`miuix/example/shared/src/commonMain/kotlin/GlassPage.kt:280-470`）：
  *
  * ```
  * Box
@@ -112,14 +106,19 @@ object PageMetrics {
  * └ overlay                                    ← 浮层，画在 Scaffold 之上
  * ```
  *
+ * - **让位只发生在内容层**：横向与顶部安全区由 [appPageTopBarInsets] 与
+ *   [pageContentPadding] 交给布局阶段读取，录制层与背景始终满宽（官方 `appPageInsets` 语义）。
  * - **浮层必须在 Scaffold 之外**：官方 Scaffold 的摆放顺序是
  *   `body → topBar → snackbar → bottomBar → fab → popup`，把浮层写进 body 槽会被顶栏盖住；
  *   顶栏淡出后仍参与命中测试，搜索浮层的 × 与顶栏动作坐标重叠时点击会被顶栏吃掉。
- * - **底栏高度来自 Shell 实测**：Shell 的 GlassNavigationBar 已经在自己的 Scaffold 里占位，
- *   这里用透明 bottomBar 复现同样的布局语义，正文底部 padding 与 FAB 位置都由 Scaffold 计算，
- *   不再手写 `Height + 32dp` 之类的魔法值。
+ * - **底栏高度来自宿主实测**：Shell 的 GlassNavigationBar 在自己的 Scaffold 里占位，
+ *   这里用透明 bottomBar 复现同样的布局语义，正文底部 padding 与 FAB 位置都由 Scaffold 计算。
  * - **搜索态**：整页按官方 `rememberGlassSearchBarAlpha` 淡出，顶栏再用
  *   `glassSearchBarTransition` 做缩放 + 模糊，两者分工与官方 example 一致。
+ *
+ * 传给 [content] 的是**已经算好的内容内边距**（含顶栏/底栏/安全区/12dp 页码），
+ * 页面直接当成 `contentPadding` 用即可；滚动条的 `trackPadding` 与它同源，
+ * 因此与官方"每页显式加滚动条、轨道贴着内容区"的写法一致。
  */
 @OptIn(ExperimentalScrollBarApi::class)
 @Composable
@@ -158,8 +157,7 @@ fun PageFrame(
      * 官方 AboutPage 的标题随滚动进度淡入（`example/AboutPage.kt:127`），
      * 这类页面级曲线经这里传入。与 Shell 宽屏侧栏折叠胶囊的
      * [LocalTopBarTitleAlpha] **相乘**（官方同样把两者相乘：
-     * `example/utils/PageUtils.kt:264` `titleAlpha() * chromeTitleAlpha()`），
-     * 因为"侧栏盖住标题"与"标题随滚动淡出"是两个独立的遮挡来源，任一为 0 都必须不可见。
+     * `example/utils/PageUtils.kt:264` `titleAlpha() * chromeTitleAlpha()`）。
      */
     topBarTitleAlpha: (() -> Float)? = null,
     /**
@@ -176,40 +174,39 @@ fun PageFrame(
      */
     pageScrollOnContent: Boolean = false,
     /**
+     * 页面内容到屏幕边缘的横向留白（官方 12dp 卡片外边距）。
+     *
+     * 设置页 / 许可证页的分节标题自带 28dp，不希望再叠一层 12dp 时传 `0.dp`
+     * （官方 `SettingsPage.kt:415` 的 `SmallTitle` 与 `groupedCardItems`
+     * 的 `outerHorizontalPadding` 各自只管一层）。
+     */
+    contentPaddingHorizontal: Dp = PageMetrics.Horizontal,
+    /**
      * 垂直滚动条适配器，`null` = 不显示。
      *
      * 官方示例的滚动条不是库默认能力，而是每页显式添加
      * （`example/MainPage.kt:341-345` 等）；页面把
      * `rememberScrollBarAdapter(lazyListState / lazyGridState)` 传进来即可，
-     * 轨道内边距由 PageFrame 按 Scaffold 实际测量值自动计算。
+     * 轨道内边距与顶栏隐现跟随都由 PageFrame 按官方参数传好。
      */
     scrollBarAdapter: ScrollBarAdapter? = null,
+    /** 页面内容。参数是**最终内容内边距**，直接传给 `LazyColumn(contentPadding = ...)`。 */
     content: @Composable (PaddingValues) -> Unit,
 ) {
     val surface = MiuixTheme.colorScheme.surface
     val glassActive = LocalGlassActive.current
     val backdrop = rememberSurfaceBackdrop(surface)
     val searchBarAlpha = rememberGlassSearchBarAlpha(searchExpanded)
+    // 宿主让位：底栏可见时它已经含了手势区（Shell 实测高度）；宽屏/二级页则让出系统底部安全区。
+    // 系统那一半来自官方 AppPageInsets 契约，不再自己算 WindowInsets。
     val shellBottom = LocalShellBottomBarHeight.current
-    val safeBottom = pageSafeBottom()
-    // 底栏可见时它已经含了手势区；宽屏/二级页则自己让出系统底部安全区。
+    val safeBottom = rememberAppSafePadding().calculateBottomPadding()
     val bottomReserve = if (shellBottom > 0.dp) shellBottom else safeBottom
     val largeTitle = expandable && !isWideLayout()
     // 页面曲线 × Shell 侧栏曲线：任一遮挡来源为 0 时标题都不可见（官方 PageUtils.kt:264 同乘）。
     val chromeTitleAlpha = LocalTopBarTitleAlpha.current
     val mergedTitleAlpha = remember(topBarTitleAlpha, chromeTitleAlpha) {
         { (topBarTitleAlpha?.invoke() ?: 1f).coerceIn(0f, 1f) * chromeTitleAlpha().coerceIn(0f, 1f) }
-    }
-    // 宽屏 pane 的 start 侧已由 Shell 的 railStartInset 让出（含 start 侧 cutout），
-    // 顶栏不能再让一次同一块 cutout（官方 PageUtils.kt:130-132 的 appPageTopBarInsets 同义）。
-    val startReserved = LocalPageStartReserved.current
-    val topBarEdgeInsets = if (startReserved) {
-        Modifier.windowInsetsPadding(
-            WindowInsets.displayCutout.only(WindowInsetsSides.End)
-                .union(WindowInsets.navigationBars.only(WindowInsetsSides.End)),
-        )
-    } else {
-        Modifier
     }
 
     Box(modifier = modifier.fillMaxSize()) {
@@ -228,8 +225,6 @@ fun PageFrame(
                     scrollBehavior = scrollBehavior,
                     expandable = largeTitle,
                     titleAlpha = mergedTitleAlpha,
-                    modifier = topBarEdgeInsets,
-                    defaultWindowInsetsPadding = !startReserved,
                     obstructionStart = LocalTopBarObstructionStart.current,
                     navigationIcon = navigationIcon,
                     actions = topBarActions,
@@ -245,10 +240,13 @@ fun PageFrame(
             floatingActionButton = {
                 floatingActionButton(backdrop.takeIf { glassActive })
             },
-        ) { padding ->
+        ) { innerPadding ->
+            // 内容内边距在这里一次算好：横向 = max(12dp, 安全区 + 侧栏让位)，纵向 = Scaffold 实测，
+            // 全部在布局阶段读取（PaddingValues 的 calculate* 是惰性的），侧栏 morph 不触发重组。
+            val contentPadding = pageContentPadding(innerPadding, horizontal = contentPaddingHorizontal)
             // 不再暴露 LocalPageBackdrop：provider 在本录制层子树内，页面内组件若读它采样，
             // 就在自己的采样源子树里采样 → 自采样崩溃（Glass 审计 R4-P2）。
-            // 页面内的玻璃组件要 backdrop 时由 Shell 的 LocalRootBackdrop 提供（弹层、顶栏、FAB 均如此）。
+            // 页面内的玻璃组件要 backdrop 时由 Shell 的 LocalRootBackdrop 提供。
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -264,25 +262,25 @@ fun PageFrame(
                         Modifier
                             .fillMaxSize()
                             .pageScrollModifiers(
-                                scrollBehavior = scrollBehavior,
                                 enableScrollEndHaptic = scrollEndHaptic,
+                                showTopAppBar = true,
+                                topAppBarScrollBehavior = scrollBehavior,
                             )
                     },
                 ) {
-                    content(padding)
+                    content(contentPadding)
                 }
                 if (scrollBarAdapter != null) {
                     // 画在滚动 wrapper 之外：弹性 overscroll 位移不应该带着滚动条一起动。
-                    // 层序与官方一致（`MainPage.kt:341-345` 的滚动条同样在 layerBackdrop 内）。
+                    // 参数与官方一致（`MainPage.kt:359-364`）：轨道内边距取内容内边距，
+                    // 并把自己挂到顶栏滚动行为上，顶栏隐藏时滚动条跟着收起。
                     VerticalScrollBar(
                         adapter = scrollBarAdapter,
                         modifier = Modifier
                             .align(Alignment.CenterEnd)
                             .fillMaxHeight(),
-                        trackPadding = PaddingValues(
-                            top = padding.calculateTopPadding(),
-                            bottom = padding.calculateBottomPadding(),
-                        ),
+                        trackPadding = contentPadding,
+                        topAppBarScrollBehavior = scrollBehavior,
                     )
                 }
             }
@@ -302,13 +300,15 @@ fun PageTopBar(
     expandable: Boolean = true,
     titleAlpha: () -> Float = { 1f },
     modifier: Modifier = Modifier,
-    defaultWindowInsetsPadding: Boolean = true,
     obstructionStart: Dp = Dp.Unspecified,
     navigationIcon: @Composable () -> Unit = {},
     actions: @Composable RowScope.() -> Unit = {},
     bottomContent: @Composable () -> Unit = {},
     searchExpanded: Boolean = false,
 ) {
+    // 顶栏自己不再猜安全区：横向让位（含悬浮侧栏）+ 顶部剩余安全区都由官方契约给出，
+    // 与官方 `AdaptiveTopAppBar` 的 `defaultWindowInsetsPadding = false` +
+    // `contentModifier.appPageTopBarInsets()` 同构（`utils/PageUtils.kt:265/282`）。
     if (LocalGlassActive.current) {
         GlassTopAppBar(
             title = title,
@@ -320,15 +320,17 @@ fun PageTopBar(
             // （`GlassTopAppBar.kt:293` / 官方 `GlassPage.kt:347`）。
             centerObstructionStart = obstructionStart,
             modifier = modifier,
-            defaultWindowInsetsPadding = defaultWindowInsetsPadding,
+            defaultWindowInsetsPadding = false,
             // 渐进模糊走库的官方管线（AGSL + 渐进纹理），不再按运行环境关掉。
             progressiveBlur = true,
             // 官方搜索转场：缩放 + 模糊；整页透明度由 PageFrame 的 Scaffold 负责。
-            contentModifier = Modifier.glassSearchBarTransition(
-                expanded = searchExpanded,
-                blurEnabled = true,
-                barAlpha = { 1f },
-            ),
+            contentModifier = Modifier
+                .glassSearchBarTransition(
+                    expanded = searchExpanded,
+                    blurEnabled = true,
+                    barAlpha = { 1f },
+                )
+                .then(Modifier.appPageTopBarInsets()),
             titleAlpha = titleAlpha,
             navigationIcon = navigationIcon,
             actions = actions,
@@ -338,10 +340,9 @@ fun PageTopBar(
         // 非玻璃档没有 titleAlpha 形参，用 titleColor / largeTitleColor 的 alpha 表达同一曲线
         // （官方 TopAppBar 参数：`miuix-ui/.../basic/TopAppBar.kt:113-133`）。
         // alpha == 1 时与原默认值逐字节等价，不影响未传 topBarTitleAlpha 的页面。
-        // 代价：alpha 是组合期参数，滚动淡出会让顶栏文字每帧重组（Glass 档在绘制期读 lambda，
-        // 没有这个问题）；二级页顶栏只有标题/副标题，成本可接受。
         val alpha = titleAlpha().coerceIn(0f, 1f)
         val textColor = MiuixTheme.colorScheme.onSurface.copy(alpha = alpha)
+        // 官方非玻璃档把 inset 挂在整条顶栏上（`PageUtils.kt:299-304`），底色不铺到刘海下面。
         TopAppBar(
             title = title,
             subtitle = subtitle,
@@ -350,8 +351,8 @@ fun PageTopBar(
             titleColor = textColor,
             largeTitleColor = textColor,
             subtitleColor = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = alpha),
-            modifier = modifier,
-            defaultWindowInsetsPadding = defaultWindowInsetsPadding,
+            modifier = modifier.then(Modifier.appPageTopBarInsets()),
+            defaultWindowInsetsPadding = false,
             centerObstructionStart = obstructionStart,
             navigationIcon = navigationIcon,
             actions = actions,
@@ -389,80 +390,63 @@ fun TopBarAction(
 }
 
 /**
- * 侧栏让位。
- *
- * 只移动内容，不动录制层（录制层必须满宽，否则侧栏位置没有像素可采）。
- * inset 在量测期读取，避免侧栏展开的 300ms 里整页重组。
- */
-fun Modifier.railStartInset(inset: () -> Dp): Modifier = layout { measurable, constraints ->
-    val extra = inset().roundToPx()
-        .coerceIn(0, if (constraints.hasBoundedWidth) constraints.maxWidth else 0)
-    if (extra == 0) {
-        val placeable = measurable.measure(constraints)
-        layout(placeable.width, placeable.height) { placeable.placeRelative(0, 0) }
-    } else {
-        // 父级可能给的是固定宽度（minWidth == maxWidth），扣掉让位宽度后必须同步放开 min，
-        // 否则 copy() 会构造出 maxWidth < minWidth 的非法约束。
-        val reduced = constraints.copy(
-            minWidth = 0,
-            maxWidth = (constraints.maxWidth - extra).coerceAtLeast(0),
-        )
-        val placeable = measurable.measure(reduced)
-        layout(placeable.width + extra, placeable.height) {
-            placeable.placeRelative(extra, 0)
-        }
-    }
-}
-
-/** 系统底部安全区（手势条 / 三键导航 / 刘海横屏的 caption bar）。 */
-@Composable
-private fun pageSafeBottom(): Dp {
-    val density = androidx.compose.ui.platform.LocalDensity.current
-    val insets = WindowInsets.navigationBars
-        .union(WindowInsets.displayCutout)
-    return with(density) { insets.getBottom(this).toDp() }
-}
-
-/**
  * 页面内容内边距。
  *
- * 语义与官方 `example/utils/PageUtils.kt:186-222` 一致：
- * - start/end = `max(页面横向留白, 系统横向安全区)`
+ * 形态与官方 `example/utils/PageUtils.kt:209-245` 一致：返回**惰性** [PaddingValues]，
+ * `calculate*Padding()` 在布局阶段才读取安全区与侧栏让位，因此侧栏 300ms morph
+ * 只重新布局、不重组整页。
+ *
+ * - start/end = `max(页面横向留白, 安全区 + 悬浮侧栏让位)`
  * - top = Scaffold 给的顶栏高度 + extraTop
  * - bottom = Scaffold 给的底栏高度 + 末尾留白 + extraBottom
  *
- * 横向安全区只算刘海/横屏导航条。**宽屏 pane 的 start 侧由 Shell 的 `railStartInset` 让过**
- * （它已经包含侧栏宽度与 start 侧系统 inset），此时 [LocalPageStartReserved] 为 true，
- * 页面不能再让一次同一块 cutout —— 官方用 `startAlreadyReserved` 表达同一语义
- * （`PageUtils.kt:99-103`：为 true 时 `safeInsets` 只保留 End + Vertical）。
+ * 不要再包一层 `remember`：MIUIX Scaffold 的 contentPadding 是"实例不变、内部 holder 变化"的
+ * [PaddingValues]，缓存它会拿到第一帧（顶栏还没量出来）的旧值。
  */
 @Composable
 fun pageContentPadding(
-    scaffoldPadding: PaddingValues,
+    innerPadding: PaddingValues,
+    outerPadding: PaddingValues = PaddingValues(0.dp),
     horizontal: Dp = PageMetrics.Horizontal,
     extraTop: Dp = 0.dp,
+    extraStart: Dp = 0.dp,
+    extraEnd: Dp = 0.dp,
     extraBottom: Dp = 0.dp,
 ): PaddingValues {
-    val layoutDirection = LocalLayoutDirection.current
-    val horizontalInsets = WindowInsets.displayCutout
-        .only(WindowInsetsSides.Horizontal)
-        .union(WindowInsets.navigationBars.only(WindowInsetsSides.Horizontal))
-        .asPaddingValues()
-    val startReserved = LocalPageStartReserved.current
-    // 不能 remember：MIUIX Scaffold 的 contentPadding 是一个实例不变、
-    // 内部 paddingHolder 变化的 PaddingValues。用 remember(scaffoldPadding) 会缓存第一帧
-    // （顶栏底栏高度还没量出来）的旧值，导致正文永远按错误的顶栏高度起排。
-    // 直接读 calculate*Padding() 在组合期订阅其内部状态，高度变化时自动重组。
-    return PaddingValues(
-        start = if (startReserved) {
-            horizontal
-        } else {
-            maxOf(horizontal, horizontalInsets.calculateStartPadding(layoutDirection))
-        },
-        end = maxOf(horizontal, horizontalInsets.calculateEndPadding(layoutDirection)),
-        top = scaffoldPadding.calculateTopPadding() + extraTop,
-        bottom = scaffoldPadding.calculateBottomPadding() + PageMetrics.BottomGap + extraBottom,
-    )
+    val insets = LocalAppPageInsets.current.contentInsets
+    val density = LocalDensity.current
+    val pagePadding = remember(insets, density) { insets.asPaddingValues(density) }
+    return remember(innerPadding, outerPadding, pagePadding, horizontal, extraTop, extraStart, extraEnd, extraBottom) {
+        object : PaddingValues {
+            override fun calculateLeftPadding(layoutDirection: LayoutDirection): Dp = maxOf(
+                innerPadding.calculateLeftPadding(layoutDirection),
+                outerPadding.calculateLeftPadding(layoutDirection),
+                pagePadding.calculateLeftPadding(layoutDirection),
+                horizontal,
+            ) + if (layoutDirection == LayoutDirection.Ltr) extraStart else extraEnd
+
+            override fun calculateRightPadding(layoutDirection: LayoutDirection): Dp = maxOf(
+                innerPadding.calculateRightPadding(layoutDirection),
+                outerPadding.calculateRightPadding(layoutDirection),
+                pagePadding.calculateRightPadding(layoutDirection),
+                horizontal,
+            ) + if (layoutDirection == LayoutDirection.Rtl) extraStart else extraEnd
+
+            override fun calculateTopPadding(): Dp =
+                maxOf(
+                    innerPadding.calculateTopPadding(),
+                    outerPadding.calculateTopPadding(),
+                    pagePadding.calculateTopPadding(),
+                ) + extraTop
+
+            override fun calculateBottomPadding(): Dp =
+                maxOf(
+                    innerPadding.calculateBottomPadding(),
+                    outerPadding.calculateBottomPadding(),
+                    pagePadding.calculateBottomPadding(),
+                ) + PageMetrics.BottomGap + extraBottom
+        }
+    }
 }
 
 /**
@@ -507,7 +491,7 @@ fun EmptyState(
 }
 
 /**
- * 官方 `example/utils/PageUtils.kt:168-183` 的 `pageScrollModifiers` 等价实现。
+ * 官方 `example/utils/PageUtils.kt:191-206` 的 `pageScrollModifiers`，签名与实现逐条对齐。
  *
  * ```
  * scrollEndHaptic()                      // 滚动末端触感（官方设置项默认开）
@@ -522,19 +506,19 @@ fun EmptyState(
  */
 @Composable
 fun Modifier.pageScrollModifiers(
-    scrollBehavior: ScrollBehavior,
-    showTopAppBar: Boolean = true,
     enableScrollEndHaptic: Boolean = true,
+    showTopAppBar: Boolean = true,
+    topAppBarScrollBehavior: ScrollBehavior,
 ): Modifier {
-    val state = scrollBehavior.state
+    val state = topAppBarScrollBehavior.state
     val onOffsetChanged: (Float) -> Unit = remember(state) {
-        // 官方同款：`example/utils/PageUtils.kt:175-177`。
+        // 官方同款：`example/utils/PageUtils.kt:198-200`。
         { offset -> state.overscrollOffset = offset }
     }
     return this
         .then(if (enableScrollEndHaptic) Modifier.scrollEndHaptic() else Modifier)
         .overScrollVertical(onOffsetChanged = if (showTopAppBar) onOffsetChanged else null)
-        .then(if (showTopAppBar) Modifier.nestedScroll(scrollBehavior.nestedScrollConnection) else Modifier)
+        .then(if (showTopAppBar) Modifier.nestedScroll(topAppBarScrollBehavior.nestedScrollConnection) else Modifier)
         .fillMaxHeight()
 }
 

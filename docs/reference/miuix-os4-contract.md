@@ -22,6 +22,12 @@
 > 注：本版 MIUIX 是 Compose Multiplatform 库（包名 `top.yukonga.miuix.kmp.*`）。Glacier 的 composite build 引用的就是这份源码，
 > 所以下面的默认值 = 运行时默认值。
 
+> **R6 更新（2026-11-22）**：本文的 HEAD（`58b0a3d`）是第二轮审计时的快照，行号会随基线漂移。
+> 宿主让位 / 内容内边距已在 R6 按官方 `example/utils/PageUtils.kt` 落到 Glacier 的
+> `app/src/main/kotlin/com/ayang/glacier/ui/PageInsets.kt`（`AppPageInsets` + `appPageHorizontalInsets()` +
+> `appPageTopBarInsets()` + `rememberAppSafePadding()`），本文 §A.5/§A.6 的结论仍然有效，
+> 但**实现位置以 `ui/PageInsets.kt` 为准**。
+
 ---
 
 ## 0. 一句话结论（先给整改负责人）

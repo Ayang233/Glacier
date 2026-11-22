@@ -7,8 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.calculateEndPadding
-import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -18,19 +17,20 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.computedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.BlendMode as ComposeBlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -40,10 +40,14 @@ import androidx.compose.ui.unit.sp
 import com.ayang.glacier.BuildConfig
 import com.ayang.glacier.GlacierApplication
 import com.ayang.glacier.R
+import com.ayang.glacier.ui.LocalGlassActive
 import com.ayang.glacier.ui.components.BackNavigationAction
 import com.ayang.glacier.ui.components.PageFrame
 import com.ayang.glacier.ui.components.PageMetrics
-import com.ayang.glacier.ui.components.pageContentPadding
+import com.ayang.glacier.ui.effect.AboutCardBlendDark
+import com.ayang.glacier.ui.effect.AboutCardBlendLight
+import com.ayang.glacier.ui.effect.BgEffectBackground
+import com.ayang.glacier.ui.effect.aboutLogoBlend
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
@@ -51,6 +55,11 @@ import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.rememberScrollBarAdapter
+import top.yukonga.miuix.kmp.blur.BlurDefaults
+import top.yukonga.miuix.kmp.blur.LayerBackdrop
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
+import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.interfaces.ExperimentalScrollBarApi
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -70,14 +79,20 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  * `firstVisibleItemScrollOffset`，是滚动位置的纯函数：没有 Animatable / 补间，
  * 快滚、慢滚、中途停住、回滚到顶部都直接跟随手指，不存在两套动画互相追赶。
  *
- * 与官方示例的裁剪（理由见 `docs/audit/r4/part-about.md`）：
- * - 官方 `BgEffectBackground` 动态背景（`:225-232`）与品牌图 `textureBlur`
- *   （`:271-286`）不移植：Glacier 的页面正文本身就是玻璃录制层
- *   （`ui/components/PageFrame.kt:184-198`），从这里再采 `LocalPageBackdrop`
- *   会变成自采样；官方 blur 采的是它自己的 BgEffect 层，Glacier 没有该层。
- * - 顶栏标题随滚动淡入（官方 `:127`）需要 `PageFrame` 暴露 `titleAlpha`；
- *   当前 `PageFrame` 只把 `LocalTopBarTitleAlpha`（侧栏折叠）传给玻璃档顶栏，
- *   非玻璃档 `TopAppBar` 没有 `titleAlpha` 形参，两档无法同时对齐，故本轮不做。
+ * 动态背景与纹理模糊（对齐官方 `AboutPage.kt:114-121/229-236/271-290/351-375`）：
+ * 按官方三层 backdrop 范式接入，避免自采样：
+ * - 本页自建独立的 **aboutBackdrop**（`rememberLayerBackdrop`），只录制 BgEffect 动态背景；
+ *   [BgEffectBackground] 的 `bgModifier = layerBackdrop(aboutBackdrop)` 把背景 Spacer 录进去，
+ *   品牌名与信息卡作为它的**兄弟**采样，满足「消费者不是录制层后代」红线。
+ * - 品牌名 `textureBlur(DstIn)` 与信息卡 `textureBlur` 均走官方混色 token
+ *   （`ui/effect/AboutBlendTokens.kt`，逐字节取自官方 example）。
+ * - 动态背景 `alpha = 1 - scrollProgress`，随滚动淡出（官方 `AboutPage.kt:235`）。
+ * - 全链路用 [LocalGlassActive] 门控：用户关玻璃或设备不支持时，backdrop 为 null，
+ *   动态背景与纹理模糊都不挂载，回退纯色底（官方 `rememberBlurBackdrop` 同款语义）。
+ *
+ * BgEffect 的绘制代码逐字节移植自 MIUIX 官方 example（Apache-2.0，见 `ui/effect/`），
+ * 只把两个 example 内部依赖换成 Glacier 侧等价物：`shouldShowSplitPane` → [isWideLayout]、
+ * `isInDarkTheme` → 主题 surface 亮度判断。
  */
 @OptIn(ExperimentalScrollBarApi::class)
 @Composable
@@ -95,7 +110,7 @@ fun AboutScreen(
     // 滚出后恒为 1f。保持 State 形式，读点只落在 graphicsLayer（绘制阶段）与占位高度换算，
     // 避免滚动时整页逐帧重组。
     val scrollProgress = remember(lazyListState) {
-        derivedStateOf {
+        computedStateOf {
             when {
                 lazyListState.firstVisibleItemIndex > 0 -> 1f
 
@@ -113,9 +128,22 @@ fun AboutScreen(
         }
     }
     val density = LocalDensity.current
-    val layoutDirection = LocalLayoutDirection.current
     // 官方 AboutPage.kt:223 的默认值，首帧后由品牌区实测高度替换；转屏/改字体后自动重测。
     var logoHeight by remember { mutableStateOf(DefaultLogoHeight) }
+
+    // 内层的**背景录制层**：与 PageFrame 的页面录制层（供顶栏采样）是两个独立 layer。
+    // 它只录 BgEffect 的背景 Spacer，品牌名/信息卡作为 Spacer 的兄弟采样它 → 不自采样。
+    // 这正是官方 AboutPage 的 backdrop（外层，顶栏用）+ AboutContent 的 backdrop（内层，
+    // 品牌/卡片用）双 backdrop 范式在 Glacier PageFrame 架构下的对应落点。
+    val glassActive = LocalGlassActive.current
+    val surface = MiuixTheme.colorScheme.surface
+    val isDark = surface.luminance() < 0.5f
+    val aboutBackdrop = rememberLayerBackdrop {
+        drawRect(surface)
+        drawContent()
+    }.takeIf { glassActive }
+    val cardBlend = if (isDark) AboutCardBlendDark else AboutCardBlendLight
+    val logoBlend = remember(isDark) { aboutLogoBlend(isDark) }
 
     PageFrame(
         title = stringResource(R.string.title_about),
@@ -132,27 +160,47 @@ fun AboutScreen(
                 contentDescription = stringResource(R.string.close),
             )
         },
-    ) { padding ->
+    ) { scrollPadding ->
         // 官方 AboutPage.kt:156-157 的 scrollPadding / logoPadding：
         // 列表的顶栏留白与品牌区多出的 40dp 上边距分开算，后面的占位公式要用两者之差。
-        val scrollPadding = pageContentPadding(padding)
-        val logoPadding = pageContentPadding(padding, extraTop = BrandTopGap)
-        val brandTopPadding = logoPadding.calculateTopPadding() + BrandLogoTopGap
-        val brandStartPadding = logoPadding.calculateStartPadding(layoutDirection)
-        val brandEndPadding = logoPadding.calculateEndPadding(layoutDirection)
+        // 官方用 `PaddingValues` 委托派生第二份 padding，横向/安全区的读取仍然留在布局阶段
+        // （`AboutContent.kt:180-192`），不在组合期解包。
+        val logoPadding = remember(scrollPadding) {
+            object : PaddingValues by scrollPadding {
+                override fun calculateTopPadding() = scrollPadding.calculateTopPadding() + BrandTopGap
+            }
+        }
 
-        Box(modifier = Modifier.fillMaxSize()) {
+        // 官方 `logoContentPadding`：品牌区在 logoPadding 之上再加 52dp，底部不占位。
+        val logoContentPadding = remember(logoPadding) {
+            object : PaddingValues by logoPadding {
+                override fun calculateTopPadding() = logoPadding.calculateTopPadding() + BrandLogoTopGap
+                override fun calculateBottomPadding() = 0.dp
+            }
+        }
+
+        // 官方 AboutPage.kt:229-236 / AboutContent.kt:311-339 的动态背景层：
+        // bgEffect 的背景 Spacer 录进 aboutBackdrop，下面品牌区/卡片作为它的兄弟采样，
+        // alpha 随滚动进度淡出（1-p）。玻璃关闭 / shader 不支持时 aboutBackdrop 为 null，
+        // BgEffectBackground 自动退回普通 Box（纯色底），纹理模糊也不挂载。
+        BgEffectBackground(
+            dynamicBackground = glassActive,
+            modifier = Modifier.fillMaxSize(),
+            bgModifier = aboutBackdrop?.let { Modifier.layerBackdrop(it) } ?: Modifier,
+            isFullSize = true,
+            // 玻璃关闭时 alpha 恒为 0：官方 BgEffectDraw 只按 alpha 画 brush（不看 playing），
+            // 若仍传 1-p 会在纯色档把彩色渐变直接画出来。关档必须彻底退回纯色底。
+            alpha = { if (glassActive) (1f - scrollProgress.value).coerceIn(0f, 1f) else 0f },
+        ) {
             // 先画头图、再画列表：列表盖在头图上（官方 AboutPage.kt:233-339 的层序），
             // 透明占位让出头图区域，真实内容滚上来时从头图上方压过去。
             AboutBrandHeader(
                 scrollProgress = { scrollProgress.value },
+                backdrop = aboutBackdrop,
+                logoBlend = logoBlend,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(
-                        top = brandTopPadding,
-                        start = brandStartPadding,
-                        end = brandEndPadding,
-                    )
+                    .padding(logoContentPadding)
                     .onSizeChanged { size ->
                         with(density) { logoHeight = size.height.toDp() }
                     },
@@ -184,7 +232,7 @@ fun AboutScreen(
 
                 item { SmallTitle(stringResource(R.string.about_section_app)) }
                 item {
-                    AboutCard {
+                    AboutCard(backdrop = aboutBackdrop, blendColors = cardBlend) {
                         BasicComponent(
                             title = stringResource(R.string.about_version_label),
                             endActions = {
@@ -210,10 +258,14 @@ fun AboutScreen(
 
                 item { SmallTitle(stringResource(R.string.settings_system)) }
                 item {
-                    AboutCard {
+                    AboutCard(backdrop = aboutBackdrop, blendColors = cardBlend) {
                         BasicComponent(
                             title = stringResource(R.string.working_mode),
-                            summary = repository.selectedMode().key,
+                            // selectedMode() 最终读 preferences.workingMode（普通 SharedPreferences
+                            // 属性），订阅 revision 才能让设置页改完后摘要立即更新。
+                            summary = remember(app.preferences.revision.intValue) {
+                                repository.selectedMode().key
+                            },
                         )
                         BasicComponent(
                             title = stringResource(R.string.about_device_label),
@@ -224,7 +276,7 @@ fun AboutScreen(
 
                 item { SmallTitle(stringResource(R.string.about_section_open_source)) }
                 item {
-                    AboutCard {
+                    AboutCard(backdrop = aboutBackdrop, blendColors = cardBlend) {
                         ArrowPreference(
                             title = stringResource(R.string.about_licenses),
                             endActions = {
@@ -265,6 +317,8 @@ fun AboutScreen(
 @Composable
 private fun AboutBrandHeader(
     scrollProgress: () -> Float,
+    backdrop: LayerBackdrop?,
+    logoBlend: List<top.yukonga.miuix.kmp.blur.BlendColorEntry>,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -302,7 +356,23 @@ private fun AboutBrandHeader(
                     alpha = 1f - nameProgress
                     scaleX = 1f - nameProgress * BrandScaleDelta
                     scaleY = 1f - nameProgress * BrandScaleDelta
-                },
+                }
+                // 官方 AboutPage.kt:274-290：品牌名前景模糊，采 aboutBackdrop（只录背景 Spacer），
+                // DstIn 让文字 alpha 当遮罩，文字本身取模糊后的彩色纹理。无 backdrop 时跳过。
+                .then(
+                    if (backdrop != null) {
+                        Modifier.textureBlur(
+                            backdrop = backdrop,
+                            shape = BrandLogoBlurShape,
+                            blurRadius = BrandLogoBlurRadius,
+                            noiseCoefficient = BlurDefaults.NoiseCoefficient,
+                            colors = BlurDefaults.blurColors(blendColors = logoBlend),
+                            contentBlendMode = ComposeBlendMode.DstIn,
+                        )
+                    } else {
+                        Modifier
+                    },
+                ),
             color = MiuixTheme.colorScheme.onBackground,
             fontWeight = FontWeight.Bold,
             fontSize = BrandNameFontSize,
@@ -333,7 +403,11 @@ private fun brandProgress(progress: Float, start: Float): Float =
     ((progress - start) / BrandFadeSpan).coerceIn(0f, 1f)
 
 /**
- * 官方信息卡：`CardDefaults.defaultColors()`。
+ * 官方信息卡（对齐 `AboutPage.kt:345-375 / 400-426`）。
+ *
+ * 有 [backdrop] 时：卡片底色转透明，靠官方 `textureBlur` 采 aboutBackdrop 得到玻璃质感，
+ * 混色走官方 token（[blendColors]）；无 backdrop（玻璃关闭 / shader 不支持）时退回
+ * `CardDefaults.defaultColors()` 纯色底，两档都不会自采样。
  *
  * 横向 12dp 留白由 [pageContentPadding] 的默认 `PageMetrics.Horizontal` 提供（页面统一），
  * 卡片本身不再叠加第二层 horizontal padding，否则会变成 24dp；这与官方 AboutPage
@@ -341,10 +415,30 @@ private fun brandProgress(progress: Float, start: Float): Float =
  * `CardDefaults.InsideMargin` 在 0.9.5 是 0dp，行内留白由 `BasicComponent` 的 16dp 提供。
  */
 @Composable
-private fun AboutCard(content: @Composable ColumnScope.() -> Unit) {
+private fun AboutCard(
+    backdrop: LayerBackdrop?,
+    blendColors: List<top.yukonga.miuix.kmp.blur.BlendColorEntry>,
+    content: @Composable ColumnScope.() -> Unit,
+) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.defaultColors(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(
+                if (backdrop != null) {
+                    Modifier.textureBlur(
+                        backdrop = backdrop,
+                        shape = AboutCardBlurShape,
+                        blurRadius = AboutCardBlurRadius,
+                        noiseCoefficient = BlurDefaults.NoiseCoefficient,
+                        colors = BlurDefaults.blurColors(blendColors = blendColors),
+                    )
+                } else {
+                    Modifier
+                },
+            ),
+        colors = CardDefaults.defaultColors(
+            if (backdrop != null) Color.Transparent else MiuixTheme.colorScheme.surfaceContainer,
+        ),
         content = content,
     )
 }
@@ -393,3 +487,11 @@ private val BrandNameTopPadding = 12.dp
 private val BrandNameBottomPadding = 5.dp
 private val BrandNameFontSize = 35.sp
 private val BrandVersionFontSize = 14.sp
+
+// ---- 纹理模糊（官方 AboutPage.kt:276-286 品牌名 / :358-367 信息卡）----
+/** 官方品牌名与信息卡的模糊裁切圆角均为 16dp。 */
+private val BrandLogoBlurShape = RoundedCornerShape(16.dp)
+private val AboutCardBlurShape = RoundedCornerShape(16.dp)
+/** 官方品牌名前景模糊半径 100f，信息卡默认 60f。 */
+private const val BrandLogoBlurRadius = 100f
+private const val AboutCardBlurRadius = 60f

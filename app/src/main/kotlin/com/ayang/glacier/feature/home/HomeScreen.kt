@@ -5,25 +5,16 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.items as lazyItems
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
@@ -34,6 +25,7 @@ import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.computedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -62,21 +54,19 @@ import com.ayang.glacier.feature.common.AppActionSheet
 import com.ayang.glacier.feature.common.AppIconCornerRatio
 import com.ayang.glacier.feature.common.AppIconView
 import com.ayang.glacier.feature.common.AppLabelTextStyle
-import com.ayang.glacier.feature.common.AppRow
+import com.ayang.glacier.feature.common.AppSearchResults
 import com.ayang.glacier.feature.common.SheetActionRow
 import com.ayang.glacier.platform.UiFeedback
 import com.ayang.glacier.ui.LocalGlassActive
 import com.ayang.glacier.ui.LocalRootBackdrop
-import com.ayang.glacier.ui.LocalSearchTopInset
-import com.ayang.glacier.ui.LocalShellBottomBarHeight
+import com.ayang.glacier.ui.LocalAppPageInsets
+import com.ayang.glacier.ui.appPageHorizontalInsets
 import com.ayang.glacier.ui.components.EmptyState
 import com.ayang.glacier.ui.components.PageFrame
 import com.ayang.glacier.ui.components.PageMetrics
 import com.ayang.glacier.ui.components.TopBarAction
-import com.ayang.glacier.ui.components.pageContentPadding
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.BasicComponent
-import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -86,6 +76,7 @@ import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.rememberScrollBarAdapter
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.glass.GlassBottomSheet
+import top.yukonga.miuix.kmp.glass.GlassCard
 import top.yukonga.miuix.kmp.glass.GlassDialog
 import top.yukonga.miuix.kmp.glass.GlassDialogButton
 import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
@@ -172,6 +163,10 @@ fun HomeScreen() {
     val repository = app.repository
     val preferences = app.preferences
     val snapshot: AppSnapshot = repository.snapshot
+    // compactGrid / homeLabelSize / 搜索与筛选设置都是直接读 SharedPreferences 的普通属性，
+    // 不是快照状态。订阅 revision 并放进下面的 remember key，设置页改完返回后
+    // 列数、字号和列表内容才会立即刷新，不必切页重建。
+    val revision = preferences.revision.intValue
 
     var selectedTag by rememberSaveable { mutableIntStateOf(DEFAULT_TAG_ID) }
     var selecting by remember { mutableStateOf(false) }
@@ -191,13 +186,25 @@ fun HomeScreen() {
     // 网格滚动状态只有一个用途：告诉顶栏下的标签行"内容是否已经滚进顶栏"，
     // 决定玻璃档 surfaceAlpha（官方 `IconPage.kt:283`：`if (blurActive && contentUnderTopBar) 1f else 0f`）。
     val gridState = rememberLazyGridState()
+    // 对齐 0.9.5-beta03 迁移要点：canScrollBackward / overscrollOffset 都是逐帧值，
+    // 用 computedStateOf 收敛成 0f/1f 两个离散状态，只有翻转时才重组顶栏；
+    // 叠加 overscrollOffset < -1f 让顶部回弹时轨道也能浮起，模糊关闭时保持静止态 0f。
+    val tabSurfaceAlpha by remember(gridState, scrollBehavior, glassActive) {
+        computedStateOf {
+            if (glassActive && (gridState.canScrollBackward || scrollBehavior.state.overscrollOffset < -1f)) {
+                1f
+            } else {
+                0f
+            }
+        }
+    }
 
     // 标签被删除后，选中项要回到默认标签，否则页面会空白。
     if (snapshot.tags.none { it.id == selectedTag }) {
         selectedTag = DEFAULT_TAG_ID
     }
 
-    val entries = remember(snapshot, selectedTag) { repository.homeApps(selectedTag) }
+    val entries = remember(snapshot, selectedTag, revision) { repository.homeApps(selectedTag) }
     val tagLabel = snapshot.tags.firstOrNull { it.id == selectedTag }?.let { repository.tagLabel(it) }
         ?: stringResource(R.string.label_default)
 
@@ -282,7 +289,7 @@ fun HomeScreen() {
                     selectedTag = selectedTag,
                     labelOf = { repository.tagLabel(it) },
                     backdrop = topBarBackdrop,
-                    surfaceAlpha = if (gridState.canScrollBackward) 1f else 0f,
+                    surfaceAlpha = tabSurfaceAlpha,
                     onSelect = { selectedTag = it },
                 )
             }
@@ -321,9 +328,8 @@ fun HomeScreen() {
             // 搜索浮层常驻组合：只由 expanded 驱动，官方组件负责 400ms 进出动画、
             // query 清理、焦点/键盘与返回键（GlassSearchOverlay.kt:229-245）。
             // onDismissRequest 只关闭搜索，绝不触达标签编辑。
-            // 横向只让刘海安全区：侧栏展开时整个页面已被 Shell 的 railStartInset 右移，
-            // 页面内再让一次会双算。顶部让位用 PageFrame 提供的 LocalSearchTopInset
-            // （宽屏侧栏折叠成顶部胶囊时非 0，窄屏恒 0）。
+            // 让位与页面正文同一套官方契约：横向 = contentInsets（安全区 + 悬浮侧栏让位），
+            // 顶部 = safeInsets.top，折叠胶囊用 searchTop（官方 IconPage.kt:495-498）。
             GlassSearchOverlay(
                 expanded = searchOpen,
                 onDismissRequest = { searchOpen = false },
@@ -336,18 +342,19 @@ fun HomeScreen() {
                         else -> searchListState.firstVisibleItemScrollOffset.toFloat()
                     }
                 },
-                horizontalInsetsModifier = Modifier.windowInsetsPadding(
-                    WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal),
-                ),
-                searchTopPadding = LocalSearchTopInset.current,
+                horizontalInsetsModifier = Modifier.appPageHorizontalInsets(),
+                topInsets = LocalAppPageInsets.current.safeInsets.only(WindowInsetsSides.Top),
+                searchTopPadding = LocalAppPageInsets.current.searchTop,
                 label = stringResource(R.string.search_hint),
                 blurEnabled = glassActive,
                 searchIcon = MiuixIcons.Glass.Search,
                 closeIcon = MiuixIcons.Glass.Close,
             ) { query ->
-                HomeSearchResults(
+                // 与 Apps 页同一个搜索结果实现（`AppSearchResults`：官方 Card + BasicComponent 行、
+                // 同一套让位与空态）。这里不再维护第二份手写列表。
+                AppSearchResults(
                     query = query,
-                    state = searchListState,
+                    listState = searchListState,
                     onPick = { entry ->
                         searchOpen = false
                         scope.launch { runner.run(entry, AppAction.Launch) }
@@ -441,9 +448,10 @@ fun HomeScreen() {
                 },
             )
         },
-    ) { padding ->
-        val contentPadding = pageContentPadding(padding)
+    ) { contentPadding ->
         BoxWithConstraints(Modifier.fillMaxSize()) {
+            // 列数要按"减掉页面横向留白后的可用宽度"算；这里在组合期读 padding 是刻意的：
+            // 列数变化必须重组网格，而 12dp 留白与侧栏让位只在宽度/形态变化时才变。
             val available = maxWidth - contentPadding.calculateLeftPadding(LocalLayoutDirection.current) -
                 contentPadding.calculateRightPadding(LocalLayoutDirection.current)
             val columns = HomeGridMetrics.columns(available, preferences.compactGrid)
@@ -548,74 +556,6 @@ private fun HomeAppItem(
 }
 
 /**
- * 搜索结果列表。
- *
- * 官方结构：`Card + BasicComponent`（`IconPage.kt:215-244`）；这里直接用共享的
- * [AppRow]（内部就是官方 [BasicComponent] + 40dp [AppIconView]），与 Apps 列表、
- * Apps 搜索结果同一份行实现。
- */
-@Composable
-private fun HomeSearchResults(
-    query: String,
-    state: LazyListState,
-    onPick: (AppEntry) -> Unit,
-) {
-    val context = LocalContext.current
-    val repository = (context.applicationContext as GlacierApplication).repository
-    val results = remember(query, repository.snapshot) {
-        if (query.isBlank()) emptyList() else repository.apps(query)
-    }
-    val topInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    val searchBarSpace = GlassSearchOverlayDefaults.BarHeight +
-        GlassSearchOverlayDefaults.VerticalPadding * 2
-    // 与浮层搜索条一致：宽屏侧栏折叠成顶部胶囊时，结果列表也要让出同一段（官方 IconPage.kt:538）。
-    val searchTop = LocalSearchTopInset.current()
-
-    LazyColumn(
-        state = state,
-        modifier = Modifier
-            .fillMaxSize()
-            .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal)),
-        contentPadding = PaddingValues(
-            top = topInset + searchTop + searchBarSpace + SearchResultVerticalPadding,
-            bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() +
-                // 搜索浮层盖不住 Shell 的悬浮导航胶囊（它是 Shell 的兄弟节点、画在页面之上），
-                // 结果列表底部必须避开胶囊高度，否则最后几条会压在胶囊下面。
-                LocalShellBottomBarHeight.current +
-                PageMetrics.BottomGap,
-        ),
-    ) {
-        if (results.isEmpty()) {
-            item(key = "empty") {
-                EmptyState(
-                    text = stringResource(if (query.isBlank()) R.string.search_hint else R.string.empty_search),
-                )
-            }
-        } else {
-            lazyItems(results, key = { it.packageName }) { entry ->
-                // 与 Apps 列表 / 搜索结果共用同一个 `AppRow`（官方 `BasicComponent` 行 + 40dp
-                // `AppIconView` + 包名 summary + 冻结徽标），保证三处的图标轮廓、字体层级、
-                // 图文间距、单行结构与点击反馈是同一套，而不是这里再手搓一份。
-                Card(
-                    modifier = Modifier.padding(
-                        horizontal = PageMetrics.Horizontal,
-                        vertical = SearchResultVerticalPadding,
-                    ),
-                ) {
-                    AppRow(
-                        packageName = entry.packageName,
-                        label = entry.label,
-                        summary = entry.packageName,
-                        frozen = entry.frozen,
-                        onClick = { onPick(entry) },
-                    )
-                }
-            }
-        }
-    }
-}
-
-/**
  * 标签页签。
  *
  * 两档都是官方"页面级标签"的范式（不是组件演示页的特例档）：
@@ -701,7 +641,7 @@ private fun TagEditorSheet(
     ) {
         LazyColumn(Modifier.fillMaxWidth()) {
             item {
-                Card(Modifier.padding(bottom = PageMetrics.SectionGap)) {
+                GlassCard(Modifier.padding(bottom = PageMetrics.SectionGap)) {
                     tags.forEach { tag ->
                         BasicComponent(
                             title = labelOf(tag),
@@ -728,7 +668,7 @@ private fun TagEditorSheet(
                 }
             }
             item {
-                Card(Modifier.padding(bottom = PageMetrics.SectionGap)) {
+                GlassCard(Modifier.padding(bottom = PageMetrics.SectionGap)) {
                     SheetActionRow(
                         icon = MiuixIcons.Glass.Add,
                         label = stringResource(R.string.action_new_tag),
@@ -875,7 +815,7 @@ private fun DeferredSheet(
         title = stringResource(R.string.action_deferred_freeze),
     ) {
         Column(Modifier.fillMaxWidth()) {
-            Card(Modifier.padding(bottom = PageMetrics.SectionGap)) {
+            GlassCard(Modifier.padding(bottom = PageMetrics.SectionGap)) {
                 options.forEach { minutes ->
                     SheetActionRow(
                         icon = MiuixIcons.Glass.Timer,

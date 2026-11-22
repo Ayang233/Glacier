@@ -2,7 +2,7 @@ package com.ayang.glacier.feature.settings
 
 import android.content.Intent
 import android.provider.Settings
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.CapturedAnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -37,7 +37,6 @@ import com.ayang.glacier.ui.LocalRootBackdrop
 import com.ayang.glacier.ui.components.GroupCard
 import com.ayang.glacier.ui.components.PageFrame
 import com.ayang.glacier.ui.components.PageMetrics
-import com.ayang.glacier.ui.components.pageContentPadding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -133,14 +132,16 @@ fun SettingsScreen(onOpenAbout: () -> Unit) {
         subtitle = repository.deviceSummary(),
         scrollBehavior = scrollBehavior,
         scrollBarAdapter = rememberScrollBarAdapter(listState),
-    ) { padding ->
+        // 横向 12dp 只给卡片，不给 SmallTitle（官方 SettingsPage 的 outerHorizontalPadding 只管卡片）。
+        contentPaddingHorizontal = 0.dp,
+    ) { contentPadding ->
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize(),
-            // 横向 12dp 只给卡片，不给 SmallTitle：否则分节标题左边距会变成
-            // 12(内容 padding) + 28(SmallTitle 自带) = 40dp，官方 example 是 28dp
-            // （SettingsPage.kt:415 的 SmallTitle 与 groupedCardItems 的 outerHorizontalPadding = 12 各管一层）。
-            contentPadding = pageContentPadding(padding, horizontal = 0.dp),
+            // 内容 padding 的横向为 0（见 PageFrame 的 contentPaddingHorizontal），
+            // 12dp 由每张卡片的 horizontal padding 提供：分节标题保持 SmallTitle 自带的 28dp，
+            // 不会变成 12 + 28 = 40dp（官方 SettingsPage.kt:415 同构）。
+            contentPadding = contentPadding,
             verticalArrangement = Arrangement.spacedBy(PageMetrics.SectionGap),
         ) {
             item { SmallTitle(stringResource(R.string.settings_general)) }
@@ -211,9 +212,9 @@ fun SettingsScreen(onOpenAbout: () -> Unit) {
                         )
                     }
                     // 没有任何已安装图标包时，这一行的候选项只有 "None"，属于"看起来可点但选了没效果"。
-                    // 官方 example 对"候选依赖其它状态"的行一律用 AnimatedVisibility 收起
+                    // 官方 example 对"候选依赖其它状态"的行一律用 CapturedAnimatedVisibility 收起
                     // （SettingsPage.kt:172-207、257-265），这里沿用同一做法。
-                    AnimatedVisibility(visible = iconPacks.isNotEmpty()) {
+                    CapturedAnimatedVisibility(visible = iconPacks.isNotEmpty()) {
                         GlassDropdownPreference(
                             onSelectedIndexChange = { index ->
                                 preferences.iconPack = if (index == 0) null else iconPacks[index - 1].first
@@ -313,9 +314,9 @@ fun SettingsScreen(onOpenAbout: () -> Unit) {
                         summary = stringResource(R.string.auto_freeze_summary),
                     )
                     // 依赖"自动冻结已开启"的项整组收起，而不是置灰后不给任何解释：
-                    // 官方的 dependent-option 范式就是 AnimatedVisibility(visible = parent)
+                    // 官方的 dependent-option 范式就是 CapturedAnimatedVisibility(visible = parent)
                     // （SettingsPage.kt:257-265、275-283、303-309）。
-                    AnimatedVisibility(visible = autoFreezeEnabled) {
+                    CapturedAnimatedVisibility(visible = autoFreezeEnabled) {
                         Column {
                             SliderPreference(
                                 value = delay,
@@ -335,6 +336,7 @@ fun SettingsScreen(onOpenAbout: () -> Unit) {
                                 onCheckedChange = {
                                     skipCharging = it
                                     preferences.skipWhileCharging = it
+                                    preferences.bumpRevision()
                                 },
                                 title = stringResource(R.string.skip_while_charging),
                             )
@@ -347,6 +349,7 @@ fun SettingsScreen(onOpenAbout: () -> Unit) {
                                 onCheckedChange = {
                                     skipForeground = it
                                     preferences.skipForegroundApp = it
+                                    preferences.bumpRevision()
                                 },
                                 title = stringResource(R.string.skip_foreground_app),
                                 summary = if (hasUsageAccess) null else {
@@ -359,6 +362,7 @@ fun SettingsScreen(onOpenAbout: () -> Unit) {
                                 onCheckedChange = {
                                     skipNotifying = it
                                     preferences.skipNotifyingApp = it
+                                    preferences.bumpRevision()
                                 },
                                 title = stringResource(R.string.skip_notifying_app),
                                 summary = if (hasNotificationAccess) null else {

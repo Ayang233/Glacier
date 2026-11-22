@@ -27,13 +27,13 @@
 | 项 | 值 |
 |---|---|
 | MIUIX 版本 | `0.9.5`（`build-logic/src/main/kotlin/BuildConfig.kt` 的 `LIBRARY_VERSION`） |
-| 官方 tag | `v0.9.5-beta02` |
-| **MIUIX commit** | `66248bacc7be29ae6bdc0957de9458b42ac67732` |
-| commit 时间 | 2026-11-20 13:49:04 +0800 |
-| commit 标题 | `chore(deps): update gradle to v9.9.2 (#488)` |
-| 官方 main 追踪 | `f3829d3d162eb267a792d43b3c8541e64effc28d`（2026-11-20 17:44，比基线多 3 个提交，见 §7） |
+| 官方 tag | `v0.9.5-beta03`（`3526cfe2`，基线在其之上还有 18 个 main 提交） |
+| **MIUIX commit** | `44f1d31580bd127360d79bdb0bb869bd6c5af025` |
+| commit 时间 | 2026-11-22 16:55:20 +0800 |
+| commit 标题 | `build: Add googleapis maven-central for ci` |
+| 官方 main 追踪 | 与基线相同（`origin/main`，落后 0 个提交） |
 | 本地补丁 | 已应用（`tools/miuix-composite-build.patch`） |
-| 核对日期 | 2026-11-20（第五轮：从 `58b0a3dd` 升到 `66248bac`，跨 21 个官方提交） |
+| 核对日期 | 2026-11-22（第七轮：从 `9128921c` 升到 `44f1d315`，跨 2 个官方提交） |
 
 ## 3. 工具链
 
@@ -41,7 +41,7 @@
 |---|---|---|
 | Gradle | 9.9.1（wrapper） | MIUIX 自身用 9.9.2，composite 下以 Glacier 的 wrapper 为准 |
 | Kotlin | 2.4.21 | 与 MIUIX 一致 |
-| AGP | 9.5.1 | 与 MIUIX 一致 |
+| AGP | 9.5.2 | 与 MIUIX 一致；composite build 中两端 AGP 版本必须相同，否则依赖解析报 `AgpVersionCompatibilityRule` |
 | Compose | **BOM `2026.11.01` → androidx.compose 1.13.0** | MIUIX 0.9.5 用 Compose Multiplatform 1.13.0-rc01；BOM 必须选到同一个 1.13 线，否则会被 MIUIX 的约束悄悄抬升（旧 BOM 2025.12.01 = 1.10.0 → 1.13.0 的隐式升级） |
 | compileSdk | 37 + `minorApiLevel = 2` | MIUIX 要求 37.2 |
 | buildTools | 37.0.0 | |
@@ -76,12 +76,17 @@ miuix-squircle      squircleClip / squircleBorder / squircleBackground
 | 搜索 | `GlassSearchOverlay` + `rememberGlassSearchBarAlpha` + `glassSearchBarTransition` | 搜索条转玻璃、400ms 进出动画都由官方驱动 |
 | 文本输入 | `GlassTextField`（玻璃档）/ `TextField`（非玻璃档），均为 `TextFieldState` 新版 API | 旧的 `value/onValueChange` 重载已废弃 |
 | 弹层 | `GlassDialog` / `GlassBottomSheet` / `GlassDropdownPreference` / `GlassDialogButton` | `renderInRootScaffold` 保持默认 true |
+| 弹层内的分组卡片 | `GlassCard` | 0.9.5 main 新增；专用于玻璃表面上的内容卡，替代原先在 `GlassBottomSheet` 里复用的普通 `Card` |
 | 按钮 | `GlassIconButton` / `GlassFloatingActionButton` | 顶栏动作、返回、FAB |
-| 滚动 | `VerticalScrollBar` + `rememberScrollBarAdapter` | 只用作适配器，不接管轨道绘制 |
+| 宿主让位 | `AppPageInsets` + `LocalAppPageInsets` + `appPageHorizontalInsets()` / `appPageTopBarInsets()`（`ui/PageInsets.kt`，官方 `utils/PageUtils.kt:62-152` 的逐字节移植） | 侧栏宽度、系统安全区只作用于内容；`NavDisplay` 恒满宽，背景与模糊带不被裁断 |
+| 内容内边距 | `pageContentPadding`（官方惰性 `PaddingValues`）+ `rememberAppSafePadding()` | 组合期只建对象，`calculate*` 在布局阶段读，侧栏 morph 不触发重组 |
+| 滚动 | `VerticalScrollBar` + `rememberScrollBarAdapter`，`trackPadding = contentPadding`、`topAppBarScrollBehavior = 顶栏行为` | 与官方 `MainPage.kt:359-364` 同参；轨道贴着内容区，顶栏收起时跟着收起 |
 | 形状 | `squircleClip` / `squircleBorder` / `squircleBackground` | 应用图标、品牌图标 |
 | 模糊 | `rememberLayerBackdrop` / `layerBackdrop` / `Backdrop` | 无自建模糊管线、无自建背景采样 |
+| 关于页动态背景 | `ui/effect/`（官方 example 的 `BgEffect` 组件逐字节移植）+ `textureBlur` | 官方 AboutPage 的双 backdrop 范式：独立背景层录 BgEffect，品牌名/信息卡作为兄弟采样；混色 token 取自官方 `ColorBlendToken` |
 | 主题 | `MiuixTheme` + `ThemeController` | 固定浅/深色板，见 §7 |
-| 动效 | `scrollEndHaptic` / `overScrollVertical` / `PagerNavigationSpringSpec` / `springAnimateToPage` | 官方原语组合 |
+| 动效 | `scrollEndHaptic` / `overScrollVertical` / `PagerNavigationSpringSpec` / `springAnimateToPage` / `GlassMotion.default()` / 弹层 `DialogMotion.Glass` | 官方原语组合；选中环弹簧走官方 Folme 参数；弹层进出动画自基线 `44f1d315` 起由 `DialogMotion` 统一 |
+| 状态派生 | `computedStateOf` / `CapturedAnimatedVisibility` | Compose 1.13 官方 API（官方 example 已全量使用），替代 `derivedStateOf` / `AnimatedVisibility` |
 
 **结论：不存在自建的 GlassSurface、模糊管线、背景采样、玻璃按钮或导航动画。**
 自写的部分全部是"页面级组合/布局"，官方只在 example 里给样例，不提供库 API。
@@ -90,11 +95,10 @@ miuix-squircle      squircleClip / squircleBorder / squircleBackground
 
 | 文件 | 性质 | 官方是否有库 API |
 |---|---|---|
-| `ui/components/PageFrame.kt`（PageFrame / PageTopBar / GroupCard / EmptyState / pageContentPadding） | 页面骨架组合 | 否（官方只有 `example/GlassPage.kt`） |
+| `ui/PageInsets.kt`（`AppPageInsets` / `LocalAppPageInsets` / `rememberAppPageInsets` / `appPageHorizontalInsets` / `appPageTopBarInsets` / `rememberAppSafePadding` / `pageBottomPadding`） | 官方 `example/utils/PageUtils.kt` 的逐字节移植（Apache-2.0），与 `ui/effect/` 同一处理方式 | 否（官方只在 example 里给，库不导出） |
+| `ui/components/PageFrame.kt`（PageFrame / PageTopBar / GroupCard / EmptyState / pageContentPadding / pageScrollModifiers） | 页面骨架组合 + 官方 `pageContentPadding` / `pageScrollModifiers` 的同参落地 | 否（官方只有 `example/GlassPage.kt` 与 `PageUtils.kt`） |
 | `PageMetrics` | 尺寸常量，全部取自官方 example 或 `CardDefaults` | 否 |
-| `Modifier.pageScrollModifiers` | 官方 `example/utils/PageUtils.kt` 的同义落地，由官方 primitives 组合 | 否（只有 primitives） |
-| `Modifier.railStartInset` | 在 layout 期读侧栏宽度，避免每帧重组；语义等同官方 `overlayStart` 让位 | 否 |
-| `ui/GlassEnvironment.kt` 的 `Local*` | 宿主职责：玻璃开关、根录制层、pane 已让位、底栏高度、标题透明度、标题避让 | 否（官方 example 同款做法） |
+| `ui/GlassEnvironment.kt` 的 `Local*` | 宿主职责：玻璃开关、根录制层、底栏实测高度、标题透明度、标题避让 | 否（官方 example 同款做法） |
 | `ui/GlacierShell.kt` | 一级/二级页路由 + 三态导航（底栏/折叠胶囊/展开侧栏） | 否 |
 | `platform/AppIcons.kt` | 应用图标加载（图标包 / 自适应图标不套遮罩 / LRU） | 否，属业务能力 |
 | `data/` `domain/` `system/` `platform/auto/` | 冻结业务本体 | 否 |
@@ -105,16 +109,19 @@ miuix-squircle      squircleClip / squircleBorder / squircleBackground
 
 | 项 | 现状 | 原因 |
 |---|---|---|
-| 官方 main 领先 3 个提交 | 未纳入基线：`f3829d3d` 侧栏性能、`c16dfa12` example 滚动复位、`b31c60f2` 顶栏负向 overscroll 修复 | 基线锚定在发布 tag，便于复现；下次升级时一并评估（`b31c60f2` 与顶栏相关，优先看） |
+| 官方 tag 落后基线 18 个提交 | 基线取 `origin/main` 最新提交 `44f1d315`，而最新 tag 仍是 `v0.9.5-beta03` | 需要 `GlassCard`（#495）与弹层 `DialogMotion`（#494），两者都只在 main；提交已 pin，复现无歧义 |
+| `UiFeedback.toast()` | 仍用 Android `Toast` | 调用点包含 Worker / Receiver / 快捷方式等非 UI 上下文，MIUIX `Snackbar` 需要宿主 Scaffold，不能整体替换；属系统反馈而非自造 UI |
+| 二级页切 Tab 的转场 | 仍走 `NavTransitions.MiuixDefault`（官方 example 在二级页点导航时切到私有的 `InstantNavTransition`，`AppContent.kt:320/1155`） | 该 helper 是 example 私有实现而非库 API；当前表现为"退回一级页时播放 pop 转场"，与官方观感有差异，但语义正确。需要完全一致时再移植 |
+| 关于页背景效果调试面板 | 未移植（官方 AboutPage `:456-495` 的 `Background Effect` BottomSheet） | 官方 example 用来现场调 BgEffect 参数（OS2/OS3、动态背景、全屏）的调试面板，无产品意义；动态背景本体已完整对齐 |
 | Monet 动态取色 | 未接入。官方 `ColorSchemeMode.MonetSystem` 可用，Glacier 固定浅/深色板 | 品牌一致性；如需要可作为「主题」第三档，属于产品决策 |
-| 宽屏 + 刘海 | 正文按官方 `startAlreadyReserved` 语义只让一次 cutout；顶栏用 `defaultWindowInsetsPadding=false` + End-only inset，避免第二次让位 | 官方 example 在 pane 内由 `appPageTopBarInsets()` 做同一件事 |
+| 宽屏 + 刘海 | 顶栏 `defaultWindowInsetsPadding = false` + `appPageTopBarInsets()`；正文的横向让位只由内容 padding 提供一次 | 与官方 `AdaptiveTopAppBar`（`PageUtils.kt:265-304`）同构，不再有 End-only inset 补丁 |
 | 真机玻璃光学（L3） | 未验证。模拟器是宿主 GPU（GLES 3.1），能产出真实模糊像素，但不等于真机光学表现 | 需要一台真实设备补验 |
 | 冻结业务链路 | Shizuku / Root / Dhizuku / DeviceOwner / Island / 特权 六条后端只有源码级证据 | 模拟器无可用后端 |
 
 ## 8. 升级流程（每次照做）
 
 ```bash
-# 1. 拉官方最新 main 与 tag
+# 1. 拉官方最新 main 与 tag（直连 github 失败会自动退回镜像，见下）
 tools/miuix-baseline.sh fetch
 
 # 2. 看差距：落后多少提交、有没有新 tag、LIBRARY_VERSION 是否变了
@@ -124,8 +131,8 @@ tools/miuix-baseline.sh status
 #    https://github.com/compose-miuix-ui/miuix/releases
 #    重点看：@Deprecated 新增、公开签名变化、默认值变化、Compose/Kotlin 版本要求
 
-# 4. 切到目标 tag（会顺带打本地补丁）
-tools/miuix-baseline.sh pin v0.9.5-beta02
+# 4. 切到目标 tag / commit（会顺带打本地补丁）；当前基线含尚未进 tag 的 GlassCard 与 DialogMotion
+tools/miuix-baseline.sh pin 44f1d31580bd127360d79bdb0bb869bd6c5af025
 
 # 5. 先让 MIUIX 自己编过，再编 app
 ./gradlew :app:assembleDebug
@@ -142,6 +149,10 @@ tools/miuix-baseline.sh verify
 ```
 
 **不要**只改版本号；**不要**为了截图一致恢复已被官方淘汰的自造实现。
+
+> 网络：本机 git 直连 `github.com` 会被代理拒绝（`CONNECT tunnel failed, response 502`），
+> 脚本在直连失败时改用 `MIUIX_GIT_MIRROR`（默认 `https://ghfast.top/https://github.com/compose-miuix-ui/miuix.git`）
+> 拉取，并照样写回 `refs/remotes/origin/main`。基线一致性只认 commit sha，与拉取链路无关。
 
 ## 9. 常用命令
 
@@ -173,3 +184,6 @@ adb install -r app/build/outputs/apk/debug/Glacier-debug.apk
 |---|---|---|---|
 | 2026-11-19 | — | `58b0a3d`（0.9.5 主干） | 首次接入 MIUIX OS4 + Glass |
 | 2026-11-20 | `58b0a3d` | `66248bac`（`v0.9.5-beta02`） | ScrollBar 重构（`ScrollIndicatorState`，`reverseLayout` 废弃、触摸目标 24dp）、TopAppBar 标题对齐与 `centerObstructionStart`、`GlassTopAppBar` 渐进模糊改由 `maskProgress` 驱动、`TextField` 改 `TextFieldState`、`GlassTextField` 新增、`MiuixWindowProperties` 回调外移（Glacier 未用 miuix-window）、Compose 1.13.0 |
+| 2026-11-22 | `66248bac`（`v0.9.5-beta02`） | `9128921c`（main，`v0.9.5-beta03` + 16） | 按 Glass 迁移指南替换剩余非官方 API：`derivedStateOf`→`computedStateOf`、`AnimatedVisibility`→`CapturedAnimatedVisibility`、选中环用 `GlassMotion.default()`、`LocalTopBarObstructionStart` 改 `compositionLocalOf`、页签 `surfaceAlpha` 叠加 `overscrollOffset < -1f`；玻璃弹层内的 `Card` 换成官方新增 `GlassCard`；AGP 9.5.1→9.5.2 与 MIUIX 对齐 |
+| 2026-11-22（同基线） | — | — | 关于页完整对齐官方 `AboutPage`：移植官方 `BgEffect` 动态背景（`ui/effect/`，Apache-2.0），建独立背景 backdrop + 品牌名/信息卡 `textureBlur`（官方混色 token），背景 alpha 随滚动淡出；修复设置项不可观察导致的 7 处 UI 不刷新（订阅 `preferences.revision`） |
+| 2026-11-22 | `9128921c` | `44f1d315`（main，`v0.9.5-beta03` + 18） | 全项目清查自造 UI 轮子（审计 R6）：删除 `railStartInset` / `LocalPageStartReserved` / `LocalSearchTopInset` / `pageSafeBottom`，改用官方 `AppPageInsets` 契约（`ui/PageInsets.kt`）；`pageContentPadding` / `pageScrollModifiers` 换成官方同参实现（惰性读取，侧栏 morph 不重组）；滚动条补 `trackPadding` 与 `topAppBarScrollBehavior`；删除 Home 页第二份搜索结果列表，统一复用 `AppSearchResults`；顶栏 / 底栏 / 搜索浮层 / 弹层的安全区全部走官方契约；弹层动画随基线切到 `DialogMotion.Glass` |

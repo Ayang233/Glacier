@@ -1,6 +1,7 @@
 package com.ayang.glacier.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
@@ -24,20 +25,13 @@ val LocalGlassActive = staticCompositionLocalOf { false }
 val LocalRootBackdrop = staticCompositionLocalOf<LayerBackdrop?> { null }
 
 /**
- * 页面所在的 pane 是否已经由宿主让出了 **start 侧**安全区。
- *
- * 宽屏时 Shell 的 `railStartInset` 已经把「侧栏宽度 + start 侧系统 inset」从 pane 左缘扣除，
- * 页面内再让一次同一块 cutout 就是双算（官方用 `startAlreadyReserved` 精确表达同一语义：
- * `example/utils/PageUtils.kt:99-103`：`startAlreadyReserved` 为 true 时 `safeInsets` 只保留
- * End + Vertical）。窄屏（底栏档）为 false，页面照常自己让开切角/横屏导航条。
- */
-val LocalPageStartReserved = staticCompositionLocalOf { false }
-
-/**
  * 底栏实测总高度（含 20dp 顶部间距 + 胶囊 + 底部安全区）。
  *
  * 由 Shell 的 bottomBar 实测后写入；页面在自己的 Scaffold 里用它做透明占位，
  * 让正文底部 padding 与 FAB 位置都由 Scaffold 计算，不再手动猜。
+ *
+ * 这是**宿主自己的**底栏尺寸，MIUIX 没有对应组件（官方 example 的底栏由宿主 Scaffold
+ * 的 padding 传入）；系统安全区与侧栏让位不在这里，见 [AppPageInsets]。
  */
 val LocalShellBottomBarHeight = staticCompositionLocalOf { 0.dp }
 
@@ -50,21 +44,17 @@ val LocalShellBottomBarHeight = staticCompositionLocalOf { 0.dp }
 val LocalTopBarTitleAlpha = staticCompositionLocalOf<() -> Float> { { 1f } }
 
 /**
- * 宽屏折叠胶囊为搜索浮层让出的顶部高度（官方 `searchTop`）。
- *
- * 侧栏展开时让位为 0；折叠成胶囊时浮层要下移，避免搜索条与胶囊重叠。
- */
-val LocalSearchTopInset = staticCompositionLocalOf<() -> Dp> { { 0.dp } }
-
-/**
  * 顶栏居中标题要避开的左界（官方 `LocalTopAppBarCenterObstructionStart`）。
  *
  * 二级页在宽屏折叠态下标题不再淡出，而是由官方
  * `TopAppBar` / `GlassTopAppBar` 的 `centerObstructionStart` 把居中标题整体右移，
  * 避开顶部胶囊。一级页保持官方的"标题随侧栏 morph 淡出"，因此传
  * [Dp.Unspecified]（不避让）。
+ *
+ * 与官方 `LocalTopAppBarCenterObstructionStart` 一致用 compositionLocalOf 而非
+ * staticCompositionLocalOf：胶囊宽度变化只通知读取它的标题，不触发整树重组。
  */
-val LocalTopBarObstructionStart = staticCompositionLocalOf { Dp.Unspecified }
+val LocalTopBarObstructionStart = compositionLocalOf { Dp.Unspecified }
 
 /**
  * 宽屏断点：与 MIUIX 官方 example 的 `shouldShowSplitPane` 一致。

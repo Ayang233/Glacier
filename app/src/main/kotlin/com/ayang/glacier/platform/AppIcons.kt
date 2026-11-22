@@ -236,13 +236,17 @@ fun rememberAppIcon(
     grayscale: Boolean,
     iconPack: String?,
     synthesizeAdaptive: Boolean,
+    revision: Int,
 ): ImageBitmap? {
     val context = LocalContext.current
     val density = LocalDensity.current
     val sizePx = with(density) { size.roundToPx() }.coerceAtLeast(1)
     val source = AppIconSource.get(context, iconPack, synthesizeAdaptive)
 
-    val state by produceState<ImageBitmap?>(initialValue = null, packageName, sizePx, grayscale, iconPack, synthesizeAdaptive) {
+    val state by produceState<ImageBitmap?>(
+        initialValue = null,
+        packageName, sizePx, grayscale, iconPack, synthesizeAdaptive, revision,
+    ) {
         value = withContext(Dispatchers.IO) {
             val bitmap = source.load(packageName, sizePx) ?: return@withContext null
             val result = if (grayscale) AppIconSource.desaturate(bitmap) else bitmap

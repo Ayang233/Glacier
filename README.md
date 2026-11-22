@@ -49,7 +49,7 @@ MIUIX 以 composite build 引入（默认 `../miuix`，可用 `MIUIX_DIR` 覆盖
 [MIUIX_BASELINE.md](MIUIX_BASELINE.md) 的基线切到对应 commit：
 
 ```bash
-tools/miuix-baseline.sh pin v0.9.5-beta02   # 切到基线 tag 并打本地补丁
+tools/miuix-baseline.sh pin 44f1d31580bd127360d79bdb0bb869bd6c5af025   # 切到基线 commit 并打本地补丁
 tools/miuix-baseline.sh verify              # 校验 commit 与补丁
 tools/miuix-baseline.sh status              # 看官方 main 领先了多少
 ```
@@ -100,10 +100,12 @@ Box
 
 界面按 MIUIX OS4 官方源码与 `example/shared` 逐项对齐（底栏 24dp 横向内边距、
 页面 12dp 留白、官方脚手架/滚动/弹层动画、About 页结构与尺寸、squircle 应用图标）。
+页面让位走官方 `AppPageInsets` 契约（`ui/PageInsets.kt`，官方 `utils/PageUtils.kt` 的逐字节移植）：
+`NavDisplay` 永远满宽，侧栏宽度与系统安全区只作用于内容，背景和顶栏模糊带不会被裁断。
 审计与验收记录：
 
-- **基线与升级流程**：[MIUIX_BASELINE.md](MIUIX_BASELINE.md)（当前 `v0.9.5-beta02` / `66248bac`）
-- [R5 审计与基线升级](docs/audit/miuix-os4-r5-audit.md) · [R5 验收](docs/verification/miuix-os4-r5/README.md)
+- **基线与升级流程**：[MIUIX_BASELINE.md](MIUIX_BASELINE.md)（当前 `44f1d315`，`v0.9.5-beta03` 之后 18 个 main 提交）
+- [R6 自造轮子清查与基线升级](docs/audit/miuix-os4-r6-audit.md) · [R5 审计](docs/audit/miuix-os4-r5-audit.md) · [R5 验收](docs/verification/miuix-os4-r5/README.md)
 - [历史审计](docs/audit/miuix-os4-audit.md) · [Glass 架构](docs/audit/miuix-os4-glass-audit.md)
 - [修改清单](docs/plan/r3-change-list.md) · [构建与运行验收 R3](docs/verification/miuix-os4-r3/README.md)
 - [MIUIX 官方契约摘录](docs/reference/miuix-os4-contract.md) · [参考项目与许可证](docs/reference/reference-projects.md)

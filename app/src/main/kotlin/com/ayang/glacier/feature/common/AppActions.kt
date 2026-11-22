@@ -3,11 +3,8 @@ package com.ayang.glacier.feature.common
 import android.content.Context
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
@@ -24,13 +21,14 @@ import com.ayang.glacier.data.GlacierRepository
 import com.ayang.glacier.domain.AppEntry
 import com.ayang.glacier.domain.WorkingMode
 import com.ayang.glacier.platform.UiFeedback
+import com.ayang.glacier.ui.rememberAppSafePadding
 import com.ayang.glacier.ui.LocalGlassActive
 import com.ayang.glacier.ui.LocalRootBackdrop
 import com.ayang.glacier.ui.components.PageMetrics
 import top.yukonga.miuix.kmp.basic.BasicComponentDefaults
-import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.glass.GlassBottomSheet
+import top.yukonga.miuix.kmp.glass.GlassCard
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.Delete
 import top.yukonga.miuix.kmp.icon.glass.Extract
@@ -204,7 +202,9 @@ fun AppActionSheet(
     val rowInset = BasicComponentDefaults.InsideMargin.calculateLeftPadding(LocalLayoutDirection.current)
     // 弹层内容贴屏幕底边（glass 延伸到边缘），滚动内容自己让出导航栏高度（官方 BottomSheet KDoc：
     // "Apply navigation-bar padding inside scrollable content"；`BottomSheetSection.kt:260-265` 同一做法）。
-    val navigationBarBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    // 弹层内容自己让出系统底部安全区（官方 BottomSheet KDoc 的同款做法），
+    // 值来自官方 safeInsets 契约，不再逐处手写 WindowInsets。
+    val navigationBarBottom = rememberAppSafePadding().calculateBottomPadding()
 
     GlassBottomSheet(
         onDismissRequest = onDismiss,
@@ -301,7 +301,7 @@ fun AppActionSheet(
                 contentPadding = PaddingValues(bottom = navigationBarBottom + PageMetrics.SectionGap),
             ) {
                 item(key = "actions") {
-                    Card(Modifier.fillMaxWidth()) {
+                    GlassCard(Modifier.fillMaxWidth()) {
                         rows.forEach { row ->
                             SheetActionRow(
                                 icon = row.icon,

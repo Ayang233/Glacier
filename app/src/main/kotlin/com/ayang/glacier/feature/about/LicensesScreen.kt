@@ -19,7 +19,6 @@ import com.ayang.glacier.R
 import com.ayang.glacier.ui.components.BackNavigationAction
 import com.ayang.glacier.ui.components.PageFrame
 import com.ayang.glacier.ui.components.PageMetrics
-import com.ayang.glacier.ui.components.pageContentPadding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.BasicComponentDefaults
@@ -89,14 +88,16 @@ fun LicensesScreen(onBack: () -> Unit) {
                 contentDescription = stringResource(R.string.close),
             )
         },
-    ) { padding ->
+        // 横向 12dp 只给卡片：SmallTitle 自带 28dp，再叠一层会变成 40dp。
+        contentPaddingHorizontal = 0.dp,
+    ) { contentPadding ->
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize(),
-            // 横向 12dp 只给卡片：SmallTitle 自带 28dp，若再叠加内容 padding 会变成 40dp；
-            // 官方 LicensePage 同样是"卡片各自 padding(horizontal = 12) + SmallTitle 28dp"两层
-            // （LicensePage.kt:117-120、miuix-ui/.../basic/SmallTitle.kt:42）。
-            contentPadding = pageContentPadding(padding, horizontal = 0.dp),
+            // 官方 LicensePage 是"卡片各自 padding(horizontal = 12) + SmallTitle 28dp"两层
+            // （LicensePage.kt:117-120、miuix-ui/.../basic/SmallTitle.kt:42），
+            // 因此内容 padding 横向为 0，12dp 由卡片自己提供。
+            contentPadding = contentPadding,
             verticalArrangement = Arrangement.spacedBy(PageMetrics.SectionGap),
         ) {
             item {

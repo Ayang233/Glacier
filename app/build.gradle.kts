@@ -25,15 +25,20 @@ android {
         versionName = "1.3.0"
     }
 
-    // Release 签名：优先使用仓库根目录的 signing.properties（不入库），
-    // 缺失时退回 debug 签名，保证在没有密钥的机器上仍可构建。
-    val signingPropsFile = rootProject.file("signing.properties")
-    val releaseSigning = if (signingPropsFile.exists()) {
+    // Release 签名：优先用仓库根的 signing.properties，其次用上一级工作区的
+    // signing.properties（本机宿主的密钥放在那里），都没有才退回 debug 签名。
+    // storeFile 相对 signing.properties 所在目录解析，这样密钥目录跟着配置文件走。
+    val signingPropsFile = listOfNotNull(
+        rootProject.file("signing.properties"),
+        rootDir.parentFile?.resolve("signing.properties"),
+    ).firstOrNull { it.exists() }
+    val releaseSigning = if (signingPropsFile != null) {
+        val propsDir = signingPropsFile.parentFile
         val props = Properties().apply {
             signingPropsFile.inputStream().use { load(it) }
         }
         signingConfigs.create("release") {
-            storeFile = rootProject.file(props.getProperty("storeFile"))
+            storeFile = propsDir.resolve(props.getProperty("storeFile"))
             storePassword = props.getProperty("storePassword")
             keyAlias = props.getProperty("keyAlias")
             keyPassword = props.getProperty("keyPassword")

@@ -2,16 +2,9 @@ package com.ayang.glacier.feature.common
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
@@ -25,10 +18,12 @@ import androidx.compose.ui.unit.dp
 import com.ayang.glacier.GlacierApplication
 import com.ayang.glacier.R
 import com.ayang.glacier.domain.AppEntry
-import com.ayang.glacier.ui.LocalSearchTopInset
+import com.ayang.glacier.ui.LocalAppPageInsets
 import com.ayang.glacier.ui.LocalShellBottomBarHeight
+import com.ayang.glacier.ui.appPageHorizontalInsets
 import com.ayang.glacier.ui.components.EmptyState
 import com.ayang.glacier.ui.components.PageMetrics
+import com.ayang.glacier.ui.pageBottomPadding
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.glass.GlassSearchOverlayDefaults
 
@@ -96,8 +91,12 @@ fun AppSearchResults(
     listState: LazyListState = rememberLazyListState(),
 ) {
     val context = LocalContext.current
-    val repository = (context.applicationContext as GlacierApplication).repository
-    val results = remember(query, repository.snapshot) {
+    val app = context.applicationContext as GlacierApplication
+    val repository = app.repository
+    // repository.apps(query) 读模糊搜索/九键/筛选/排序这些普通 SharedPreferences 属性；
+    // 只靠 query + snapshot 做 key 会一直缓存旧结果，补 revision 才能在设置变更后刷新。
+    val revision = app.preferences.revision.intValue
+    val results = remember(query, repository.snapshot, revision) {
         if (query.isBlank()) emptyList() else repository.apps(query)
     }
     // 行摘要要标「不在主页」，这里与 Apps 列表同一份 home 集合，避免逐行 O(n) 查找。
@@ -105,21 +104,24 @@ fun AppSearchResults(
         repository.snapshot.home.mapTo(HashSet()) { it.packageName }
     }
 
-    val topInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    // 宽屏侧栏折叠成顶部胶囊时的让位（官方 `IconPage.kt:538` 的 `pageInsets.searchTop()`）。
-    val searchTop = LocalSearchTopInset.current()
+    // 与官方 `IconPage.kt:537-540` 同一公式：safeInsets.top + searchTop + 搜索条高度。
+    // safeInsets 已经是「系统安全区 ∪ 宿主 padding」，不再自己拼 WindowInsets。
+    val pageInsets = LocalAppPageInsets.current
+    val topInset = pageInsets.safeInsets.asPaddingValues().calculateTopPadding()
+    // 宽屏侧栏折叠成顶部胶囊时的让位（官方 `pageInsets.searchTop()`）。
+    val searchTop = pageInsets.searchTop()
     val barSpace = GlassSearchOverlayDefaults.BarHeight + GlassSearchOverlayDefaults.VerticalPadding * 2
-    val bottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    // 横向只让开刘海/显示挖孔；侧栏让位已由 Shell 的 `railStartInset` 作用在整页上。
-    val horizontalInsets = Modifier.windowInsetsPadding(
-        WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal),
+    // 底部留白走官方 pageBottomPadding：宿主底栏与系统手势区取较大值，不相加。
+    val bottomPadding = pageBottomPadding(
+        outerPadding = PaddingValues(bottom = LocalShellBottomBarHeight.current),
+        extraBottom = PageMetrics.BottomGap,
     )
 
     if (results.isEmpty()) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .then(horizontalInsets)
+                .then(Modifier.appPageHorizontalInsets())
                 .padding(top = topInset + searchTop + barSpace),
         ) {
             EmptyState(
@@ -135,10 +137,10 @@ fun AppSearchResults(
         state = listState,
         modifier = Modifier
             .fillMaxSize()
-            .then(horizontalInsets),
+            .then(Modifier.appPageHorizontalInsets()),
         contentPadding = PaddingValues(
             top = topInset + searchTop + barSpace,
-            bottom = bottomInset + LocalShellBottomBarHeight.current + PageMetrics.BottomGap,
+            bottom = bottomPadding.calculateBottomPadding(),
         ),
     ) {
         items(results, key = { it.packageName }) { entry ->

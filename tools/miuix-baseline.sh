@@ -8,7 +8,9 @@
 #   tools/miuix-baseline.sh verify            # 校验：目录存在、commit 与基线文档一致、补丁已应用
 #
 # 环境变量：
-#   MIUIX_DIR   MIUIX 源码目录；默认 ../miuix（相对仓库根目录）
+#   MIUIX_DIR          MIUIX 源码目录；默认 ../miuix（相对仓库根目录）
+#   MIUIX_GIT_MIRROR   直连 github 失败时使用的镜像前缀（默认 ghfast.top，
+#                      部分网络只放行 api/codeload，git 协议会 502）
 #
 # 说明：Glacier 以 composite build 引用 MIUIX 源码，不解析 Maven 坐标，
 # 因此"基线"= 一个具体 commit + 一个本地补丁。基线数值记录在仓库根目录 MIUIX_BASELINE.md。
@@ -31,9 +33,20 @@ baseline_commit() {
         | grep -oE '[0-9a-f]{40}' | head -1
 }
 
+# 拉取官方 main + tags。直连失败时退回镜像，并且始终把结果写回 refs/remotes/origin/main，
+# 这样 status / pin 不需要知道本次是从哪条链路拿到的对象。
+fetch_upstream() {
+    local mirror="${MIUIX_GIT_MIRROR:-https://ghfast.top/https://github.com/compose-miuix-ui/miuix.git}"
+    if git -C "$MIUIX_DIR" fetch origin main --tags 2>/dev/null; then
+        return 0
+    fi
+    echo "直连 github 失败，改用镜像：$mirror" >&2
+    git -C "$MIUIX_DIR" fetch "$mirror" "main:refs/remotes/origin/main" --tags
+}
+
 cmd_fetch() {
     require_miuix
-    git -C "$MIUIX_DIR" fetch origin main --tags
+    fetch_upstream
     echo "官方 main：$(git -C "$MIUIX_DIR" log -1 --format='%h %s' origin/main)"
     echo "最新 tag： $(git -C "$MIUIX_DIR" tag --sort=-creatordate | head -1)"
 }
@@ -80,7 +93,7 @@ cmd_pin() {
     local ref="${1:-}"
     [ -n "$ref" ] || die "用法：tools/miuix-baseline.sh pin <tag|commit>"
     require_miuix
-    git -C "$MIUIX_DIR" fetch origin main --tags
+    fetch_upstream
     git -C "$MIUIX_DIR" checkout --detach "$ref"
     if ! git -C "$MIUIX_DIR" apply --check "$PATCH_FILE" 2>/dev/null; then
         echo "补丁无法直接应用（可能已被上游合并），请人工确认后再继续" >&2

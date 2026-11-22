@@ -3,20 +3,15 @@ package com.ayang.glacier.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.captionBar
 import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.union
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.pager.rememberPagerState
@@ -52,13 +47,11 @@ import com.ayang.glacier.feature.about.LicensesScreen
 import com.ayang.glacier.feature.apps.AppsScreen
 import com.ayang.glacier.feature.home.HomeScreen
 import com.ayang.glacier.feature.settings.SettingsScreen
-import com.ayang.glacier.ui.components.railStartInset
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.blur.Backdrop
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.glass.GlassNavigationBar
-import top.yukonga.miuix.kmp.glass.GlassNavigationBarDefaults
 import top.yukonga.miuix.kmp.glass.GlassNavigationItem
 import top.yukonga.miuix.kmp.glass.GlassNavigationRail
 import top.yukonga.miuix.kmp.glass.GlassNavigationRailDefaults
@@ -92,9 +85,14 @@ import top.yukonga.miuix.kmp.utils.springAnimateToPage
  * │  实测高度 → LocalShellBottomBarHeight
  * └ Box(fillMaxSize)
  *    ├ Box(fillMaxSize).layerBackdrop(root)      ★录制层 R（满屏，录在分页容器外）
- *    │  └ NavDisplay → 一级页 pager / 二级页
+ *    │  └ NavDisplay(Modifier.fillMaxSize()) → 一级页 pager / 二级页
  *    └ GlassNavigationRail(backdrop = root)      ← R 的兄弟（宽屏覆盖式侧栏）
  * ```
+ *
+ * **侧栏让位不改容器**：`NavDisplay` 恒为 `fillMaxSize()`，侧栏占用的宽度通过
+ * [AppPageInsets.contentInsets] 下发给内容（官方 `rememberAppPageInsets(overlayStart = ...)`）。
+ * 早先那版用 `Modifier.layout` 把整个 `NavDisplay` 右移，背景与顶栏模糊带会被硬截断，
+ * 官方 Glass 迁移指南 §4.2 明确禁止（`docs/miuix-glass-migration.md`）。
  *
  * 底栏进 Scaffold 槽位后，正文与 FAB 的让位全部由 Scaffold 计算，
  * 页面用 `LocalShellBottomBarHeight` 做透明占位，不再手写 `Height + 32dp` 之类的魔法值。
@@ -140,25 +138,18 @@ fun GlacierShell() {
 
     val density = LocalDensity.current
     val layoutDirection = LocalLayoutDirection.current
-    // 侧栏让位取"start"侧系统 inset：用 asPaddingValues().calculateStartPadding 而不是
-    // getLeft()，语义与 Compose 的 layout-direction-aware 坐标一致（RTL 下 = 物理右侧），
-    // 侧栏本身用 Alignment.CenterStart 对齐，两者同向。
-    val systemStartInset = WindowInsets.systemBars
-        .union(WindowInsets.captionBar)
-        .union(WindowInsets.displayCutout)
-        .asPaddingValues()
-        .calculateStartPadding(layoutDirection)
     val railProgress = { railState.progress.coerceIn(0f, 1f) }
-    val railInset: () -> androidx.compose.ui.unit.Dp = {
+    // 悬浮侧栏占用的宽度：只下发给内容，背景与录制层保持满宽
+    // （官方 `AppContent.kt:237-245` 的 `overlayStart`，数值取 GlassNavigationRailDefaults）。
+    val overlayStart: () -> Dp = {
         if (wide) {
-            systemStartInset +
-                (GlassNavigationRailDefaults.Margin + GlassNavigationRailDefaults.ExpandedWidth) * railProgress()
+            (GlassNavigationRailDefaults.Margin + GlassNavigationRailDefaults.ExpandedWidth) * railProgress()
         } else {
             0.dp
         }
     }
     // 折叠胶囊在顶部居中，搜索浮层要下移让开它（官方 rememberAppPageInsets 的 searchTop）。
-    val searchTopInset: () -> androidx.compose.ui.unit.Dp = {
+    val searchTop: () -> Dp = {
         if (wide) {
             (GlassNavigationRailDefaults.CollapsedTop + GlassNavigationRailDefaults.CollapsedHeight + 4.dp) *
                 (1f - railProgress())
@@ -166,6 +157,15 @@ fun GlacierShell() {
             0.dp
         }
     }
+    // 官方契约的宿主侧输入：Glacier 只有玻璃悬浮侧栏，因此 start 侧永远由 overlayStart 表达，
+    // 不存在"宿主已让位"的情况（官方 startAlreadyReserved 只在非悬浮导航列时为 true）。
+    val hostPadding = PaddingValues(0.dp)
+    val pageInsets = rememberAppPageInsets(
+        hostPadding = hostPadding,
+        startAlreadyReserved = false,
+        overlayStart = overlayStart,
+        searchTop = searchTop,
+    )
     // 折叠胶囊会盖住页面标题：一级页标题透明度跟随侧栏 morph（官方 LocalTopAppBarTitleAlpha）。
     val titleAlpha: () -> Float = { if (wide) railProgress() else 1f }
     // 二级页不淡出标题，改为由官方 centerObstructionStart 把居中标题右移，避开顶部胶囊
@@ -226,10 +226,10 @@ fun GlacierShell() {
     CompositionLocalProvider(
         LocalGlassActive provides glassActive,
         LocalRootBackdrop provides rootBackdrop.takeIf { glassActive },
-        // 宽屏 pane 的 start 侧已由 railStartInset 让出（含 start 侧系统 inset），
-        // 页面内容不要再让一次；窄屏为 false，页面自己让开切角/横屏导航条。
-        LocalPageStartReserved provides wide,
-        LocalSearchTopInset provides searchTopInset,
+        // 官方宿主→页面 inset 契约：系统安全区 + 侧栏让位 + 搜索让位都在这一处组合，
+        // 页面与顶栏只消费 appPageHorizontalInsets / appPageTopBarInsets / searchTop。
+        LocalAppPageInsets provides pageInsets,
+        // 宿主自己的底栏高度：页面用它做正文底部占位（MIUIX 无对应组件）。
         LocalShellBottomBarHeight provides if (wide || !navVisible) 0.dp else bottomBarHeight,
     ) {
         Scaffold(
@@ -266,9 +266,10 @@ fun GlacierShell() {
                         // 否则侧栏位置没有像素可采，玻璃会失去背后内容。
                         // 宽屏是 pane：官方要求裁掉跑出 pane 的转场层（AppContent.kt:342、
                         // miuix-nav.md:345 "Clip the pane"），否则滑入页会画到玻璃侧栏下面。
+                        // 满屏铺满：让位在内容层（官方 Glass 迁移指南 §4.2）。
+                        // 宽屏是 pane，仍按官方要求裁掉跑出 pane 的转场层。
                         modifier = Modifier
                             .fillMaxSize()
-                            .railStartInset(railInset)
                             .then(if (wide) Modifier.clipToBounds() else Modifier),
                         transition = NavTransitions.MiuixDefault,
                         effects = navEffects,
@@ -358,9 +359,10 @@ fun GlacierShell() {
 /**
  * 窄屏底部导航胶囊。
  *
- * 数值照官方 `example/GlassPage.kt:272-334`：
- * 24dp 横向内边距、20dp 顶部间距、底部 `max(24dp, safeBottom + 8dp)`；
- * `defaultWindowInsetsPadding = false` 交给外层 layout 处理 insets。
+ * 数值照官方 `example/GlassPage.kt:292-320`：
+ * 横向让位用官方 `appPageHorizontalInsets()`，24dp 内边距、20dp 顶部间距、
+ * 底部 `max(24dp, safeBottom + 8dp)` 由外层 layout 统一处理，
+ * `defaultWindowInsetsPadding = false` 避免组件再让一次系统 inset。
  */
 @Composable
 private fun GlacierBottomNavigation(
@@ -370,22 +372,15 @@ private fun GlacierBottomNavigation(
     backdrop: Backdrop?,
     visible: Boolean,
 ) {
-    val density = LocalDensity.current
-    val safeBottom = with(density) {
-        WindowInsets.systemBars
-            .union(WindowInsets.captionBar)
-            .union(WindowInsets.displayCutout)
-            .getBottom(this)
-            .toDp()
-    }
+    // 只取系统底部安全区：宿主自己的底栏高度不能参与，否则会把胶囊再抬高一次。
+    // Glacier 的 AppPageInsets 不带 hostPadding（底栏在宿主 Scaffold 里单独占位），
+    // 因此 safeInsets.bottom 就是系统手势区（官方 GlassPage 用 safePadding 的同一语义）。
+    val safeBottom = rememberAppSafePadding().calculateBottomPadding()
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .windowInsetsPadding(
-                WindowInsets.displayCutout
-                    .only(WindowInsetsSides.Horizontal)
-                    .union(WindowInsets.navigationBars.only(WindowInsetsSides.Horizontal)),
-            )
+            // 官方写法：横向让位复用页面同一套 contentInsets（窄屏 = 刘海/横屏导航条）。
+            .then(Modifier.appPageHorizontalInsets())
             .padding(start = 24.dp, end = 24.dp, top = 20.dp)
             .layout { measurable, constraints ->
                 val bottom = maxOf(24.dp, safeBottom + 8.dp)
