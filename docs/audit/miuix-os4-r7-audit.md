@@ -1,34 +1,58 @@
-# R7 · 交互与转场对齐 OS4（底栏常驻 / 行手势 / 顶栏动作动画）
+# R7 · 交互与转场对齐 OS4（底栏归属 / 行手势 / 顶栏动作动画）
 
 > 目标：把三处「感觉不对」的交互改成 MIUIX OS4 的既有行为，一律用官方组件与官方动画曲线，不自造动效。
-> 参考源：本地 MIUIX 源码 `../miuix`（基线 `44f1d315`）＋模拟器上的官方示例 APK `top.yukonga.miuix.uitest.debug`。
+> 参考源：本地 MIUIX 源码 `../miuix`（基线 `44f1d315`）＋模拟器上的官方示例 APK
+> （`top.yukonga.miuix.uitest.debug`，已 pull 成 `miuix-check/example.apk` 并反汇编核对结构）。
 > 验证环境：`emulator-5554`（1080×2400 / 420dpi，Android 16），截图见 `docs/verification/miuix-os4-r7/`。
 
 ---
 
-## 1. 二级页底栏不再缩放下沉
+## 1. 二级页没有底栏 —— 底栏是一级目的地自己的 bottomBar
 
-### 成因
-`GlacierShell` 之前按 `backStack.size == 1` 给 `GlassNavigationBar` 传 `visible = navVisible`。
-`visible = false` 不是「隐藏」，库的实现是**缩小到 0.6 倍 + 淡出 + 加模糊**再退场
-（`miuix-glass/.../GlassNavigationBar.kt:272-283`，`GlassMotion.NAV_HIDE_SCALE = 0.6f`、
-`NAV_HIDE_BLUR_DP = 18f`），并且回场还要再等 `NAV_SHOW_DELAY_MS = 100ms`。
-所以每次进 About / Licenses，底栏都会「缩一下再弹回来」。
+### 官方实现（APK 反汇编核对）
+把示例 APK 的 dex 反汇编后可以直接读出调用链：
 
-### 官方行为
-官方 example 的底栏**从不传 `visible`**（`example/shared/.../AppContent.kt:791-799`），
-即默认 `visible = true`：二级页里底栏原地不动。`visible` 是留给「整页切到无导航语义目的地」的开关，
-不是二级页转场的一部分。
+```
+AppContentKt.Home$lambda$1        → AppContentKt.CompactScreenLayout(...)
+AppContentKt.CompactScreenLayout$lambda$0 → AppContentKt.NavigationBar(...)
+AppContentKt.NavigationBar$lambda$0       → GlassNavigationBarKt.GlassNavigationBar(...)
+```
 
-### 改动
-- `ui/GlacierShell.kt`：去掉 `GlacierBottomNavigation` 的 `visible` 形参，`GlassNavigationBar` 恒为可见；
-  二级页只剩侧栏 `selectedIndex = -1` 的表达（官方同款）。
-- `LocalShellBottomBarHeight` 不再在二级页归零（`provides if (wide) 0.dp else bottomBarHeight`），
-  于是 About / Licenses 的正文底部让位与一级页一致，最后一行不会被悬浮底栏压住。
+对应源码：`example/AppContent.kt` 的 `Home()`（`Route.Main` 的 entry）自己套了一层
+`Scaffold { CompactScreenLayout(...) }`，`CompactScreenLayout` 的 `bottomBar` 才是 `NavigationBar`。
+**底栏属于一级目的地**，进 About / Licenses 时整块一级页（含底栏）随 `NavDisplay` 转场一起走，
+二级目的地里根本没有底栏 —— 所以也不存在任何缩放。
+官方示例实拍：`23-miuix-about-mid.png`（转场中，底栏还在一级页那侧、正被新页盖住）、
+`25-miuix-about-settled.png`（二级页里没有底栏）。
+
+### 之前的错误
+`GlacierShell` 按 `backStack.size == 1` 给 `GlassNavigationBar` 传 `visible = navVisible`。
+`visible = false` 不是「隐藏」，库的实现是**缩小到 0.6 倍 + 淡出 + 加模糊**
+（`GlassNavigationBar.kt:272-283`，`GlassMotion.NAV_HIDE_SCALE = 0.6f`、`NAV_HIDE_BLUR_DP = 18f`），
+回场还要等 `NAV_SHOW_DELAY_MS = 100ms` —— 就是那下「缩一下再弹回来」。
+
+### 改动：照搬官方结构
+`ui/GlacierShell.kt` 把底栏从宿主 `Scaffold` 的 `bottomBar` 挪进 `entry<Route.Main>`：
+
+- 一级目的地里是 `Box { 录制层(分页器) ; 底栏 align(BottomCenter) }`，
+  于是底栏和页面同属一个目的地，转场时一起移动、一起被新页盖住（与官方一致）；
+- 底栏采样**一级页内部**的 `rememberLayerBackdrop()`（`pageBackdrop`），而不是宿主壳的
+  `rootBackdrop` —— 宿主壳那层录的是整个 `NavDisplay`，底栏进到 `NavDisplay` 里再采它就是
+  记录层的后代（自采样红线，Glass 审计 R4-P2）。这是与官方唯一的实现差别，官方
+  `CompactScreenLayout` 的 backdrop 本来就在同一层，不存在这个问题；
+- `LocalShellBottomBarHeight` 改由一级页自己提供（`if (wide) 0.dp else barHeight`），
+  于是二级页读到默认 `0.dp`，正文只让出系统手势区（`PageFrame` 退回 `safeBottom`）；
+- `GlassNavigationBar` 的 `visible` 形参彻底不再使用；宿主 `Scaffold` 不再有 `bottomBar`。
 
 ### 验证
-`27-glacier-about.png`：About 页底栏固定、满尺寸，动态渐变从玻璃里透出来；
-`28-back-to-apps.png`：二级页点底栏可回落一级页并切页签。
+- `64-after-tap.png` / `63-cold-start.png`：一级页底栏正常（玻璃胶囊 + 选中胶囊）；
+- `nav-2.png`：10× 动画时长下的转场中间帧 —— 底栏跟着设置页往左走、被关于页盖住，
+  **没有缩放、没有淡出**，与官方 `23-miuix-about-mid.png` 同一形态；
+- `67-about-settled.png`：关于页里完全没有底栏，正文铺到屏幕底部；
+- `68-back-with-bar.png`：返回一级页，底栏随页面一起滑回来；
+- `66-tap-home.png` / `65-tap-settings.png`：底栏页签切换正常。
+- （`27-glacier-about.png`、`51-about-no-bar.png` 是前两版走错方向时留下的对照图：
+  第一版底栏浮在二级页上，第二版靠淡出收掉，都已废弃。）
 
 ---
 
@@ -40,6 +64,7 @@
 `onClick` / `onLongPress` / `holdDownState` / `showIndication`
 （`miuix-ui/basic/Card.kt:87-154`），官方示例的长按范式见
 `example/component/CardSection.kt:110-143`（长按弹层 + `holdDownState` 保持按下态，弹层退场后复位）。
+
 
 ### 改动
 - `feature/common/AppSearchResults.kt` → `AppListCardRow`
@@ -117,8 +142,8 @@ Home 与 Apps 的顶栏都改用这个组件。
 ## 6. 涉及文件
 
 ```
-app/src/main/kotlin/com/ayang/glacier/ui/GlacierShell.kt             底栏常驻、去掉 visible
-app/src/main/kotlin/com/ayang/glacier/ui/GlassEnvironment.kt         底栏高度的二级页语义
+app/src/main/kotlin/com/ayang/glacier/ui/GlacierShell.kt             底栏挪进 entry<Route.Main>（含页内 backdrop）
+app/src/main/kotlin/com/ayang/glacier/ui/GlassEnvironment.kt         底栏高度只在有底栏的目的地上有值
 app/src/main/kotlin/com/ayang/glacier/ui/components/PageFrame.kt     AnimatedTopBarActions
 app/src/main/kotlin/com/ayang/glacier/feature/apps/AppsScreen.kt     点按选中 / 长按操作单 / 批量动作
 app/src/main/kotlin/com/ayang/glacier/feature/home/HomeScreen.kt     顶栏动画、FAB、页签行、共享 reportFreezeBatch
@@ -130,5 +155,6 @@ app/src/main/kotlin/com/ayang/glacier/feature/common/AppActions.kt   reportFreez
 ## 7. 验证清单
 
 - `assembleDebug` / `testDebugUnitTest` 通过（无新增警告，除 Gradle 自身的 KGP 属性提示）。
-- 模拟器：窄屏一级页 / 二级页 / Apps 多选 / 长按操作单 / 搜索选中 / 批量冻结 / 返回键 / 页签行收放。
+- 模拟器：窄屏一级页底栏 / 进二级页底栏随页离场（10× 慢放逐帧）/ 二级页无底栏 / 返回复原 /
+  Apps 多选 / 长按操作单 / 搜索选中 / 批量冻结 / 返回键 / 页签行收放。
 - 未覆盖：宽屏（侧栏形态，无底栏）、横屏、2.0× 字体、深色主题（本轮改动不涉及颜色与尺寸 token）。

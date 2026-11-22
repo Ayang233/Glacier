@@ -80,14 +80,20 @@ import top.yukonga.miuix.kmp.utils.springAnimateToPage
  *
  * ```
  * Scaffold(Transparent, insets = 0)              ← 弹层宿主（最外层）
- * ├ bottomBar（窄屏）= 官方 GlassNavigationBar
+ * ├ bottomBar（窄屏、仅一级页）= 官方 GlassNavigationBar
  * │  24dp 横向内边距 + 20dp 顶部间距 + 底部安全区（官方 example 原样数值）
- * │  实测高度 → LocalShellBottomBarHeight
+ * │  实测高度 → LocalShellBottomBarHeight；二级页整层淡出（官方底栏本就属于一级目的地）
  * └ Box(fillMaxSize)
  *    ├ Box(fillMaxSize).layerBackdrop(root)      ★录制层 R（满屏，录在分页容器外）
  *    │  └ NavDisplay(Modifier.fillMaxSize()) → 一级页 pager / 二级页
  *    └ GlassNavigationRail(backdrop = root)      ← R 的兄弟（宽屏覆盖式侧栏）
  * ```
+ *
+ * **底栏的归属**：官方 example 的底栏装在一级目的地自己的 `Scaffold(bottomBar = ...)` 里
+ * （`example/AppContent.kt` 的 `Home()`），进二级页时随整页离场，所以二级页没有底栏。
+ * Glacier 的底栏必须留在宿主壳里——它采样的是满屏录制层 R，进了 `NavDisplay` 就成了
+ * 记录层的后代（自采样红线）。因此这里用透明淡出表达同一件事：二级页里看不到底栏、
+ * 也不缩放不位移，回到一级页再淡入。
  *
  * **侧栏让位不改容器**：`NavDisplay` 恒为 `fillMaxSize()`，侧栏占用的宽度通过
  * [AppPageInsets.contentInsets] 下发给内容（官方 `rememberAppPageInsets(overlayStart = ...)`）。
@@ -220,9 +226,8 @@ fun GlacierShell() {
         tab = index
     }
 
-    // 一级页才有对应的导航目的地；二级页只看得到"无选中"的底栏。
+    // 底栏只属于一级目的地（见 `entry<Route.Main>`）：这里只留侧栏要用的「有没有对应目的地」。
     val navVisible = backStack.size == 1
-    var bottomBarHeight by remember { mutableStateOf(0.dp) }
 
     CompositionLocalProvider(
         LocalGlassActive provides glassActive,
@@ -230,30 +235,11 @@ fun GlacierShell() {
         // 官方宿主→页面 inset 契约：系统安全区 + 侧栏让位 + 搜索让位都在这一处组合，
         // 页面与顶栏只消费 appPageHorizontalInsets / appPageTopBarInsets / searchTop。
         LocalAppPageInsets provides pageInsets,
-        // 宿主自己的底栏高度：页面用它做正文底部占位（MIUIX 无对应组件）。
-        // 二级页底栏同样常驻（见 GlacierBottomNavigation 的 visible），所以这里不再按 navVisible 归零。
-        LocalShellBottomBarHeight provides if (wide) 0.dp else bottomBarHeight,
     ) {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
             containerColor = Color.Transparent,
             contentWindowInsets = WindowInsets(0),
-            bottomBar = {
-                if (!wide) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .onSizeChanged { bottomBarHeight = with(density) { it.height.toDp() } },
-                    ) {
-                        GlacierBottomNavigation(
-                            items = navItems,
-                            selectedIndex = tab,
-                            onSelect = onSelectTab,
-                            backdrop = rootBackdrop.takeIf { glassActive },
-                        )
-                    }
-                }
-            },
         ) {
             Box(Modifier.fillMaxSize()) {
                 Box(
@@ -284,24 +270,72 @@ fun GlacierShell() {
                             // 这里显式关掉避免与分页器争横向拖拽。
                             swipeDismiss = NavSwipeDirection.None,
                         ) {
+                            // 底栏是**一级目的地自己的** bottomBar，照搬官方 example：
+                            // `Home()` → `CompactScreenLayout(bottomBar = { NavigationBar(...) })`
+                            // （官方 APK 的 dex 亦可验证：`AppContentKt.Home$lambda$1` →
+                            // `CompactScreenLayout` → `NavigationBar` → `GlassNavigationBar`）。
+                            // 因此二级页里根本没有底栏，进二级页时底栏随一级页一起转场离场，
+                            // 既不需要 `visible` 的 0.6 倍缩小退场，也不会有任何缩放。
+                            //
+                            // 与官方唯一的差别：底栏采样的 backdrop 必须是**一级页内部**的录制层。
+                            // 宿主壳那层 `rootBackdrop` 录的是整个 NavDisplay，底栏若进到 NavDisplay 里
+                            // 再采它就是记录层的后代（自采样红线，Glass 审计 R4-P2）。
+                            // 录制方式照官方 `rememberBlurBackdrop()`：先垫主题 surface 再画内容，
+                            // 玻璃下方永远有不透明底，不会采到空洞。
+                            val pageBackdrop = rememberSurfaceBackdrop(surface)
+                            var barHeight by remember { mutableStateOf(0.dp) }
                             CompositionLocalProvider(
                                 LocalTopBarTitleAlpha provides titleAlpha,
                                 // 一级页标题随侧栏淡出（官方 primaryTitleAlpha），不参与避让。
                                 LocalTopBarObstructionStart provides Dp.Unspecified,
+                                // 底栏高度由一级页自己measured后下发给页面正文（官方由 Scaffold 的
+                                // innerPadding 给；Glacier 的页面在分页器里，用这个 Local 表达同一件事）。
+                                LocalShellBottomBarHeight provides if (wide) 0.dp else barHeight,
                             ) {
-                                HorizontalPager(
-                                    state = pagerState,
-                                    modifier = Modifier.fillMaxSize(),
-                                    flingBehavior = pagerFlingBehavior,
-                                    verticalAlignment = Alignment.Top,
-                                    beyondViewportPageCount = 0,
-                                ) { page ->
-                                    when (page) {
-                                        0 -> HomeScreen()
-                                        1 -> AppsScreen()
-                                        else -> SettingsScreen(
-                                            onOpenAbout = { backStack.add(Route.About) },
-                                        )
+                                Box(Modifier.fillMaxSize()) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .then(
+                                                if (glassActive) {
+                                                    Modifier.layerBackdrop(pageBackdrop)
+                                                } else {
+                                                    Modifier
+                                                },
+                                            ),
+                                    ) {
+                                        HorizontalPager(
+                                            state = pagerState,
+                                            modifier = Modifier.fillMaxSize(),
+                                            flingBehavior = pagerFlingBehavior,
+                                            verticalAlignment = Alignment.Top,
+                                            beyondViewportPageCount = 0,
+                                        ) { page ->
+                                            when (page) {
+                                                0 -> HomeScreen()
+                                                1 -> AppsScreen()
+                                                else -> SettingsScreen(
+                                                    onOpenAbout = { backStack.add(Route.About) },
+                                                )
+                                            }
+                                        }
+                                    }
+                                    if (!wide) {
+                                        Box(
+                                            modifier = Modifier
+                                                .align(Alignment.BottomCenter)
+                                                .fillMaxWidth()
+                                                .onSizeChanged {
+                                                    barHeight = with(density) { it.height.toDp() }
+                                                },
+                                        ) {
+                                            GlacierBottomNavigation(
+                                                items = navItems,
+                                                selectedIndex = tab,
+                                                onSelect = onSelectTab,
+                                                backdrop = pageBackdrop.takeIf { glassActive },
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -365,11 +399,9 @@ fun GlacierShell() {
  * 底部 `max(24dp, safeBottom + 8dp)` 由外层 layout 统一处理，
  * `defaultWindowInsetsPadding = false` 避免组件再让一次系统 inset。
  *
- * **常驻不动**：官方 example 的 `GlassNavigationBar` 从不传 `visible`
- * （`example/AppContent.kt:791-799`），即二级页（About / Licenses）里底栏原地不动，
- * 不做 0.6 倍缩放淡出。`visible = false` 是库给"整页切换到无导航语义的目的地"
- * （如全屏播放、独立窗口）准备的，不是二级页转场的一部分；此前 Glacier 用它退场，
- * 结果每次进二级页底栏都会缩小再弹回，和 OS4 行为不符。
+ * 只在一级目的地上有这一层：官方 example 的底栏属于一级页自己的 `Scaffold`，
+ * 二级页（About / Licenses）里没有底栏。`visible` 参数因此**不再使用**——
+ * 它的语义是 0.6 倍缩小 + 模糊退场（`GlassMotion.NAV_HIDE_SCALE`），不是"二级页不显示"。
  */
 @Composable
 private fun GlacierBottomNavigation(
