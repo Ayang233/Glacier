@@ -66,6 +66,7 @@
     <string name="action_delete_tag">Delete tag</string>
     <string name="action_rename_tag">Rename tag</string>
     <string name="action_select">Select</string>
+    <string name="hint_tap_to_select">Tap apps to select</string>
     <string name="action_deferred_freeze">Scheduled task</string>
     <string name="action_none">None</string>
 

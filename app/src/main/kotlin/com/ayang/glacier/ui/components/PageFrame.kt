@@ -1,12 +1,5 @@
 package com.ayang.glacier.ui.components
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.SizeTransform
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,7 +28,6 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.ayang.glacier.ui.LocalAppPageInsets
@@ -60,7 +52,6 @@ import top.yukonga.miuix.kmp.basic.VerticalScrollBar
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.glass.GlassIconButton
-import top.yukonga.miuix.kmp.glass.GlassMotion
 import top.yukonga.miuix.kmp.glass.GlassTopAppBar
 import top.yukonga.miuix.kmp.glass.glassSearchBarTransition
 import top.yukonga.miuix.kmp.glass.rememberGlassSearchBarAlpha
@@ -396,61 +387,6 @@ fun TopBarAction(
                 modifier = Modifier.size(PageMetrics.TopBarActionIcon),
                 tint = MiuixTheme.colorScheme.onSurface,
             )
-        }
-    }
-}
-
-/**
- * 顶栏动作区的两态切换（普通档 ⇄ 多选档）。
- *
- * 为什么需要：动作组是 `Row(spacedBy(8dp))` 里的一串图标，直接按布尔值 `if` 替换时，
- * 标题、按钮位次、按钮数量会在同一帧全部换掉，观感就是"生硬地跳一下"（OS4 里没有这种跳变）。
- *
- * 动画全部取 MIUIX 自己的曲线，不自造数值：
- * - 淡入/淡出 + 缩放：官方控件显隐的写法（`miuix-ui/basic/SearchBar.kt:190-193`
- *   的清除按钮 `fadeIn() + scaleIn()` / `fadeOut() + scaleOut()`；
- *   `example/component/SuperSearchBar.kt:196-201` 同款）；
- * - 曲线取 [GlassMotion.scaleIn] / [GlassMotion.scaleOut]（0.6/0.35、0.75/0.2 的 Folme 弹簧）
- *   与 [GlassMotion.barExpand] / [GlassMotion.barCollapse]（顶栏自己的展开/收起弹簧，
- *   `miuix-ui/basic/TopAppBar.kt:757-766` 用小标题进出场就是这两个）；
- * - 宽度变化交给 `SizeTransform`，用同一个 barExpand 弹簧，于是按钮组是"推挤着长出来"，
- *   而不是先跳宽再动画。
- *
- * `AnimatedContent` 也是 MIUIX 自己在用的容器（`miuix-glass/.../GlassNavigationRail.kt:1062`）。
- *
- * @param selectionMode 当前是否多选态（切换的唯一 key）。
- * @param normal 普通态的动作。
- * @param selection 多选态的动作。
- */
-@Composable
-fun AnimatedTopBarActions(
-    selectionMode: Boolean,
-    normal: @Composable RowScope.() -> Unit,
-    selection: @Composable RowScope.() -> Unit,
-) {
-    AnimatedContent(
-        targetState = selectionMode,
-        transitionSpec = {
-            (
-                fadeIn(GlassMotion.barExpand()) +
-                    scaleIn(GlassMotion.scaleIn(), initialScale = 0.92f)
-                ) togetherWith (
-                fadeOut(GlassMotion.barCollapse()) +
-                    scaleOut(GlassMotion.scaleOut(), targetScale = 0.92f)
-                ) using SizeTransform(
-                clip = false,
-                sizeAnimationSpec = { _, _ -> GlassMotion.springOf<IntSize>(1f, 0.3f) },
-            )
-        },
-        contentAlignment = Alignment.CenterEnd,
-        label = "topBarActions",
-    ) { inSelection ->
-        // 官方动作间距：`example/GlassPage.kt:363` 用 `Arrangement.spacedBy(8.dp)`。
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (inSelection) selection() else normal()
         }
     }
 }

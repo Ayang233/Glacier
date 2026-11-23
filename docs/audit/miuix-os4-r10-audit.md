@@ -108,3 +108,49 @@ fun apiMenuActions(entry, inHome): List<AppAction>        // 深链入口：无�
 已知限制：冻结/解冻的真实行为依赖冻结后端，模拟器上没有可用后端，所以「解冻并从主页移除」
 只验证了"菜单出现"与"解冻失败则不移除"的代码路径（`repository.setFrozen` 返回 false 时中止），
 没有跑通真机成功路径。
+
+---
+
+## 7. 追加：多选不再换顶栏，FAB 成为唯一出口
+
+用户反馈：点「多选」后顶栏不该变成一排批量按钮，那排按钮的代码整段去掉；进多选给一句
+「点按多选」的提示；并追问"标签收起后，『已选 N 个』与下面图标的间距是否符合 OS4"。
+
+### 改动
+
+- **删除 `AnimatedTopBarActions` 整个组件**（`PageFrame.kt` 里连同 KDoc 一起删，约 2.0k 字符），
+  以及它带来的 `AnimatedContent` / `SizeTransform` / `togetherWith` / `IntSize` / `GlassMotion` 导入。
+  主页顶栏改成恒单态：搜索 / 多选 / 编辑标签，三个 `TopBarAction` 放在
+  `Row(spacedBy(8.dp))` 里（8dp 是官方示例 `example/GlassPage.kt:363` 的值）。
+- **多选按钮变成 toggle**：顶栏不再提供"关闭"，所以同一个按钮负责进出；进入时
+  `UiFeedback.toast("点按多选")`（新字符串 `hint_tap_to_select`）。
+- **FAB 成为多选唯一的执行出口**：顶栏那排批量按钮消失后，多选必须有个"执行"的地方。
+  FAB 在多选态保持可见，作用范围 = 已选集合（空选则整页），语义沿用原来的
+  "把范围内还没冻的冻上；范围全冻着就反过来解冻"，图标随 `willFreeze` 在 `QuietMode` / `UnlockOutline` 之间切。
+  只有真正落地（`FreezeOutcome.Applied` 且 `count > 0`）才退出多选，权限失败保留选区。
+- 多选态里长按仍等于切换勾选（否则选中几个后长按会突然弹菜单）。
+
+### 间距实测（1080×2400 @420dpi，1dp = 2.625px）
+
+| 状态 | 参照点 | 数值 |
+|---|---|---|
+| 多选态 | 「已选 N 个」文本盒底部 386 → 首行图标顶 397 | **11px ≈ 4.2dp** |
+| 正常态 | 标签轨道底 569 → 首行图标顶 590（标签行自带 12dp 底边距） | 21px ≈ 8dp |
+| 官方 example 大标题页 | 标题文本盒底部 364 → 内容起点 375（= 栏底） | **11px ≈ 4.2dp** |
+
+结论：**几何上符合官方**——内容从顶栏底部开始（`contentPadding.top = innerPadding.top`，
+`pageContentPadding` 不额外加任何值），标题文本盒到栏底那 11px 是顶栏自己的内边距，
+和官方示例逐像素一致，没有自造数值。
+
+观感上比正常态紧，原因是两段留白消失了：副标题（52px）+ 标签行（含 12dp 底边距）。
+需要提醒的是，官方**网格页**（`IconPage`）在首行之前总有一个小节标题
+（`SmallTitle`，`SmallTitleDefaults.InsideMargin` 纵向 8dp），而 Glacier 的主页网格没有小节语义，
+所以首行离标题只剩那 11px。若要让"看起来"也贴近官方网格页，最小改动是给网格的
+`contentPadding` 顶部补 8dp（= 官方 SmallTitle 的纵向内边距），只在标签行隐藏时或两态都加，
+这一步属于视觉取舍，未擅自改动。
+
+### 验证
+
+`assembleDebug` + `testDebugUnitTest` 通过；实机确认：点「多选」→ 顶栏三个图标不变、标签行收起、
+标题「已选 0 个」、toast「点按多选」、FAB 仍在；选中一项后 FAB 作用于所选（模拟器无冻结后端，
+点了给「权限不足」且**保留**选区）；再点「多选」退出、标签行回来。

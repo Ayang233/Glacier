@@ -71,11 +71,11 @@ import com.ayang.glacier.feature.common.SheetActionRow
 import com.ayang.glacier.feature.common.homeMenuActions
 import com.ayang.glacier.feature.common.reportFreezeBatch
 import com.ayang.glacier.platform.UiFeedback
+import com.ayang.glacier.system.FreezeOutcome
 import com.ayang.glacier.ui.LocalGlassActive
 import com.ayang.glacier.ui.LocalRootBackdrop
 import com.ayang.glacier.ui.LocalAppPageInsets
 import com.ayang.glacier.ui.appPageHorizontalInsets
-import com.ayang.glacier.ui.components.AnimatedTopBarActions
 import com.ayang.glacier.ui.components.EmptyState
 import com.ayang.glacier.ui.components.HoldDownEffect
 import com.ayang.glacier.ui.components.PageFrame
@@ -108,11 +108,9 @@ import top.yukonga.miuix.kmp.icon.glass.Add
 import top.yukonga.miuix.kmp.icon.glass.Close
 import top.yukonga.miuix.kmp.icon.glass.Delete
 import top.yukonga.miuix.kmp.icon.glass.Edit
-import top.yukonga.miuix.kmp.icon.glass.More
 import top.yukonga.miuix.kmp.icon.glass.MultiSelect
 import top.yukonga.miuix.kmp.icon.glass.QuietMode
 import top.yukonga.miuix.kmp.icon.glass.Search
-import top.yukonga.miuix.kmp.icon.glass.Tags
 import top.yukonga.miuix.kmp.icon.glass.Timer
 import top.yukonga.miuix.kmp.icon.glass.UnlockOutline
 import top.yukonga.miuix.kmp.interfaces.ExperimentalScrollBarApi
@@ -261,54 +259,30 @@ fun HomeScreen() {
         // 官方图标网格页每页显式加滚动条（`example/IconPage.kt` / `MainPage.kt:341-345`）。
         scrollBarAdapter = rememberScrollBarAdapter(gridState).takeIf { entries.isNotEmpty() },
         topBarActions = {
-            // 普通档（搜索/多选/编辑标签）与多选档（冻结/解冻/标签/更多/关闭）走官方的两态切换动画
-            // （`AnimatedTopBarActions`），而不是整排图标在一帧里替换。
-            AnimatedTopBarActions(
-                selectionMode = inSelection,
-                normal = {
-                    TopBarAction(MiuixIcons.Glass.Search, stringResource(R.string.search)) {
-                        searchOpen = true
-                    }
-                    TopBarAction(MiuixIcons.Glass.MultiSelect, stringResource(R.string.action_select)) {
-                        selecting = true
-                    }
-                    TopBarAction(MiuixIcons.Glass.Edit, stringResource(R.string.title_tag_editor)) {
-                        tagEditorOpen = true
-                    }
-                },
-                selection = {
-                    TopBarAction(MiuixIcons.Glass.QuietMode, stringResource(R.string.action_freeze)) {
-                        val targets = selection
-                        scope.launch {
-                            val outcome = repository.setFrozenBatch(targets, true)
-                            reportFreezeBatch(context, outcome, true)
-                            selecting = false
-                            selection = emptySet()
-                        }
-                    }
-                    TopBarAction(MiuixIcons.Glass.UnlockOutline, stringResource(R.string.action_unfreeze)) {
-                        val targets = selection
-                        scope.launch {
-                            val outcome = repository.setFrozenBatch(targets, false)
-                            reportFreezeBatch(context, outcome, false)
-                            selecting = false
-                            selection = emptySet()
-                        }
-                    }
-                    TopBarAction(MiuixIcons.Glass.Tags, stringResource(R.string.action_edit_tags)) {
-                        if (selection.size == 1) {
-                            tagNameDialog = TagNameRequest.Assign(selection.first())
-                        }
-                    }
-                    TopBarAction(MiuixIcons.Glass.More, stringResource(R.string.more)) {
-                        if (selection.size == 1) actionTarget = selection.first()
-                    }
-                    TopBarAction(MiuixIcons.Glass.Close, stringResource(R.string.close)) {
+            // 顶栏**只有一态**：搜索 / 多选 / 编辑标签。多选时不换成批量按钮那一排
+            // （那一排的代码已删除），它的执行出口是右下角 FAB（见 floatingActionButton）。
+            // 动作间距 8dp 是官方示例的值（`example/GlassPage.kt:363`）。
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TopBarAction(MiuixIcons.Glass.Search, stringResource(R.string.search)) {
+                    searchOpen = true
+                }
+                // 同一个按钮进/出多选：顶栏不再提供"关闭"，没有别的地方能退出这个模式。
+                TopBarAction(MiuixIcons.Glass.MultiSelect, stringResource(R.string.action_select)) {
+                    if (inSelection) {
                         selecting = false
                         selection = emptySet()
+                    } else {
+                        selecting = true
+                        UiFeedback.toast(context, R.string.hint_tap_to_select)
                     }
-                },
-            )
+                }
+                TopBarAction(MiuixIcons.Glass.Edit, stringResource(R.string.title_tag_editor)) {
+                    tagEditorOpen = true
+                }
+            }
         },
         // 页签是顶栏的子级（官方 `GlassPage.kt:394-401` 的 bottomContent）：
         // 玻璃档由顶栏上下文自动继承 backdrop，不能放进正文网格。
@@ -337,30 +311,43 @@ fun HomeScreen() {
         // 不再直接 `if` 掉——进多选时它是"缩着淡出"而不是凭空消失。
         floatingActionButton = { fabBackdrop ->
             CapturedAnimatedVisibility(
-                visible = !inSelection && entries.isNotEmpty(),
+                // 多选时 FAB 仍然在：顶栏不再换成一排批量按钮之后，它是多选唯一的执行出口。
+                visible = entries.isNotEmpty(),
                 enter = fadeIn(GlassMotion.barExpand()) + scaleIn(GlassMotion.scaleIn(), initialScale = 0.8f),
                 exit = fadeOut(GlassMotion.barCollapse()) + scaleOut(GlassMotion.scaleOut(), targetScale = 0.8f),
             ) {
+                // 作用范围：选了几个就只处理这几个，没选则整页。语义统一成
+                // "把范围内还没冻的冻上；范围内全都冻着，就反过来解冻"（与原来的整页 FAB 一致）。
+                val scopeEntries = if (selection.isEmpty()) {
+                    entries
+                } else {
+                    entries.filter { it.packageName in selection }
+                }
+                val willFreeze = scopeEntries.any { !it.frozen }
                 GlassFloatingActionButton(
                     onClick = {
-                        val targets = entries.filter { !it.frozen }.map { it.packageName }
-                        val unfreeze = targets.isEmpty()
-                        val set = if (unfreeze) entries.map { it.packageName } else targets
+                        val targets = if (willFreeze) {
+                            scopeEntries.filter { !it.frozen }.map { it.packageName }
+                        } else {
+                            scopeEntries.map { it.packageName }
+                        }
                         scope.launch {
-                            val outcome = repository.setFrozenBatch(set, !unfreeze)
-                            reportFreezeBatch(context, outcome, !unfreeze)
+                            val outcome = repository.setFrozenBatch(targets, willFreeze)
+                            reportFreezeBatch(context, outcome, willFreeze)
+                            // 真正落地了才退出多选：失败（权限/后端不可用）时保留选区，
+                            // 否则用户白选一遍、还得重新挑。
+                            if (selection.isNotEmpty() && outcome is FreezeOutcome.Applied && outcome.count > 0) {
+                                selecting = false
+                                selection = emptySet()
+                            }
                         }
                     },
                     backdrop = fabBackdrop,
                 ) {
                     Icon(
-                        imageVector = if (entries.any { !it.frozen }) {
-                            MiuixIcons.Glass.QuietMode
-                        } else {
-                            MiuixIcons.Glass.UnlockOutline
-                        },
+                        imageVector = if (willFreeze) MiuixIcons.Glass.QuietMode else MiuixIcons.Glass.UnlockOutline,
                         contentDescription = stringResource(
-                            if (entries.any { !it.frozen }) R.string.action_freeze else R.string.action_unfreeze,
+                            if (willFreeze) R.string.action_freeze else R.string.action_unfreeze,
                         ),
                         modifier = Modifier.size(24.dp),
                     )

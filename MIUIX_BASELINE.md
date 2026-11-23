@@ -87,7 +87,7 @@ miuix-squircle      squircleClip / squircleBorder / squircleBackground
 | 关于页动态背景 | `ui/effect/`（官方 example 的 `BgEffect` 组件逐字节移植）+ `textureBlur` | 官方 AboutPage 的双 backdrop 范式：独立背景层录 BgEffect，品牌名/信息卡作为兄弟采样；混色 token 取自官方 `ColorBlendToken` |
 | 主题 | `MiuixTheme` + `ThemeController` | 固定浅/深色板，见 §7 |
 | 动效 | `scrollEndHaptic` / `overScrollVertical` / `PagerNavigationSpringSpec` / `springAnimateToPage` / `GlassMotion.*` / 弹层 `DialogMotion.Glass` | 官方原语组合；按压反馈全部走组件的内建实现（玻璃档 `GlassIconButton` 的 `buttonPressedOverlay` + `PressedContentAlpha`，非玻璃档 `IconButton` 的 `MiuixIndication`），弹层进出动画自基线 `44f1d315` 起由 `DialogMotion` 统一 |
-| 顶栏动作区两态切换 | `AnimatedContent` + `SizeTransform` + `GlassMotion.barExpand()` / `barCollapse()` / `scaleIn()` / `scaleOut()`（封装在 `PageFrame.kt` 的 `AnimatedTopBarActions`） | 曲线全部是库里的 `GlassMotion`；`AnimatedContent` 是 MIUIX 自己在 `GlassNavigationRail` 里用的容器；控件显隐的 `fadeIn+scaleIn` 写法见 `SearchBar.kt:190-193` |
+| 顶栏动作区 | 单态 `Row(spacedBy(8.dp))` + `TopBarAction`（官方 `example/GlassPage.kt:363` 的间距） | R10 追加：多选不再换成一排批量按钮，`AnimatedTopBarActions` 组件已从 `PageFrame.kt` 删除；批量动作的出口收敛到 FAB |
 | 局部显隐（FAB / 页签行） | `CapturedAnimatedVisibility` + `fadeIn/scaleIn`、`expandVertically/shrinkVertically` | 官方顶栏子内容 / 悬浮件显隐的同一写法（`AppContent.kt:720-728`） |
 | 多选态返回 | `BackHandler`（activity-compose，注册到 NavigationEventDispatcher 栈顶） | 多选态先退模式，不结束 Activity |
 | 状态派生 | `computedStateOf` / `CapturedAnimatedVisibility` | Compose 1.13 官方 API（官方 example 已全量使用），替代 `derivedStateOf` / `AnimatedVisibility` |

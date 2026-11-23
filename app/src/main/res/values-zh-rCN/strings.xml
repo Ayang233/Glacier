@@ -66,6 +66,7 @@
     <string name="action_delete_tag">删除标签</string>
     <string name="action_rename_tag">重命名标签</string>
     <string name="action_select">多选</string>
+    <string name="hint_tap_to_select">点按多选</string>
     <string name="action_deferred_freeze">定时任务</string>
     <string name="action_none">无</string>
 
