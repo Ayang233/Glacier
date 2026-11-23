@@ -157,6 +157,16 @@ private object HomeGridMetrics {
 }
 
 /**
+ * 「已选 N 个」标题的字号补偿系数。
+ *
+ * 顶栏大标题固定用 `title1`（32sp）。中文方块字满框、拉丁大写只占约 0.64 em，所以同一字号下
+ * 「已选 N 个」的字形高度是本机实测 77px、「Glacier」是 64px —— 视觉上中文大一圈。
+ * 64 / 77 ≈ 0.83 缩一下，两种标题看起来一样大；顺带让两个状态的标题行高一致
+ * （否则进出多选时整页会上下跳 22px）。这是"视觉对齐"的光学校正，不涉及组件字号常量。
+ */
+private const val SelectionTitleScale = 0.83f
+
+/**
  * 搜索结果的卡片上下留白。
  *
  * 官方 `IconPage.kt:104`（`SearchResultVerticalPadding = 4.dp`）与
@@ -229,6 +239,9 @@ fun HomeScreen() {
 
     val inSelection = selecting || selection.isNotEmpty()
 
+    // 标题文字在这里算好：既要显示，也要给 PageFrame 判断"这一版标题要不要做字号校正"。
+    val selectedCountTitle = stringResource(R.string.selected_count, selection.size)
+
     // 多选态下返回键先退出多选，而不是结束 Activity（与 Apps 页同一出口）。
     BackHandler(enabled = inSelection) {
         selecting = false
@@ -248,13 +261,14 @@ fun HomeScreen() {
     deferredTarget?.let { lastDeferredPackage = it }
 
     PageFrame(
-        // 大标题永远是页面身份（Glacier），多选的计数放到副标题：
-        // 顶栏的形状、字号、行数在多选前后完全一致，页面不会"跳一下"。
-        title = stringResource(R.string.app_name),
-        subtitle = if (inSelection) {
-            stringResource(R.string.selected_count, selection.size)
-        } else {
-            "$tagLabel · ${stringResource(R.string.app_count, entries.size)}"
+        // 多选时大标题换成「已选 N 个」，副标题（标签 · N 个应用）保持不变：
+        // 两态都是"大标题 + 副标题"，顶栏高度/行数不变，只有标题文字在变
+        // （切换动画由 PageFrame 统一处理，见那边对 AnimatedContent 的说明）。
+        title = if (inSelection) selectedCountTitle else stringResource(R.string.app_name),
+        subtitle = "$tagLabel · ${stringResource(R.string.app_count, entries.size)}",
+        // 只有「已选 N 个」这个中文标题需要光学校正（见 [SelectionTitleScale]）。
+        titleFontScale = { pageTitle ->
+            if (pageTitle == selectedCountTitle) SelectionTitleScale else 1f
         },
         scrollBehavior = scrollBehavior,
         searchExpanded = searchOpen,

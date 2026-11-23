@@ -162,3 +162,72 @@ toast「点按多选」、FAB 仍在；长按任意图标弹使用向菜单（�
 点图标切换角标；FAB 作用于所选（模拟器无冻结后端，点了「权限不足」且**保留**选区）；
 再点「多选」退出，副标题回到「默认 · 2 个应用」。
 截图：`docs/verification/miuix-os4-r10/13-home-multiselect-final.png` 等。
+
+---
+
+## 8. 再追加：标题显示「已选 N 个」，字号与 Glacier 对齐，切换走官方淡入淡出
+
+用户澄清："点击多选之后，Glacier 显示为已选几个，默认几个应用不用变，且要有过渡动画（不要自造）"，
+随后补充"已选的字体大小要与 Glacier 一样"。
+
+### 8.1 内容：标题换、副标题不动
+
+`title = if (inSelection) selected_count else app_name`，`subtitle` 恒为「标签 · N 个应用」。
+两态都是"大标题 + 副标题"，所以顶栏的行数与结构不变。
+
+### 8.2 字号：同一 title1 下中文天生比拉丁大一圈
+
+顶栏大标题固定用 `textStyles.title1.fontSize`（32sp，`TopAppBar.kt:886`），组件没有字号参数。
+同一字号下本机实测**字形高度**：
+
+| 标题 | 字形高 |
+|---|---|
+| `Glacier`（拉丁大写） | 64px |
+| `已选 0 个`（中文 + 数字） | 77px |
+
+中文方块字满框、拉丁只占约 0.64 em，所以"已选 N 个"看起来大 20%；行盒也从 99px 变 121px，
+会连带整页下移 22px。
+
+处理：`PageFrame` 新增 `titleFontScale: (String) -> Float`，主页只对「已选 N 个」给
+`0.83f`（= 64/77），实现方式是官方主题 API `MiuixTheme(textStyles = …copy(title1 = …))`，
+不改组件常量、不影响其它页。校正后：
+
+| | 正常态 | 多选态 |
+|---|---|---|
+| 标题盒 | 265–364（99px） | 265–365（100px） |
+| 字形高 | 64px | 64px |
+| 首行图标 | 590 | 591 |
+
+差 1px（0.4dp），肉眼不可见 —— 进出多选不再有整页位移。
+
+### 8.3 过渡：`AnimatedContent` + 库里的 fade token
+
+```kotlin
+AnimatedContent(
+    targetState = title,
+    transitionSpec = { (fadeIn(GlassMotion.fadeIn()) togetherWith fadeOut(GlassMotion.fadeOut())).using(null) },
+    contentAlignment = Alignment.TopStart,
+) { pageTitle -> … }
+```
+
+- 容器：`AnimatedContent` 是 MIUIX 自己在用的（`GlassNavigationRail.kt:1062`）；
+- 曲线：`GlassMotion.fadeIn()`（80ms 线性）/ `fadeOut()`（150ms 线性）是库里的**内容淡入淡出 token**
+  （KDoc：退出比进入慢，免得看成闪烁），不是自造数值；
+- `.using(null)`：不要 SizeTransform —— 两态尺寸已被字号校正对齐，动画只该是透明度。
+
+因为两态高度一致，交叉淡入淡出时**只有标题在重影**，副标题 / 标签行 / 图标都是单份且不动
+（`17-home-title-crossfade-frame.png` 就是中间帧）。
+
+### 8.4 踩坑：无条件嵌套 `MiuixTheme` 会让语义树不更新
+
+第一版把 `MiuixTheme(textStyles = …)` 无条件包在每个标题外面（哪怕 scale == 1），结果
+`uiautomator` 一直读到旧标题（"Glacier"），语义树停在切换前 —— 视觉是对的，但无障碍语义错。
+改成"只有需要缩放时才包"之后恢复正常（dump 里能读到「已选 0 个」）。
+排查方法：`uiautomator dump` 后用 XML 解析器读 `visible` 节点，别用正则扫字符串（属性顺序会把节点漏掉）。
+
+### 8.5 代价与边界
+
+- 多选态的标题字号是 `title1 × 0.83`（≈26.6sp），比其它页的标题小 17%。这是"中文字形 vs 拉丁字形"
+  的光学对齐，只影响这一处；如果以后主页标题换成中文（例如与「应用」「设置」一致的「主页」），
+  这个系数就可以直接删掉。
+- 语义上「已选 N 个」仍是页面的标题（大标题位），不是副标题。

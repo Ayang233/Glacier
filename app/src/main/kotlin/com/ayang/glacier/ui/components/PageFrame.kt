@@ -1,5 +1,9 @@
 package com.ayang.glacier.ui.components
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -52,6 +56,7 @@ import top.yukonga.miuix.kmp.basic.VerticalScrollBar
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.glass.GlassIconButton
+import top.yukonga.miuix.kmp.glass.GlassMotion
 import top.yukonga.miuix.kmp.glass.GlassTopAppBar
 import top.yukonga.miuix.kmp.glass.glassSearchBarTransition
 import top.yukonga.miuix.kmp.glass.rememberGlassSearchBarAlpha
@@ -192,6 +197,16 @@ fun PageFrame(
      * 轨道内边距与顶栏隐现跟随都由 PageFrame 按官方参数传好。
      */
     scrollBarAdapter: ScrollBarAdapter? = null,
+    /**
+     * 大标题的字号缩放，按"当前标题内容"给（默认不缩放）。
+     *
+     * MIUIX 的大标题固定用 `textStyles.title1.fontSize`（32sp，`TopAppBar.kt:886`），而中文方块字
+     * 满框、拉丁大写只占约 0.64 em：同一字号下本机实测字形高度是 77px（"已选 0 个"）vs 64px
+     * （"Glacier"），中文看着大一圈。需要"两种标题看起来一样大"时（主页在 Glacier ⇄ 已选 N 个
+     * 之间切换）在这里按标题给缩放；实现走官方 `MiuixTheme(textStyles = …copy(title1 = …))`，
+     * 不改组件的字号常量，也不改其它页。
+     */
+    titleFontScale: (String) -> Float = { 1f },
     /** 页面内容。参数是**最终内容内边距**，直接传给 `LazyColumn(contentPadding = ...)`。 */
     content: @Composable (PaddingValues) -> Unit,
 ) {
@@ -220,19 +235,52 @@ fun PageFrame(
             containerColor = surface,
             contentWindowInsets = WindowInsets(0),
             topBar = {
-                PageTopBar(
-                    title = title,
-                    subtitle = subtitle,
-                    backdrop = backdrop.takeIf { glassActive },
-                    scrollBehavior = scrollBehavior,
-                    expandable = largeTitle,
-                    titleAlpha = mergedTitleAlpha,
-                    obstructionStart = LocalTopBarObstructionStart.current,
-                    navigationIcon = navigationIcon,
-                    actions = topBarActions,
-                    bottomContent = { topBarBottom(backdrop.takeIf { glassActive }) },
-                    searchExpanded = searchExpanded,
-                )
+                // 标题变化（Glacier ⇄ 已选 N 个）走交叉淡入淡出，不硬切：
+                // `AnimatedContent` 是 MIUIX 自己在用的容器（`GlassNavigationRail.kt:1062`），
+                // 进/出用库里的内容淡入淡出 token [GlassMotion.fadeIn] / [GlassMotion.fadeOut]
+                // （80ms 线性进、150ms 线性出，KDoc 写明"退出比进入慢，免得看成闪烁"）。
+                // 不用 SizeTransform：两态尺寸由 [titleFontScale] 校准成同一行高，动画只该是透明度。
+                @Composable
+                fun bar(titleText: String) {
+                    PageTopBar(
+                        title = titleText,
+                        subtitle = subtitle,
+                        backdrop = backdrop.takeIf { glassActive },
+                        scrollBehavior = scrollBehavior,
+                        expandable = largeTitle,
+                        titleAlpha = mergedTitleAlpha,
+                        obstructionStart = LocalTopBarObstructionStart.current,
+                        navigationIcon = navigationIcon,
+                        actions = topBarActions,
+                        bottomContent = { topBarBottom(backdrop.takeIf { glassActive }) },
+                        searchExpanded = searchExpanded,
+                    )
+                }
+
+                AnimatedContent(
+                    targetState = title,
+                    transitionSpec = {
+                        (fadeIn(GlassMotion.fadeIn()) togetherWith fadeOut(GlassMotion.fadeOut())).using(null)
+                    },
+                    contentAlignment = Alignment.TopStart,
+                    label = "pageTopBarTitle",
+                ) { pageTitle ->
+                    val scale = titleFontScale(pageTitle)
+                    if (scale == 1f) {
+                        bar(pageTitle)
+                    } else {
+                        // 用官方主题 API 只换 title1 的字号：`MiuixTheme(textStyles = …)`。
+                        val styles = MiuixTheme.textStyles
+                        MiuixTheme(
+                            colors = MiuixTheme.colorScheme,
+                            textStyles = styles.copy(
+                                title1 = styles.title1.copy(fontSize = styles.title1.fontSize * scale),
+                            ),
+                        ) {
+                            bar(pageTitle)
+                        }
+                    }
+                }
             },
             bottomBar = {
                 if (bottomReserve > 0.dp) {
