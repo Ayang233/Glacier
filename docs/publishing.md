@@ -165,3 +165,14 @@ tag 由 `target_commitish = main` 自动创建，指向远端 main 的最新提�
 - 覆盖升级实测：从已装的 1.4.0 release 包 `adb install -r` 到 1.5.0，
   同签名覆盖成功，`versionCode 5 → 6`、`versionName 1.4.0 → 1.5.0`，启动无 crash；
 - README 同步重写了交互说明与 Glass 结构（底栏现在装在一级页里）。
+
+1.6.0 发布细节：
+- 源码用 `tools/push_api.py` 推送，6 个提交的 SHA 与本地完全一致（R9 / R10 三轮交互改动），
+  远端 main = `37d8c9a`；
+- Release 由 `tools/release_api.py` 创建：tag `v1.6.0` → `37d8c9a`；
+- 附件：`Glacier-release.apk` 4,452,792 B（sha256 `f7560506…51ce`）、`SHA256SUMS.txt`（86 B）；
+  API 返回的 asset `digest` 与本地 `sha256sum` 一致；
+- 签名证书未变（`CN=Glacier, OU=Release, O=Ayang, C=CN`，证书 sha256 `46b3f848…82cf4`）；
+- 覆盖升级实测：模拟器上从已装的 1.5.0 release 包 `adb install -r` 到 1.6.0，
+  同签名覆盖成功，`versionCode 6 → 7`、`versionName 1.5.0 → 1.6.0`，启动无 crash；
+- README 重写，并补了 `docs/screenshots/` 下 6 张 1.6.0 实拍（主页 / 应用页 / 多选 / 两个菜单 / 关于）。

@@ -1,2 +1,1 @@
-6b8b90c74d68aafa3d6ca12a78bf1998526d609c951cfea6fcaf6231f7d9e13c  *Glacier-release.apk
-dc063b15dc9e7c729f6e528f9835ab585df3756b37f0ab9511948dd3d471d64d  *Glacier-debug.apk
+f7560506b4ceef5ef4444e5ae5bdfffc1a5395b6fa0d78c9140cc79b8b0251ce *Glacier-release.apk
