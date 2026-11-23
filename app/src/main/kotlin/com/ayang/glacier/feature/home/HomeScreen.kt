@@ -248,12 +248,14 @@ fun HomeScreen() {
     deferredTarget?.let { lastDeferredPackage = it }
 
     PageFrame(
-        title = if (inSelection) {
+        // 大标题永远是页面身份（Glacier），多选的计数放到副标题：
+        // 顶栏的形状、字号、行数在多选前后完全一致，页面不会"跳一下"。
+        title = stringResource(R.string.app_name),
+        subtitle = if (inSelection) {
             stringResource(R.string.selected_count, selection.size)
         } else {
-            stringResource(R.string.app_name)
+            "$tagLabel · ${stringResource(R.string.app_count, entries.size)}"
         },
-        subtitle = if (inSelection) "" else "$tagLabel · ${stringResource(R.string.app_count, entries.size)}",
         scrollBehavior = scrollBehavior,
         searchExpanded = searchOpen,
         // 官方图标网格页每页显式加滚动条（`example/IconPage.kt` / `MainPage.kt:341-345`）。
@@ -286,12 +288,12 @@ fun HomeScreen() {
         },
         // 页签是顶栏的子级（官方 `GlassPage.kt:394-401` 的 bottomContent）：
         // 玻璃档由顶栏上下文自动继承 backdrop，不能放进正文网格。
-        // 多选态下页签让位给选择态：用官方 `CapturedAnimatedVisibility` 收起/展开（默认
-        // `fadeIn + expandVertically` 的顶栏子内容显隐范式，官方 `AppContent.kt:720-728` 的导航条同理），
-        // 否则顶栏会在一帧里突然矮下去、正文跟着跳。
+        // **多选时页签保持原位**：收起它会让顶栏矮下去、正文整体上移，进多选/退多选都要跳一次；
+        // 页签本身是"切换看哪个标签"，与"挑几项操作"不冲突，没必要让位。
+        // 只有标签数变成 1 个（没有可切换对象）时才收，仍用官方 `CapturedAnimatedVisibility`。
         topBarBottom = { topBarBackdrop ->
             CapturedAnimatedVisibility(
-                visible = snapshot.tags.size > 1 && !inSelection,
+                visible = snapshot.tags.size > 1,
                 enter = fadeIn() + expandVertically(),
                 exit = fadeOut() + shrinkVertically(),
             ) {
@@ -526,19 +528,11 @@ fun HomeScreen() {
                                 scope.launch { runner.run(entry, AppAction.Launch) }
                             }
                         },
-                        // 长按 = 该应用的使用向菜单；多选态里长按退化成"切换勾选"
-                        // （否则选中几个之后长按会突然弹菜单，手势语义自相矛盾）。
+                        // 长按 = 该应用的使用向菜单。多选态里也一样：菜单里的
+                        // 从主页移除 / 解冻并移除会顺带清掉这个包的选中项（见 onAction）。
                         onLongClick = {
-                            if (inSelection) {
-                                selection = if (entry.packageName in selection) {
-                                    selection - entry.packageName
-                                } else {
-                                    selection + entry.packageName
-                                }
-                            } else {
-                                actionTarget = entry.packageName
-                                heldPackage = entry.packageName
-                            }
+                            actionTarget = entry.packageName
+                            heldPackage = entry.packageName
                         },
                     )
                 }
@@ -551,8 +545,9 @@ fun HomeScreen() {
 /**
  * 网格单元。
  *
- * 点击热区是整格 [Column]（含标签）：点 = 启动（多选态里 = 切换勾选），
- * 长按 = 该应用的使用向操作单（多选态里同样退化成切换勾选）。
+ * 点击热区是整格 [Column]（含标签）：点 = 启动（多选态里 = 切换勾选）；
+ * 长按 = 该应用的使用向操作单，多选态里同样弹菜单（长按是"看这个应用能做什么"，
+ * 不该因为进了多选就没反应）。
  *
  * **按压/长按叠层的形状**：`combinedClickable` 默认 `indication = LocalIndication`，
  * 而 MIUIX 主题把它设成 [top.yukonga.miuix.kmp.utils.MiuixIndication]（`MiuixTheme.kt:37/67`），
