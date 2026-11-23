@@ -21,6 +21,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.state.ToggleableState
 import com.ayang.glacier.GlacierApplication
 import com.ayang.glacier.R
 import com.ayang.glacier.domain.AppFilter
@@ -240,6 +241,7 @@ fun AppsScreen() {
                         openActions(entry.packageName)
                     },
                     selected = selection,
+                    selectionMode = inSelection,
                     holdDownPackage = heldPackage,
                     listState = searchListState,
                 )
@@ -308,7 +310,12 @@ fun AppsScreen() {
                         inHome = entry.packageName in homePackages,
                         onClick = { toggleSelection(entry.packageName) },
                         onLongClick = { openActions(entry.packageName) },
-                        selected = entry.packageName in selection,
+                        // 多选指示走官方 Checkbox（行尾 endActions）；不在多选态时不渲染。
+                        selectionState = if (inSelection) {
+                            ToggleableState(entry.packageName in selection)
+                        } else {
+                            null
+                        },
                         holdDown = entry.packageName == heldPackage,
                         modifier = Modifier.fillMaxWidth(),
                     )

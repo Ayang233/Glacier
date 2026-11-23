@@ -1,16 +1,18 @@
 package com.ayang.glacier.feature.common
 
-import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -21,11 +23,10 @@ import com.ayang.glacier.R
 import com.ayang.glacier.platform.rememberAppIcon
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.BasicComponentDefaults
+import top.yukonga.miuix.kmp.basic.Checkbox
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.glass.GlassMotion
 import top.yukonga.miuix.kmp.squircle.squircleBackground
-import top.yukonga.miuix.kmp.squircle.squircleBorder
 import top.yukonga.miuix.kmp.squircle.squircleClip
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -39,13 +40,12 @@ const val AppIconCornerRatio = 0.22f
  * 圆角矩形（官方 squircle，shader 不可用时自动退回 RoundedCornerShape），
  * 不再使用圆形裁切，也不改第三方图标本身的颜色。
  *
- * 结构是「固定尺寸 Box + 图标铺满 + 叠加描边」：
- * - 图标永远等于 `size`，选中与否都不参与布局，按住/选中不会让图标缩小或网格跳动；
- * - 选中环用官方的延迟读取版 [squircleBorder]，半径与图标裁切半径相同（描边外缘与图标轮廓重合），
- *   宽度 0→2dp 用 [animateDpAsState] 过渡，选中态不会突然出现一圈硬边。
+ * 结构是「固定尺寸 Box + 图标铺满」：图标永远等于 `size`，选中与否都不参与布局。
  *
- * 旧实现把 `squircleBorder(...) + padding(2.dp)` 放在 `size` 内层，选中时图标内容被挤到 52dp，
- * 而描边半径同时从 12.32 变 14.32 → 选中/取消选中产生 4dp 跳变且描边与轮廓不平行。
+ * **选中态不在这里画**：MIUIX 没有「图标描边」这种选中语言，自绘的 2dp 蓝色
+ * squircle 描边是自造轮子（R9 已删）。多选指示统一交给官方 [Checkbox]
+ * （`miuix-ui/.../basic/Checkbox.kt`）：列表行放 `endActions`（与官方作者自己的
+ * Mishka `AppProxyScreen.kt:415-441` 完全同构），网格单元叠在图标右上角。
  */
 @Composable
 fun AppIconView(
@@ -53,7 +53,6 @@ fun AppIconView(
     size: Dp,
     frozen: Boolean,
     modifier: Modifier = Modifier,
-    selected: Boolean = false,
 ) {
     val context = LocalContext.current
     val preferences = (context.applicationContext as GlacierApplication).preferences
@@ -69,14 +68,6 @@ fun AppIconView(
         revision = iconRevision,
     )
     val radius = size * AppIconCornerRatio
-    // 用官方 GlassMotion 的物理曲线，而不是 Compose 默认 spring：选中环与 MIUIX
-    // 分段轨道指示器共用 0.95/0.35 的 Folme 弹簧（GlassMotion.default）。
-    val ringWidth by animateDpAsState(
-        targetValue = if (selected) 2.dp else 0.dp,
-        animationSpec = GlassMotion.default(),
-        label = "appIconSelectionRing",
-    )
-    val ringColor = MiuixTheme.colorScheme.primary
     Box(modifier = modifier.size(size)) {
         if (bitmap != null) {
             Icon(
@@ -95,17 +86,6 @@ fun AppIconView(
                     .squircleBackground(MiuixTheme.colorScheme.surfaceContainerHigh, radius),
             )
         }
-        // 描边叠在图标之上、不占布局：`squircleBorder` 把 2dp 描边内缩半个线宽绘制，
-        // 所以外缘正好落在与 `squircleClip(radius)` 相同的轮廓上。
-        Box(
-            Modifier
-                .matchParentSize()
-                .squircleBorder(
-                    width = { ringWidth },
-                    color = { ringColor },
-                    cornerRadius = radius,
-                ),
-        )
     }
 }
 
@@ -161,17 +141,18 @@ fun SheetActionRow(
 }
 
 /**
- * 应用列表 / 搜索结果里的一行（图标 + 名称 + 副标题 + 冻结徽标），同样走官方 [BasicComponent]。
+ * 应用列表 / 搜索结果里的一行（图标 + 名称 + 副标题 + 冻结徽标 + 多选勾选），同样走官方 [BasicComponent]。
  *
  * 行高（最小 56dp）、内边距（16dp）、图文间距（8dp）全部用 [BasicComponent] 默认值（规范 2.2 / 第 3 节）；
- * 应用图标 40dp 是规范第 3 节登记的"应用图标"token；冻结徽标按规范放 `endActions`。
+ * 应用图标 40dp 是规范第 3 节登记的"应用图标"token；冻结徽标与多选框按官方顺序放 `endActions`。
  *
  * 手势：行本身可选注册 [onClick]（搜索等"点一下就走"的入口用）；
  * 列表页需要同时支持点按与长按时，`onClick` 传 `null`，由外层官方 `Card(onClick, onLongPress)`
  * 统一承担（`AppListCardRow`），避免同一行出现两层点击/两层反馈。
  *
- * [selected] 与 Home 网格同一个选中语言（[AppIconView] 的 squircle 描边），
- * 由 Apps 列表的多选态直接复用。
+ * @param selectionState 多选指示：`null` = 不在多选态（不渲染勾选框），
+ *   `ToggleableState.On/Off` = 渲染官方 [Checkbox]。勾选框本身 `onClick = null`：
+ *   行的点按已经由外层 `Card` 承担，这里只做状态显示，避免一层行内再套一层点击。
  */
 @Composable
 fun AppRow(
@@ -180,7 +161,7 @@ fun AppRow(
     summary: String?,
     frozen: Boolean,
     onClick: (() -> Unit)? = null,
-    selected: Boolean = false,
+    selectionState: ToggleableState? = null,
 ) {
     BasicComponent(
         title = label,
@@ -190,17 +171,24 @@ fun AppRow(
                 packageName = packageName,
                 size = 40.dp,
                 frozen = frozen,
-                selected = selected,
             )
         },
-        // 冻结徽标放 endActions（空间不够时官方组件会自动让位）；未冻结时不渲染任何尾部内容。
+        // 冻结徽标 / 勾选框放 endActions（空间不够时官方组件会自动让位）；都没内容时不渲染。
         endActions = {
-            if (frozen) {
-                Text(
-                    text = stringResource(R.string.frozen),
-                    style = MiuixTheme.textStyles.footnote2,
-                    color = MiuixTheme.colorScheme.primary,
-                )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                if (frozen) {
+                    Text(
+                        text = stringResource(R.string.frozen),
+                        style = MiuixTheme.textStyles.footnote2,
+                        color = MiuixTheme.colorScheme.primary,
+                    )
+                }
+                if (selectionState != null) {
+                    Checkbox(state = selectionState, onClick = null)
+                }
             }
         },
         onClick = onClick,

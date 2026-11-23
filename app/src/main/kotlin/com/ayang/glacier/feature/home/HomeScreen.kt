@@ -11,6 +11,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -46,6 +47,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -77,6 +79,7 @@ import com.ayang.glacier.ui.components.PageMetrics
 import com.ayang.glacier.ui.components.TopBarAction
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.BasicComponent
+import top.yukonga.miuix.kmp.basic.Checkbox
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -507,6 +510,7 @@ fun HomeScreen() {
                         entry = entry,
                         labelSize = preferences.homeLabelSize,
                         selected = entry.packageName in selection,
+                        selectionMode = inSelection,
                         onClick = {
                             if (inSelection) {
                                 selection = if (entry.packageName in selection) {
@@ -550,6 +554,16 @@ fun HomeScreen() {
  * MIUIX 自己的 `TabRow` 同样用 `squircleClip(cornerRadius)` 包住带 indication 的 `selectable`
  * （`TabRow.kt:410-418`）。`Modifier.clip`/`squircleClip` 只裁绘制、不裁命中测试，
  * 整格热区（含标签）保持不变，不需要把叠层缩小到图标上，也不会引入缩放/位移。
+ * （已在官方示例 APK 上实测：按住一个图标单元，叠层就是"覆盖图标 + 标签"的 12dp squircle，
+ * 与这里逐像素同级。）
+ *
+ * **选中态**：不再自绘 2dp 蓝色描边（R9 删掉的自造轮子），改用官方 [Checkbox] 叠在图标
+ * 右上角作角标；`onClick = null` 是因为整格手势已经由 `combinedClickable` 承担，
+ * 勾选框只做状态显示，避免一层热区里再套一层点击。
+ *
+ * 网格里**只在已选中时画勾选角标**（未选中不画）：官方 Checkbox 未选中态是不透明的
+ * `secondary` 圆，叠在 56dp 图标上就是一块灰饼（实机截图确认），会把图标糊掉；
+ * 列表行有独立的右侧尾巴列，未选中态可以保留空圈作为"可勾选"提示，网格没有这个位置。
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -557,6 +571,7 @@ private fun HomeAppItem(
     entry: AppEntry,
     labelSize: Float,
     selected: Boolean,
+    selectionMode: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
 ) {
@@ -567,12 +582,20 @@ private fun HomeAppItem(
             .squircleClip(HomeGridMetrics.CellCorner)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick),
     ) {
-        AppIconView(
-            packageName = entry.packageName,
-            size = PageMetrics.GridAppIcon,
-            frozen = entry.frozen,
-            selected = selected,
-        )
+        Box {
+            AppIconView(
+                packageName = entry.packageName,
+                size = PageMetrics.GridAppIcon,
+                frozen = entry.frozen,
+            )
+            if (selectionMode && selected) {
+                Checkbox(
+                    state = ToggleableState.On,
+                    onClick = null,
+                    modifier = Modifier.align(Alignment.TopEnd),
+                )
+            }
+        }
         Spacer(Modifier.height(HomeGridMetrics.IconLabelGap))
         Text(
             text = entry.label,

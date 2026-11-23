@@ -81,11 +81,12 @@ miuix-squircle      squircleClip / squircleBorder / squircleBackground
 | 宿主让位 | `AppPageInsets` + `LocalAppPageInsets` + `appPageHorizontalInsets()` / `appPageTopBarInsets()`（`ui/PageInsets.kt`，官方 `utils/PageUtils.kt:62-152` 的逐字节移植） | 侧栏宽度、系统安全区只作用于内容；`NavDisplay` 恒满宽，背景与模糊带不被裁断 |
 | 内容内边距 | `pageContentPadding`（官方惰性 `PaddingValues`）+ `rememberAppSafePadding()` | 组合期只建对象，`calculate*` 在布局阶段读，侧栏 morph 不触发重组 |
 | 滚动 | `VerticalScrollBar` + `rememberScrollBarAdapter`，`trackPadding = contentPadding`、`topAppBarScrollBehavior = 顶栏行为` | 与官方 `MainPage.kt:359-364` 同参；轨道贴着内容区，顶栏收起时跟着收起 |
-| 形状 | `squircleClip` / `squircleBorder` / `squircleBackground` | 应用图标、品牌图标 |
+| 形状 | `squircleClip` / `squircleBackground` | 应用图标、品牌图标 |
+| 多选指示 | `Checkbox`（官方 26dp，`ToggleableState`） | 列表/搜索结果行放 `endActions`（与库作者自己的 Mishka `AppProxyScreen.kt:415-441` 同构），网格选中时叠图标右上角作角标；库里**没有**"选中描边"这种语言，所以自绘的 2dp 蓝色 squircle 描边已在 R9 删除 |
 | 模糊 | `rememberLayerBackdrop` / `layerBackdrop` / `Backdrop` | 无自建模糊管线、无自建背景采样 |
 | 关于页动态背景 | `ui/effect/`（官方 example 的 `BgEffect` 组件逐字节移植）+ `textureBlur` | 官方 AboutPage 的双 backdrop 范式：独立背景层录 BgEffect，品牌名/信息卡作为兄弟采样；混色 token 取自官方 `ColorBlendToken` |
 | 主题 | `MiuixTheme` + `ThemeController` | 固定浅/深色板，见 §7 |
-| 动效 | `scrollEndHaptic` / `overScrollVertical` / `PagerNavigationSpringSpec` / `springAnimateToPage` / `GlassMotion.default()` / 弹层 `DialogMotion.Glass` | 官方原语组合；选中环弹簧走官方 Folme 参数；弹层进出动画自基线 `44f1d315` 起由 `DialogMotion` 统一 |
+| 动效 | `scrollEndHaptic` / `overScrollVertical` / `PagerNavigationSpringSpec` / `springAnimateToPage` / `GlassMotion.*` / 弹层 `DialogMotion.Glass` | 官方原语组合；按压反馈全部走组件的内建实现（玻璃档 `GlassIconButton` 的 `buttonPressedOverlay` + `PressedContentAlpha`，非玻璃档 `IconButton` 的 `MiuixIndication`），弹层进出动画自基线 `44f1d315` 起由 `DialogMotion` 统一 |
 | 顶栏动作区两态切换 | `AnimatedContent` + `SizeTransform` + `GlassMotion.barExpand()` / `barCollapse()` / `scaleIn()` / `scaleOut()`（封装在 `PageFrame.kt` 的 `AnimatedTopBarActions`） | 曲线全部是库里的 `GlassMotion`；`AnimatedContent` 是 MIUIX 自己在 `GlassNavigationRail` 里用的容器；控件显隐的 `fadeIn+scaleIn` 写法见 `SearchBar.kt:190-193` |
 | 局部显隐（FAB / 页签行） | `CapturedAnimatedVisibility` + `fadeIn/scaleIn`、`expandVertically/shrinkVertically` | 官方顶栏子内容 / 悬浮件显隐的同一写法（`AppContent.kt:720-728`） |
 | 多选态返回 | `BackHandler`（activity-compose，注册到 NavigationEventDispatcher 栈顶） | 多选态先退模式，不结束 Activity |
@@ -191,3 +192,4 @@ adb install -r app/build/outputs/apk/debug/Glacier-debug.apk
 | 2026-11-22（同基线） | — | — | 关于页完整对齐官方 `AboutPage`：移植官方 `BgEffect` 动态背景（`ui/effect/`，Apache-2.0），建独立背景 backdrop + 品牌名/信息卡 `textureBlur`（官方混色 token），背景 alpha 随滚动淡出；修复设置项不可观察导致的 7 处 UI 不刷新（订阅 `preferences.revision`） |
 | 2026-11-22 | `9128921c` | `44f1d315`（main，`v0.9.5-beta03` + 18） | 全项目清查自造 UI 轮子（审计 R6）：删除 `railStartInset` / `LocalPageStartReserved` / `LocalSearchTopInset` / `pageSafeBottom`，改用官方 `AppPageInsets` 契约（`ui/PageInsets.kt`）；`pageContentPadding` / `pageScrollModifiers` 换成官方同参实现（惰性读取，侧栏 morph 不重组）；滚动条补 `trackPadding` 与 `topAppBarScrollBehavior`；删除 Home 页第二份搜索结果列表，统一复用 `AppSearchResults`；顶栏 / 底栏 / 搜索浮层 / 弹层的安全区全部走官方契约；弹层动画随基线切到 `DialogMotion.Glass` |
 | 2026-11-22（同基线） | — | — | 交互与转场对齐 OS4（审计 R7）：底栏按官方结构挪进 `entry<Route.Main>`（官方 `Home()` 的 `Scaffold(bottomBar)` 同构），二级页没有底栏、转场时底栏随一级页一起走（不再用 `visible` 的 0.6 倍缩小退场）；Apps 行改用官方 `Card(onClick, onLongPress, holdDownState)`，点按=选中（新增多选 + 顶栏批量动作）、长按=操作单，搜索行同语义，多选态 `BackHandler` 先退模式；顶栏动作区两态切换改用 `AnimatedContent` + `GlassMotion` 曲线（`AnimatedTopBarActions`），FAB / 页签行改用 `CapturedAnimatedVisibility`。详见 `docs/audit/miuix-os4-r7-audit.md` |
+| 2026-11-23（同基线） | — | — | 按压反馈核对 + 删除最后一处自绘选中态（审计 R9）：实机对照官方 example APK 确认，顶栏圆形反馈＝`GlassIconButton`（44dp / 0.10 叠层 / 图标 0.6）与 `IconButton`（40dp）两档的官方内建行为，图标单元灰底＝官方 `squircleClip(12dp) + clickable` 整格叠层，两者都不需要改；真正自造的是"选中＝图标 2dp 蓝色描边"，已改为官方 `Checkbox`（列表行尾 / 网格选中角标）。详见 `docs/audit/miuix-os4-r9-audit.md` |
