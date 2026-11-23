@@ -52,21 +52,21 @@
     <string name="device_admin_description">Lets Glacier lock the screen for \"Lock and freeze\". No other device policy is used.</string>
     <string name="action_app_info">App info</string>
     <string name="action_extract_apk">Extract APK</string>
-    <string name="action_uninstall">Uninstall</string>
-    <string name="action_reinstall">Reinstall</string>
+    <string name="action_copy_package">Export to clipboard</string>
     <string name="action_add_to_home">Add to home</string>
     <string name="action_remove_from_home">Remove from home</string>
-    <string name="action_add_pin_shortcut">Add shortcut</string>
+    <string name="action_unfreeze_and_remove">Unfreeze and remove from home</string>
+    <string name="action_add_pin_shortcut">Add to home screen</string>
     <string name="action_pin">Pin to top</string>
     <string name="action_unpin">Unpin</string>
     <string name="action_whitelist">Whitelist</string>
     <string name="action_unwhitelist">Remove from whitelist</string>
-    <string name="action_edit_tags">Tags</string>
+    <string name="action_edit_tags">Tag groups</string>
     <string name="action_new_tag">New tag</string>
     <string name="action_delete_tag">Delete tag</string>
     <string name="action_rename_tag">Rename tag</string>
     <string name="action_select">Select</string>
-    <string name="action_deferred_freeze">Freeze after…</string>
+    <string name="action_deferred_freeze">Scheduled task</string>
     <string name="action_none">None</string>
 
     <!-- Sort & filter -->
@@ -147,6 +147,8 @@
     <string name="msg_unfreeze">%1$s unfrozen</string>
     <string name="msg_freeze_many">%1$s apps frozen</string>
     <string name="msg_unfreeze_many">%1$s apps unfrozen</string>
+    <string name="msg_package_copied">Package name copied</string>
+    <string name="msg_removed_from_home">%1$s removed from home</string>
     <string name="switch_on">On</string>
     <string name="switch_off">Off</string>
     <string name="backend_ready">ready</string>

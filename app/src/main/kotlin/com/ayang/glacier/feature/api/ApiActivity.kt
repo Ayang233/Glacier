@@ -31,6 +31,7 @@ import com.ayang.glacier.domain.WorkingMode
 import com.ayang.glacier.feature.common.AppAction
 import com.ayang.glacier.feature.common.AppActionRunner
 import com.ayang.glacier.feature.common.AppActionSheet
+import com.ayang.glacier.feature.common.apiMenuActions
 import com.ayang.glacier.platform.PackageTools
 import com.ayang.glacier.platform.UiFeedback
 import com.ayang.glacier.ui.LocalGlassActive
@@ -92,11 +93,9 @@ class ApiActivity : ComponentActivity() {
                     AppActionSheet(
                         entry = lastEntry,
                         show = entry != null,
-                        inHome = sheetInHome,
-                        // 独立窗口没有标签编辑 / 延时冻结的 UI 出口（AppActionRunner 对这两项是空实现），
-                        // 按 Apps 侧同样的约定把这些"看起来可点但无效"的行整行隐藏，
-                        // 而不是点完什么都不发生。
-                        unsupportedActions = setOf(AppAction.EditTags, AppAction.DeferredFreeze),
+                        // 深链 / 快捷方式入口没有页面级 UI：标签编辑与定时任务都要落在页面里，
+                        // 所以这份菜单不给这两项（清单见 `apiMenuActions`）。
+                        actions = lastEntry?.let { apiMenuActions(it, sheetInHome) } ?: emptyList(),
                         onDismiss = { sheetEntry = null },
                         // 退场动画结束后再关窗；动作路径由业务协程自己 finish()，这里不抢跑。
                         onDismissFinished = { if (!actionChosen) finish() },

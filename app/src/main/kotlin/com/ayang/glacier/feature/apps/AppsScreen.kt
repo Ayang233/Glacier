@@ -1,9 +1,9 @@
 package com.ayang.glacier.feature.apps
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -18,12 +18,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.state.ToggleableState
+import androidx.compose.ui.unit.dp
 import com.ayang.glacier.GlacierApplication
 import com.ayang.glacier.R
+import com.ayang.glacier.domain.AppEntry
 import com.ayang.glacier.domain.AppFilter
 import com.ayang.glacier.domain.AppSort
 import com.ayang.glacier.feature.common.AppAction
@@ -32,13 +34,12 @@ import com.ayang.glacier.feature.common.AppActionSheet
 import com.ayang.glacier.feature.common.AppListCardRow
 import com.ayang.glacier.feature.common.AppSearchResults
 import com.ayang.glacier.feature.common.SearchResultVerticalPadding
-import com.ayang.glacier.feature.common.reportFreezeBatch
+import com.ayang.glacier.feature.common.appsMenuActions
 import com.ayang.glacier.ui.rememberAppSafePadding
 import com.ayang.glacier.ui.LocalGlassActive
 import com.ayang.glacier.ui.LocalRootBackdrop
 import com.ayang.glacier.ui.LocalAppPageInsets
 import com.ayang.glacier.ui.appPageHorizontalInsets
-import com.ayang.glacier.ui.components.AnimatedTopBarActions
 import com.ayang.glacier.ui.components.EmptyState
 import com.ayang.glacier.ui.components.PageFrame
 import com.ayang.glacier.ui.components.PageMetrics
@@ -53,11 +54,8 @@ import top.yukonga.miuix.kmp.glass.GlassSearchOverlayDefaults
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.Close
 import top.yukonga.miuix.kmp.icon.glass.Filter
-import top.yukonga.miuix.kmp.icon.glass.More
-import top.yukonga.miuix.kmp.icon.glass.QuietMode
 import top.yukonga.miuix.kmp.icon.glass.Search
 import top.yukonga.miuix.kmp.icon.glass.Sort
-import top.yukonga.miuix.kmp.icon.glass.UnlockOutline
 import top.yukonga.miuix.kmp.interfaces.ExperimentalScrollBarApi
 import top.yukonga.miuix.kmp.preference.RadioButtonPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
@@ -65,22 +63,15 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
 /**
- * Apps 页上「点击了但没有实现」的动作：不渲染，避免看起来可点却无效（任务书 §7.4）。
- *
- * 标签编辑与定时冻结目前只有主页有完整入口（`HomeScreen.kt` 的 TagNameDialog / DeferredSheet）；
- * Apps 页没有这两个弹层，若仍渲染，`AppActionRunner` 的默认回调是空实现，用户点了不会有任何反应。
- * 需要补齐时先在这两个入口实现，再把对应 [AppAction] 从集合里移除即可。
- */
-private val AppsUnsupportedActions = setOf(AppAction.EditTags, AppAction.DeferredFreeze)
-
-/**
  * 应用页：全部应用 + 排序 + 筛选。
  *
  * 排序与筛选都是"离散选项"，按 OS4 惯例走底部弹层，而不是塞进顶栏的图标菜单。
  *
- * **行手势（OS4 语义）**：点按 = 选中该应用（进入多选，顶栏变成批量动作），
- * 长按 = 弹出该应用的操作单。两者都由行容器 `AppListCardRow` 的官方
- * `Card(onClick, onLongPress)` 承担，行内 `BasicComponent` 不再自己注册点击。
+ * **这一页的职责是"挑应用"**：点一行就把它移进/移出主页（行尾勾选框 = 是否在主页），
+ * 没有多选模式、没有计数、顶栏永远只有搜索/排序/筛选；冻结统一在主页做。
+ * 长按 = 该应用的管理菜单（应用信息 / 导出到剪切板 / 提取安装包）。
+ * 两者都由行容器 `AppListCardRow` 的官方 `Card(onClick, onLongPress)` 承担，
+ * 行内 `BasicComponent` 不再自己注册点击。
  *
  * 浮层（搜索 / 排序 / 筛选 / 操作单）全部**常驻组合**，只由 `expanded` / `show` 驱动：
  * 官方 [GlassSearchOverlay] 的 `active = expanded || transition.isRunning`（`GlassSearchOverlay.kt:229-240`）
@@ -111,20 +102,6 @@ fun AppsScreen() {
     // 与 `actionTarget` 分开是因为弹层退场时官方是"先收面板、再复位按下态"，
     // 复位挂在 `onDismissFinished` 上，所以面板内容清空后这一行仍要保持一小会儿按下态。
     var heldPackage by remember { mutableStateOf<String?>(null) }
-    // 多选：`selecting` 与 Home 同义（点过一次就进多选，直到关闭），
-    // `selection` 为空时也保持多选态，避免"取消最后一个后顶栏突然跳回普通状态"。
-    var selecting by remember { mutableStateOf(false) }
-    var selection by remember { mutableStateOf(emptySet<String>()) }
-    val inSelection = selecting || selection.isNotEmpty()
-
-    // 多选态下返回键先退出多选，而不是直接把 Activity 结束掉。
-    // 点按即进入多选之后，这条退路必须有：否则用户点错一行、按返回就退出应用。
-    // 官方 `BackHandler`（activity-compose）注册在 NavigationEventDispatcher 栈顶，
-    // 位于 NavDisplay 的返回处理之前，与返回手势/三键导航同一入口。
-    BackHandler(enabled = inSelection) {
-        selecting = false
-        selection = emptySet()
-    }
 
     // 弹层退场期间要保留最后一份内容：排序项在 pick 后立即改设置，退场动画里不应闪成新选中态。
     var lastSort by remember { mutableStateOf(preferences.appSort) }
@@ -145,65 +122,41 @@ fun AppsScreen() {
         repository.snapshot.home.mapTo(HashSet()) { it.packageName }
     }
 
-    // 点按语义：切换该应用在多选里的成员关系。第一次点按就进入多选态（顶栏切批量动作）。
-    val toggleSelection: (String) -> Unit = { packageName ->
-        selecting = true
-        selection = if (packageName in selection) selection - packageName else selection + packageName
+    // 点按语义：把这一行移进 / 移出主页。**没有多选态、没有计数**——应用页只负责挑应用，
+    // 冻结统一在主页做（FAB / 长按 / 多选后的批量动作）。
+    // 语义走 `AppActionRunner`，与主页操作单的"从主页移除"共用同一个出口（提示语只有一份）。
+    val toggleHome: (AppEntry) -> Unit = { entry ->
+        scope.launch {
+            val onHome = entry.packageName in homePackages
+            runner.run(entry, if (onHome) AppAction.RemoveFromHome else AppAction.AddToHome)
+        }
     }
-    // 长按语义：打开该应用的操作单，并让这一行保持官方按下态直到弹层退场。
+    // 长按语义：打开该应用的操作单（管理向：应用信息 / 导包名 / 提包），
+    // 并让这一行保持官方按下态直到弹层退场。
     val openActions: (String) -> Unit = { packageName ->
         actionTarget = packageName
         heldPackage = packageName
     }
-    // 批量冻结 / 解冻：与 Home 共用同一个结果出口（`reportFreezeBatch`），两页措辞一致。
-    val applyBatch: (Boolean) -> Unit = { frozen ->
-        val targets = selection
-        scope.launch {
-            val outcome = repository.setFrozenBatch(targets, frozen)
-            reportFreezeBatch(context, outcome, frozen)
-            selecting = false
-            selection = emptySet()
-        }
-    }
 
     PageFrame(
-        title = if (inSelection) {
-            stringResource(R.string.selected_count, selection.size)
-        } else {
-            stringResource(R.string.nav_apps)
-        },
-        subtitle = if (inSelection) "" else stringResource(R.string.app_count, entries.size),
+        title = stringResource(R.string.nav_apps),
+        subtitle = stringResource(R.string.app_count, entries.size),
         scrollBehavior = scrollBehavior,
         searchExpanded = searchOpen,
         // 官方滚动条是每页显式添加的能力（`example/MainPage.kt:341-345`）；轨道内边距由 PageFrame
         // 按 Scaffold 实测值计算，页面只提供主列表的 state。空列表不挂（此时正文是空态，没有滚动容器）。
         scrollBarAdapter = rememberScrollBarAdapter(listState).takeIf { entries.isNotEmpty() },
-        // 普通档（搜索/排序/筛选）与多选档（冻结/解冻/更多/关闭）之间走官方的两态切换动画，
-        // 不再整排图标一帧替换。
+        // 本页只有一态（搜索 / 排序 / 筛选），不存在"批量动作"那一档：
+        // 动作间距 8dp 用官方值（`example/GlassPage.kt:363`），不需要 `AnimatedTopBarActions`。
         topBarActions = {
-            AnimatedTopBarActions(
-                selectionMode = inSelection,
-                normal = {
-                    TopBarAction(MiuixIcons.Glass.Search, stringResource(R.string.search)) { searchOpen = true }
-                    TopBarAction(MiuixIcons.Glass.Sort, stringResource(R.string.sort)) { sortOpen = true }
-                    TopBarAction(MiuixIcons.Glass.Filter, stringResource(R.string.filter)) { filterOpen = true }
-                },
-                selection = {
-                    TopBarAction(MiuixIcons.Glass.QuietMode, stringResource(R.string.action_freeze)) {
-                        applyBatch(true)
-                    }
-                    TopBarAction(MiuixIcons.Glass.UnlockOutline, stringResource(R.string.action_unfreeze)) {
-                        applyBatch(false)
-                    }
-                    TopBarAction(MiuixIcons.Glass.More, stringResource(R.string.more)) {
-                        if (selection.size == 1) openActions(selection.first())
-                    }
-                    TopBarAction(MiuixIcons.Glass.Close, stringResource(R.string.close)) {
-                        selecting = false
-                        selection = emptySet()
-                    }
-                },
-            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TopBarAction(MiuixIcons.Glass.Search, stringResource(R.string.search)) { searchOpen = true }
+                TopBarAction(MiuixIcons.Glass.Sort, stringResource(R.string.sort)) { sortOpen = true }
+                TopBarAction(MiuixIcons.Glass.Filter, stringResource(R.string.filter)) { filterOpen = true }
+            }
         },
         overlay = {
             GlassSearchOverlay(
@@ -228,20 +181,16 @@ fun AppsScreen() {
                 searchIcon = MiuixIcons.Glass.Search,
                 closeIcon = MiuixIcons.Glass.Close,
             ) { query ->
-                // 搜索结果与列表同一套手势：点按 = 选中（选中后收起浮层，回到列表的多选态），
-                // 长按 = 操作单。搜索浮层盖住顶栏，选完必须回到列表才能看到批量动作。
+                // 搜索结果与列表同一套手势：点按 = 移进/移出主页（不收起浮层，可以连着挑几个），
+                // 长按 = 操作单（先收浮层，避免两层弹层叠着）。
                 AppSearchResults(
                     query = query,
-                    onPick = { entry ->
-                        searchOpen = false
-                        toggleSelection(entry.packageName)
-                    },
+                    onPick = { entry -> toggleHome(entry) },
                     onLongPick = { entry ->
                         searchOpen = false
                         openActions(entry.packageName)
                     },
-                    selected = selection,
-                    selectionMode = inSelection,
+                    homePicker = true,
                     holdDownPackage = heldPackage,
                     listState = searchListState,
                 )
@@ -266,21 +215,16 @@ fun AppsScreen() {
             AppActionSheet(
                 entry = actionTarget?.let { pkg -> repository.snapshot.all.firstOrNull { it.packageName == pkg } },
                 show = actionTarget != null,
-                inHome = repository.snapshot.home.any { it.packageName == actionTarget },
-                // Apps 页没有标签编辑 / 定时冻结入口：隐藏这两行，不留「看起来可点但无效」的控件。
-                unsupportedActions = AppsUnsupportedActions,
+                // 应用页的菜单是"管理向"三行：应用信息 / 导出到剪切板 / 提取安装包。
+                // 冻结、置顶、标签这些使用向操作只在主页出现，两页不重叠。
+                actions = appsMenuActions(),
                 onDismiss = { actionTarget = null },
                 // 官方长按示例的收尾：按下态在弹层完全退场后复位，避免行的 alpha 在退场动画中途跳回。
                 onDismissFinished = { heldPackage = null },
                 onAction = { action ->
                     val entry = actionTarget?.let { pkg -> repository.snapshot.all.firstOrNull { it.packageName == pkg } }
                     actionTarget = null
-                    if (entry != null) {
-                        scope.launch {
-                            runner.run(entry, action)
-                            repository.refresh()
-                        }
-                    }
+                    if (entry != null) scope.launch { runner.run(entry, action) }
                 },
             )
         },
@@ -308,14 +252,10 @@ fun AppsScreen() {
                     AppListCardRow(
                         entry = entry,
                         inHome = entry.packageName in homePackages,
-                        onClick = { toggleSelection(entry.packageName) },
+                        onClick = { toggleHome(entry) },
                         onLongClick = { openActions(entry.packageName) },
-                        // 多选指示走官方 Checkbox（行尾 endActions）；不在多选态时不渲染。
-                        selectionState = if (inSelection) {
-                            ToggleableState(entry.packageName in selection)
-                        } else {
-                            null
-                        },
+                        // 勾选框 = 主页归属（官方 Checkbox），不是多选计数。
+                        onHome = entry.packageName in homePackages,
                         holdDown = entry.packageName == heldPackage,
                         modifier = Modifier.fillMaxWidth(),
                     )

@@ -14,7 +14,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.unit.dp
 import com.ayang.glacier.GlacierApplication
 import com.ayang.glacier.R
@@ -45,7 +44,8 @@ internal val SearchResultVerticalPadding = 4.dp
  * （`example/component/CardSection.kt:110-143`：长按弹层 + `holdDownState` 保持按下态）。
  *
  * 语义：
- * - 点按 = 选中 / 取消选中该应用（[selectionState] 走官方 [Checkbox]，放在行尾 `endActions`）；
+ * - 点按 = 交给调用方（应用页是"移进/移出主页"，搜索结果里同样是这个语义）；
+ *   行尾的官方 [Checkbox] 只表达"已在主页"，不是多选计数；
  * - 长按 = 弹出该应用的操作单；弹层打开期间 [holdDown] 为 true，
  *   `Card` 用官方 `HoldDownObserver` 保持 0.10 alpha 的按下态，弹层退场后复位。
  *
@@ -53,7 +53,7 @@ internal val SearchResultVerticalPadding = 4.dp
  * 裁切过的 `MiuixIndication` 叠层，与设置页 / 弹层行（`BasicComponent`）同一种按压语言，
  * 不引入第二套缩放反馈。
  *
- * @param selectionState `null` = 不在多选态；否则在行尾渲染官方勾选框。
+ * @param onHome `null` = 不渲染勾选框；`true/false` = 在行尾渲染官方勾选框表示主页归属。
  */
 @Composable
 fun AppListCardRow(
@@ -61,7 +61,7 @@ fun AppListCardRow(
     inHome: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    selectionState: ToggleableState? = null,
+    onHome: Boolean? = null,
     onLongClick: (() -> Unit)? = null,
     holdDown: Boolean = false,
 ) {
@@ -78,7 +78,7 @@ fun AppListCardRow(
             label = entry.label,
             summary = appRowSummary(entry, inHome),
             frozen = entry.frozen,
-            selectionState = selectionState,
+            onHome = onHome,
         )
     }
 }
@@ -107,12 +107,11 @@ fun appRowSummary(entry: AppEntry, inHome: Boolean): String {
  *
  * 行结构直接复用 [AppListCardRow]，与 Apps 列表同一实现；本文件不做任何手写 `Row + clickable`。
  *
- * 手势语义与 Apps 列表完全一致（点按 = 选中、长按 = 操作单），[selectionMode] / [selected]
- * 由调用方按自己的多选状态传入；不在 Apps 页的多选场景（如主页搜索）不传这两个参数即可。
+ * 手势语义与 Apps 列表完全一致（点按交给调用方、长按 = 操作单）。
  *
  * @param onPick 点按一行。
- * @param selected 已选中的应用包名集合。
- * @param selectionMode 是否处于多选态（决定行尾是否渲染官方勾选框）。
+ * @param homePicker 是否是"应用页的挑选器"：`true` 时每行渲染官方勾选框（= 已在主页），
+ *   `false` 时（主页搜索）不渲染，点了直接启动应用——同一个列表组件不能用同一种手势表达两件事。
  * @param onLongPick 长按一行；`null` = 该入口不支持长按。
  * @param holdDownPackage 操作单正在打开的应用：该行保持官方长按按下态，弹层退场后复位。
  */
@@ -121,8 +120,7 @@ fun AppSearchResults(
     query: String,
     onPick: (AppEntry) -> Unit,
     listState: LazyListState = rememberLazyListState(),
-    selected: Set<String> = emptySet(),
-    selectionMode: Boolean = false,
+    homePicker: Boolean = false,
     onLongPick: ((AppEntry) -> Unit)? = null,
     holdDownPackage: String? = null,
 ) {
@@ -184,11 +182,8 @@ fun AppSearchResults(
                 entry = entry,
                 inHome = entry.packageName in homePackages,
                 onClick = { onPick(entry) },
-                selectionState = if (selectionMode) {
-                    ToggleableState(entry.packageName in selected)
-                } else {
-                    null
-                },
+                // 挑选器里勾选框表达主页归属；主页搜索不显示（那里点了是启动应用）。
+                onHome = if (homePicker) entry.packageName in homePackages else null,
                 onLongClick = onLongPick?.let { pick -> { pick(entry) } },
                 holdDown = entry.packageName == holdDownPackage,
                 // 官方搜索结果行间距：横向页面留白 12dp + 上下 4dp（`IconPage.kt:221`）。

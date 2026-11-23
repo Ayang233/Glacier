@@ -51,22 +51,22 @@
     <!-- 设备管理器激活对话框里的说明；Glacier 只用 force-lock 一项策略。 -->
     <string name="device_admin_description">供「锁屏并冻结」锁屏使用，不涉及其他设备策略。</string>
     <string name="action_app_info">应用信息</string>
-    <string name="action_extract_apk">提取 APK</string>
-    <string name="action_uninstall">卸载</string>
-    <string name="action_reinstall">重新安装</string>
+    <string name="action_extract_apk">提取安装包</string>
+    <string name="action_copy_package">导出到剪切板</string>
     <string name="action_add_to_home">添加到主页</string>
     <string name="action_remove_from_home">从主页移除</string>
-    <string name="action_add_pin_shortcut">添加桌面快捷方式</string>
+    <string name="action_unfreeze_and_remove">解冻并从主页移除</string>
+    <string name="action_add_pin_shortcut">添加到主屏幕</string>
     <string name="action_pin">置顶</string>
     <string name="action_unpin">取消置顶</string>
     <string name="action_whitelist">加入白名单</string>
     <string name="action_unwhitelist">移出白名单</string>
-    <string name="action_edit_tags">标签</string>
+    <string name="action_edit_tags">标签分组</string>
     <string name="action_new_tag">新建标签</string>
     <string name="action_delete_tag">删除标签</string>
     <string name="action_rename_tag">重命名标签</string>
     <string name="action_select">多选</string>
-    <string name="action_deferred_freeze">稍后冻结…</string>
+    <string name="action_deferred_freeze">定时任务</string>
     <string name="action_none">无</string>
 
     <!-- 排序与筛选 -->
@@ -147,6 +147,8 @@
     <string name="msg_unfreeze">已解冻 %1$s</string>
     <string name="msg_freeze_many">已冻结 %1$s 个应用</string>
     <string name="msg_unfreeze_many">已解冻 %1$s 个应用</string>
+    <string name="msg_package_copied">已复制包名</string>
+    <string name="msg_removed_from_home">已将 %1$s 移出主页</string>
     <string name="switch_on">已开启</string>
     <string name="switch_off">已关闭</string>
     <string name="backend_ready">可用</string>

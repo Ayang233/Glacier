@@ -113,11 +113,10 @@ fun AppLabelTextStyle(fontSize: Float): TextStyle =
 fun SheetActionRow(
     icon: ImageVector,
     label: String,
-    destructive: Boolean = false,
     enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
-    val color = if (destructive) MiuixTheme.colorScheme.error else MiuixTheme.colorScheme.onSurface
+    val color = MiuixTheme.colorScheme.onSurface
     // 禁用态必须同时弱化图标：`BasicComponent` 只把 title 换成 disabledColor，
     // startAction 是自己传进去的子树，不跟着变就会留下一个「亮图标 + 灰文字」的行（§7.4）。
     val iconColor = if (enabled) color else MiuixTheme.colorScheme.disabledOnSecondaryVariant
@@ -141,18 +140,19 @@ fun SheetActionRow(
 }
 
 /**
- * 应用列表 / 搜索结果里的一行（图标 + 名称 + 副标题 + 冻结徽标 + 多选勾选），同样走官方 [BasicComponent]。
+ * 应用列表 / 搜索结果里的一行（图标 + 名称 + 副标题 + 冻结徽标 + 主页勾选），同样走官方 [BasicComponent]。
  *
  * 行高（最小 56dp）、内边距（16dp）、图文间距（8dp）全部用 [BasicComponent] 默认值（规范 2.2 / 第 3 节）；
- * 应用图标 40dp 是规范第 3 节登记的"应用图标"token；冻结徽标与多选框按官方顺序放 `endActions`。
+ * 应用图标 40dp 是规范第 3 节登记的"应用图标"token；冻结徽标与勾选框按官方顺序放 `endActions`。
  *
  * 手势：行本身可选注册 [onClick]（搜索等"点一下就走"的入口用）；
  * 列表页需要同时支持点按与长按时，`onClick` 传 `null`，由外层官方 `Card(onClick, onLongPress)`
  * 统一承担（`AppListCardRow`），避免同一行出现两层点击/两层反馈。
  *
- * @param selectionState 多选指示：`null` = 不在多选态（不渲染勾选框），
- *   `ToggleableState.On/Off` = 渲染官方 [Checkbox]。勾选框本身 `onClick = null`：
- *   行的点按已经由外层 `Card` 承担，这里只做状态显示，避免一层行内再套一层点击。
+ * @param onHome 主页归属：`null` = 不显示勾选框（主页搜索这类入口），
+ *   `true/false` = 渲染官方 [Checkbox] 表示"已在主页 / 不在主页"。应用页点一下就是把这一行
+ *   移进/移出主页，没有"多选模式"，所以勾选框也**不是**多选计数，只是归属状态。
+ *   勾选框本身 `onClick = null`：点它的位置等于点这一行，由外层 `Card` 统一处理。
  */
 @Composable
 fun AppRow(
@@ -161,7 +161,7 @@ fun AppRow(
     summary: String?,
     frozen: Boolean,
     onClick: (() -> Unit)? = null,
-    selectionState: ToggleableState? = null,
+    onHome: Boolean? = null,
 ) {
     BasicComponent(
         title = label,
@@ -173,7 +173,7 @@ fun AppRow(
                 frozen = frozen,
             )
         },
-        // 冻结徽标 / 勾选框放 endActions（空间不够时官方组件会自动让位）；都没内容时不渲染。
+        // 冻结徽标 / 主页勾选放 endActions（空间不够时官方组件会自动让位）；都没内容时不渲染。
         endActions = {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -186,8 +186,8 @@ fun AppRow(
                         color = MiuixTheme.colorScheme.primary,
                     )
                 }
-                if (selectionState != null) {
-                    Checkbox(state = selectionState, onClick = null)
+                if (onHome != null) {
+                    Checkbox(state = ToggleableState(onHome), onClick = null)
                 }
             }
         },

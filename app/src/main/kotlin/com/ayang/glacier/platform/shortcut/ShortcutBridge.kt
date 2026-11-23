@@ -74,7 +74,11 @@ object ShortcutBridge {
 
     fun requestPin(context: Context, packageName: String) {
         if (!ShortcutManagerCompat.isRequestPinShortcutSupported(context)) {
-            com.ayang.glacier.platform.UiFeedback.toast(context, R.string.operation_failed, "Shortcut")
+            com.ayang.glacier.platform.UiFeedback.toast(
+                context,
+                R.string.operation_failed,
+                context.getString(R.string.action_add_pin_shortcut),
+            )
             return
         }
         val label = PackageTools.labelOf(context, packageName).toString()

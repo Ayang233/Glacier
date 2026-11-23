@@ -9,7 +9,9 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -66,6 +68,7 @@ import com.ayang.glacier.feature.common.AppIconView
 import com.ayang.glacier.feature.common.AppLabelTextStyle
 import com.ayang.glacier.feature.common.AppSearchResults
 import com.ayang.glacier.feature.common.SheetActionRow
+import com.ayang.glacier.feature.common.homeMenuActions
 import com.ayang.glacier.feature.common.reportFreezeBatch
 import com.ayang.glacier.platform.UiFeedback
 import com.ayang.glacier.ui.LocalGlassActive
@@ -74,6 +77,7 @@ import com.ayang.glacier.ui.LocalAppPageInsets
 import com.ayang.glacier.ui.appPageHorizontalInsets
 import com.ayang.glacier.ui.components.AnimatedTopBarActions
 import com.ayang.glacier.ui.components.EmptyState
+import com.ayang.glacier.ui.components.HoldDownEffect
 import com.ayang.glacier.ui.components.PageFrame
 import com.ayang.glacier.ui.components.PageMetrics
 import com.ayang.glacier.ui.components.TopBarAction
@@ -187,6 +191,9 @@ fun HomeScreen() {
     var selection by remember { mutableStateOf(emptySet<String>()) }
     var searchOpen by remember { mutableStateOf(false) }
     var actionTarget by remember { mutableStateOf<String?>(null) }
+    // 操作单打开期间保持按下态的图标（官方 `holdDownState` 语义，与 Apps 列表同一套做法）：
+    // 弹层退场时官方是"先收面板、再复位按下态"，复位挂在 `onDismissFinished` 上。
+    var heldPackage by remember { mutableStateOf<String?>(null) }
     var tagEditorOpen by remember { mutableStateOf(false) }
     var tagNameDialog by remember { mutableStateOf<TagNameRequest?>(null) }
     var deleteTagTarget by remember { mutableStateOf<Tag?>(null) }
@@ -401,8 +408,12 @@ fun HomeScreen() {
             AppActionSheet(
                 entry = lastActionEntry,
                 show = actionTarget != null,
-                inHome = true,
+                // 主页的菜单是"使用向"十行（启动 / 冻结解冻 / 定时 / 置顶 / 白名单 / 标签 /
+                // 添加主屏幕 / 导包名 / 从主页移除 / 解冻并移除），与应用页的管理向菜单不重叠。
+                actions = lastActionEntry?.let { homeMenuActions(it) } ?: emptyList(),
                 onDismiss = { actionTarget = null },
+                // 官方长按示例的收尾：按下态在弹层完全退场后复位，避免图标 alpha 中途跳回。
+                onDismissFinished = { heldPackage = null },
                 onAction = { action ->
                     val entry = lastActionEntry
                     actionTarget = null
@@ -412,7 +423,12 @@ fun HomeScreen() {
                             AppAction.DeferredFreeze -> deferredTarget = entry.packageName
                             else -> scope.launch {
                                 runner.run(entry, action)
-                                repository.refresh()
+                                // 移出主页后这一行没了，多选里也不该再留着它。
+                                if (action == AppAction.RemoveFromHome ||
+                                    action == AppAction.UnfreezeAndRemoveFromHome
+                                ) {
+                                    selection = selection - entry.packageName
+                                }
                             }
                         }
                     }
@@ -511,6 +527,7 @@ fun HomeScreen() {
                         labelSize = preferences.homeLabelSize,
                         selected = entry.packageName in selection,
                         selectionMode = inSelection,
+                        holdDown = entry.packageName == heldPackage,
                         onClick = {
                             if (inSelection) {
                                 selection = if (entry.packageName in selection) {
@@ -522,12 +539,18 @@ fun HomeScreen() {
                                 scope.launch { runner.run(entry, AppAction.Launch) }
                             }
                         },
+                        // 长按 = 该应用的使用向菜单；多选态里长按退化成"切换勾选"
+                        // （否则选中几个之后长按会突然弹菜单，手势语义自相矛盾）。
                         onLongClick = {
-                            selecting = true
-                            selection = if (entry.packageName in selection) {
-                                selection - entry.packageName
+                            if (inSelection) {
+                                selection = if (entry.packageName in selection) {
+                                    selection - entry.packageName
+                                } else {
+                                    selection + entry.packageName
+                                }
                             } else {
-                                selection + entry.packageName
+                                actionTarget = entry.packageName
+                                heldPackage = entry.packageName
                             }
                         },
                     )
@@ -541,7 +564,8 @@ fun HomeScreen() {
 /**
  * 网格单元。
  *
- * 点击热区是整格 [Column]（含标签），长按进入多选。
+ * 点击热区是整格 [Column]（含标签）：点 = 启动（多选态里 = 切换勾选），
+ * 长按 = 该应用的使用向操作单（多选态里同样退化成切换勾选）。
  *
  * **按压/长按叠层的形状**：`combinedClickable` 默认 `indication = LocalIndication`，
  * 而 MIUIX 主题把它设成 [top.yukonga.miuix.kmp.utils.MiuixIndication]（`MiuixTheme.kt:37/67`），
@@ -572,15 +596,26 @@ private fun HomeAppItem(
     labelSize: Float,
     selected: Boolean,
     selectionMode: Boolean,
+    holdDown: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
 ) {
+    // 菜单打开期间保持按下态：与官方 `Card(holdDownState)` / `BasicComponent(holdDownState)`
+    // 同一机制（`HoldDownObserver` 往同一个 interactionSource 里塞 PressInteraction，
+    // 由 `LocalIndication`（主题里是 MiuixIndication）画出那层 0.10 叠层），不自绘高亮。
+    val interactionSource = remember { MutableInteractionSource() }
+    HoldDownEffect(holdDown, interactionSource)
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
             .fillMaxWidth()
             .squircleClip(HomeGridMetrics.CellCorner)
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
+            .combinedClickable(
+                interactionSource = interactionSource,
+                indication = LocalIndication.current,
+                onClick = onClick,
+                onLongClick = onLongClick,
+            ),
     ) {
         Box {
             AppIconView(
