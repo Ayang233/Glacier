@@ -51,10 +51,10 @@ Glacier 自己不申请系统权限，真正执行冻结的是设备侧的能力
 
 ## 更多截图
 
-| 主页菜单 | 应用页菜单 |
+| 主页长按菜单 | 应用页长按菜单 |
 | --- | --- |
-| ![主页菜单](docs/screenshots/home-menu.png) | ![应用页菜单](docs/screenshots/apps-menu.png) |
-| **多选** | **关于** |
+| ![主页长按菜单](docs/screenshots/home-menu.png) | ![应用页长按菜单](docs/screenshots/apps-menu.png) |
+| 多选 | 关于 |
 | ![多选](docs/screenshots/select.png) | ![关于](docs/screenshots/about.png) |
 
 ## 构建
