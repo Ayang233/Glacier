@@ -3,6 +3,10 @@ package com.ayang.glacier.feature.settings
 import android.content.Intent
 import android.provider.Settings
 import androidx.compose.animation.CapturedAnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
@@ -118,8 +122,14 @@ fun ThemeSettingsScreen(onBack: () -> Unit) {
                     )
                 }
                 // 没有任何已安装图标包时，这一行的候选项只有 "None"，属于"看起来可点但选了没效果"。
-                // 官方 example 对"候选依赖其它状态"的行一律用 CapturedAnimatedVisibility 收起。
-                CapturedAnimatedVisibility(visible = iconPacks.isNotEmpty()) {
+                // 官方 dependent-option 范式（`ThemeSettingsPage.kt:247-251`）：
+                // 展开/收起必须显式给 `fadeIn() + expandVertically()` / `fadeOut() + shrinkVertically()`，
+                // 只靠默认参数只会淡出、不折叠，行消失时高度是硬跳的。
+                CapturedAnimatedVisibility(
+                    visible = iconPacks.isNotEmpty(),
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically(),
+                ) {
                     GlassDropdownPreference(
                         onSelectedIndexChange = { index ->
                             preferences.iconPack = if (index == 0) null else iconPacks[index - 1].first
@@ -164,8 +174,14 @@ fun ThemeSettingsScreen(onBack: () -> Unit) {
                     title = stringResource(R.string.synthesize_adaptive_icons),
                     summary = stringResource(R.string.synthesize_adaptive_icons_summary),
                 )
-                // 名称隐藏后字号就没有作用对象，按官方 dependent-option 范式收起这一行。
-                CapturedAnimatedVisibility(visible = !hideHomeLabels) {
+                // 名称隐藏后字号就没有作用对象，按官方 dependent-option 范式收起这一行：
+                // 与 MIUIX `ThemeSettingsPage.kt:247-251` 同一套 enter/exit（淡入淡出 + 纵向展开/收起），
+                // 不能让整行高度硬跳。
+                CapturedAnimatedVisibility(
+                    visible = !hideHomeLabels,
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically(),
+                ) {
                     SliderPreference(
                         value = labelSize,
                         onValueChange = { labelSize = it },
@@ -192,13 +208,14 @@ fun ThemeSettingsScreen(onBack: () -> Unit) {
                 // 预测性返回动画：照官方 example 的做法（改进程内 ApplicationInfo 标志 + 重建
                 // Activity）。关闭只是不再有系统跟手预览，返回手势仍会触发 OnBackPressedDispatcher，
                 // MIUIX NavDisplay 照常播自己的 pop 转场，动画不会消失。
+                // 重建前不再 bumpRevision：标志由新 Activity 的 onCreate 读取，旧窗口少一次
+                // 无用的全量重组，重建前后的画面更干净。
                 if (PredictiveBack.isSupported) {
                     SwitchPreference(
                         checked = predictiveBack,
                         onCheckedChange = { enabled ->
                             predictiveBack = enabled
                             preferences.predictiveBackEnabled = enabled
-                            preferences.bumpRevision()
                             context.findActivity()?.recreateWithoutTransition()
                         },
                         title = stringResource(R.string.predictive_back),
@@ -293,8 +310,12 @@ fun AutomationSettingsScreen(onBack: () -> Unit) {
                     summary = stringResource(R.string.auto_freeze_summary),
                 )
                 // 依赖"自动冻结已开启"的项整组收起，而不是置灰后不给任何解释：
-                // 官方的 dependent-option 范式就是 CapturedAnimatedVisibility(visible = parent)。
-                CapturedAnimatedVisibility(visible = autoFreezeEnabled) {
+                // 官方 dependent-option 范式的 enter/exit 与 MIUIX `ThemeSettingsPage.kt:247-251` 一致。
+                CapturedAnimatedVisibility(
+                    visible = autoFreezeEnabled,
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically(),
+                ) {
                     Column {
                         SliderPreference(
                             value = delay,
