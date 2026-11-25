@@ -218,3 +218,17 @@ tag 由 `target_commitish = main` 自动创建，指向远端 main 的最新提�
   同签名覆盖成功、启动无 crash；冷启动首帧直接显示主页应用（R18），冻结 FAB 为雪花（R17）；
 - 本轮重点：隐藏手势提示线的设备底部弹层不再被屏幕圆角裁掉（R15）、设置页改为一级入口 + 二级页（R17）、
   预测性返回开关与隐藏应用名称（R16）。
+
+1.6.4 发布细节：
+- 源码 `git push` 直连再次被拦（github.com:443 连续 8 次 timeout / reset），改用 `tools/push_api.py`
+  增量推送：R19/R20 修复提交与发版提交共 3 个，远端 main = `4aec46b`，与本地 HEAD 一致；
+- Release 由 `gh release create v1.6.4 <apk> SHA256SUMS.txt --target 4aec46bef561…` 创建：
+  tag `v1.6.4` → `4aec46b`（`--target` 仍必须给完整 SHA）；
+- 附件：`Glacier-release.apk` 4,575,173 B（sha256 `70ac5fe9…f6e7`）、`SHA256SUMS.txt`（85 B）；
+  重新下载线上附件核对 sha256 一致，API 返回的 asset `digest` 也一致；
+- 签名证书未变（`CN=Glacier, OU=Release, O=Ayang, C=CN`，证书 sha256 `46b3f848…82cf4`）；
+- 覆盖升级实测：模拟器上从已装的 1.6.3（versionCode 10）`adb install -r` 到 1.6.4（versionCode 11），
+  同签名覆盖成功、启动无 crash、主页应用与图标正常；
+- 本轮重点：冻结状态随首帧一起到位（R19）、预测性返回开关不再闪（R20，真机录屏逐帧定位到
+  「重建后首帧 WindowInsets 未下发」）、设置 dependent-option 行改用官方 enter/exit（R20）。
+- 待真机确认：R20 的首帧闪烁修复在模拟器上复现不出（模拟器首帧 inset 已就绪）。

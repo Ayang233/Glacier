@@ -16,6 +16,7 @@
 | `frames/07-preview-on.png` | 开关打开：慢滑返回，页面跟手右移、后页压暗（预测预览生效） |
 | `frames/08-after-predictive-off.png` | 开关关闭并重建后：页面仍停在主题设置 |
 | `frames/09-preview-off.png` | 开关关闭：慢滑时页面不动，只有系统返回指示箭头；松手后仍播 MIUIX pop 转场 |
+| `frames/10-upgrade-1.6.4-home.png` | 1.6.3 → 1.6.4 覆盖升级后冷启动：主页应用与图标正常 |
 
 ## 复现步骤
 
