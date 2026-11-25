@@ -21,8 +21,8 @@ android {
         // miuix-blur 的 RuntimeShader 门槛，决定 OS4 Glass 能否产出真实模糊。
         minSdk = 33
         targetSdk = 36
-        versionCode = 9
-        versionName = "1.6.2"
+        versionCode = 10
+        versionName = "1.6.3"
     }
 
     // Release 签名：优先用仓库根的 signing.properties，其次用上一级工作区的
