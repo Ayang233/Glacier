@@ -64,6 +64,63 @@ class GlacierRepository(
         refreshLock.withLock { refreshSnapshot() }
     }
 
+    /**
+     * 冷启动首帧：用磁盘上已有的主页列表先填一份快照。
+     *
+     * 原来 `snapshot` 从空 [AppSnapshot] 开始，第一次 [refresh] 又在 Activity 组合之后才跑，
+     * 于是主页会先渲染一帧"还没有应用 / 0 个应用"，再闪回真实列表——用户看到的就是
+     * "已经加到主页的应用没有第一时间显示出来"。
+     *
+     * 这里只做三件便宜的事：读 `apps.json` / `tags.json`、按包名查几项 `PackageManager` 基本信息、
+     * 组条目；**不查冻结状态、不枚举全部已安装应用**（那些留给随后的 [refresh]）。
+     * 代价是冻结图标可能晚一帧转灰，但比"主页空一下"的观感影响小得多。
+     */
+    fun primeSnapshot() {
+        if (snapshot.home.isNotEmpty()) return
+        store.load()
+        if (store.apps.isEmpty()) return
+        val tags = store.tags.toList()
+        val homeOrder = store.apps.mapIndexed { index, app -> app.packageName to index }.toMap()
+        val home = store.apps
+            .asSequence()
+            .mapNotNull { managed -> primeEntry(managed.packageName) }
+            .sortedWith(
+                compareBy<AppEntry> { if (it.pinned) 0 else 1 }
+                    .thenBy { homeOrder[it.packageName] ?: Int.MAX_VALUE },
+            )
+            .toList()
+        if (home.isEmpty()) return
+        snapshot = AppSnapshot(
+            // 全部应用列表交给 refresh 填，避免用半份数据冒充"全部应用"。
+            all = emptyList(),
+            home = home,
+            tags = tags,
+            revision = preferences.revision.intValue,
+        )
+    }
+
+    private fun primeEntry(packageName: String): AppEntry? {
+        val info = PackageTools.applicationInfoOrNull(context, packageName) ?: return null
+        val label = runCatching { info.loadLabel(context.packageManager).toString() }
+            .getOrDefault(packageName)
+        val packageInfo = PackageTools.packageInfoOrNull(context, packageName)
+        val managed = store.findApp(packageName)
+        return AppEntry(
+            packageName = packageName,
+            label = label,
+            isSystem = info.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM != 0,
+            isInstalled = PackageTools.isInstalled(context, packageName),
+            // 冻结态要问后端（可能是 root / Shizuku），首帧不做；refresh 会修正。
+            frozen = false,
+            pinned = managed?.pinned ?: false,
+            whitelisted = managed?.whitelisted ?: false,
+            tagIds = managed?.tagIds?.toList() ?: emptyList(),
+            installTime = packageInfo?.firstInstallTime ?: 0L,
+            updateTime = packageInfo?.lastUpdateTime ?: 0L,
+            search = TextIndex.build(label),
+        )
+    }
+
     private suspend fun refreshSnapshot() {
         refreshing = true
         try {

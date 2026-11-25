@@ -14,6 +14,10 @@ import com.ayang.glacier.platform.Notifications
 import com.ayang.glacier.platform.auto.AutoFreezeScheduler
 import com.ayang.glacier.platform.auto.AutoFreezeService
 import com.ayang.glacier.system.FreezeController
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 /**
  * Glacier 的进程入口。
@@ -46,10 +50,18 @@ class GlacierApplication : Application() {
         freeze = FreezeController(this, preferences)
         freeze.initialize()
         repository = GlacierRepository(this, preferences, store, freeze)
+        // 冷启动首帧：先用磁盘上的主页列表填一份快照（同步、只读几个文件 + 几项包信息），
+        // 再在后台枚举全部应用并把冻结态补齐。否则主页会先渲染一次空列表，
+        // 用户看到的就是"已经加到主页的应用没有第一时间显示出来"。
+        repository.primeSnapshot()
+        appScope.launch { repository.refresh() }
 
         applyNightMode(preferences.themeMode)
         AutoFreezeScheduler.syncService(this)
     }
+
+    /** Application 级后台作用域：只用于启动期预热，不承载 UI 生命周期。 */
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     fun applyNightMode(mode: ThemeMode = preferences.themeMode) {
         getSystemService<UiModeManager>()?.setApplicationNightMode(

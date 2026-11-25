@@ -168,7 +168,7 @@ squircle 图标轮廓，都是照着 MIUIX 源码和 `example/shared` 一项项�
 审计与验收记录：
 
 - [基线、升级流程与组件对照](MIUIX_BASELINE.md)（当前 MIUIX main `542463a0`）
-- [R17 冻结按钮雪花与设置页分级](docs/audit/miuix-os4-r17-audit.md) · [R16 设置顺序/预测性返回/雪花图标/隐藏名称](docs/audit/miuix-os4-r16-audit.md) · [R15 底部弹层避开屏幕大 R 角](docs/audit/miuix-os4-r15-audit.md) · [R14 锚点浮层收尾（宽度/动画/侧栏让位）](docs/audit/miuix-os4-r14-audit.md) · [R13 基线升级与自造轮子清查](docs/audit/miuix-os4-r13-audit.md) · [R12 长按菜单与按下态](docs/audit/miuix-os4-r12-audit.md) · [R11 自造轮子清查与冻结交互](docs/audit/miuix-os4-r11-audit.md) · [R10 两页菜单分工](docs/audit/miuix-os4-r10-audit.md)
+- [R18 冷启动首帧直接显示主页应用](docs/audit/miuix-os4-r18-audit.md) · [R17 冻结按钮雪花与设置页分级](docs/audit/miuix-os4-r17-audit.md) · [R16 设置顺序/预测性返回/雪花图标/隐藏名称](docs/audit/miuix-os4-r16-audit.md) · [R15 底部弹层避开屏幕大 R 角](docs/audit/miuix-os4-r15-audit.md) · [R14 锚点浮层收尾（宽度/动画/侧栏让位）](docs/audit/miuix-os4-r14-audit.md) · [R13 基线升级与自造轮子清查](docs/audit/miuix-os4-r13-audit.md) · [R12 长按菜单与按下态](docs/audit/miuix-os4-r12-audit.md) · [R11 自造轮子清查与冻结交互](docs/audit/miuix-os4-r11-audit.md) · [R10 两页菜单分工](docs/audit/miuix-os4-r10-audit.md)
 - [R9 按压反馈与选中态](docs/audit/miuix-os4-r9-audit.md) · [R8 宽屏间距与自定值清单](docs/audit/miuix-os4-r8-audit.md)
 - [R7 交互整改](docs/audit/miuix-os4-r7-audit.md) · [R6 自造轮子清查](docs/audit/miuix-os4-r6-audit.md) · [MIUIX 官方契约摘录](docs/reference/miuix-os4-contract.md)
 
