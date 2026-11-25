@@ -1,1 +1,1 @@
-9f9bdff5b51bb030f741f6a487042c6c163444ef22bf8970031b8503e7f5e51e *Glacier-release.apk
+70ac5fe9adc81b838090d6976848e3af0fd2b605fb27aa35468ab16bdfabf6e7 *Glacier-release.apk
