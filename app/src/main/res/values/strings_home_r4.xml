@@ -6,4 +6,14 @@
 <resources>
     <!-- 延时冻结调度成功提示（原来误用菜单项标题 action_deferred_freeze） -->
     <string name="home_deferred_freeze_scheduled">Deferred freeze scheduled to run in %1$d minutes</string>
+    <!-- 整页已冻结：主页副标题的状态尾巴 + 全冻时点冻结按钮的提示 -->
+    <string name="home_all_frozen">All frozen</string>
+    <!-- 多选态下所选的应用都已冻结（此时不能拿"整页"的说法） -->
+    <string name="home_selection_all_frozen">Selected apps are all frozen</string>
+    <!-- 多选态长按菜单的标题（单应用菜单仍用应用名） -->
+    <string name="home_selected_title">Selected: %1$d</string>
+    <!-- 批量导出包名 -->
+    <string name="home_copied_packages">Copied %1$d package names</string>
+    <!-- 批量移出主页 -->
+    <string name="home_removed_many">Removed %1$d apps from home</string>
 </resources>

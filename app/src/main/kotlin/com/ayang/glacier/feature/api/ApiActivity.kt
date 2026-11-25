@@ -208,7 +208,11 @@ class ApiActivity : ComponentActivity() {
             GlacierApi.ACTION_LAUNCH -> {
                 val packageName = requirePackage(intent, uri)
                 if (repository.freeze.isFrozen(packageName)) {
-                    repository.setFrozen(packageName, false)
+                    // 与页面入口同一语义：冻结态先解冻再启动；解冻失败必须抛出去，
+                    // 否则用户只会看到"应用打不开"，而不是"没权限解冻"。
+                    if (!repository.setFrozen(packageName, false)) {
+                        throw IllegalStateException(getString(R.string.permission_denied))
+                    }
                     if (repository.selectedMode() == WorkingMode.IslandFreeze ||
                         repository.selectedMode() == WorkingMode.IslandSuspend
                     ) {

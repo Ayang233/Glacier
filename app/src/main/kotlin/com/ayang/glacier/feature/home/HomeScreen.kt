@@ -11,9 +11,12 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.Indication
+import androidx.compose.foundation.indication
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -44,6 +47,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -67,8 +71,12 @@ import com.ayang.glacier.feature.common.AppIconCornerRatio
 import com.ayang.glacier.feature.common.AppIconView
 import com.ayang.glacier.feature.common.AppLabelTextStyle
 import com.ayang.glacier.feature.common.AppSearchResults
+import com.ayang.glacier.feature.common.SearchResultVerticalPadding
+import com.ayang.glacier.feature.common.SelectionActionRunner
 import com.ayang.glacier.feature.common.SheetActionRow
+import com.ayang.glacier.feature.common.actionSpecOf
 import com.ayang.glacier.feature.common.homeMenuActions
+import com.ayang.glacier.feature.common.homeSelectionMenuActions
 import com.ayang.glacier.feature.common.reportFreezeBatch
 import com.ayang.glacier.platform.UiFeedback
 import com.ayang.glacier.system.FreezeOutcome
@@ -76,11 +84,12 @@ import com.ayang.glacier.ui.LocalGlassActive
 import com.ayang.glacier.ui.LocalRootBackdrop
 import com.ayang.glacier.ui.LocalAppPageInsets
 import com.ayang.glacier.ui.appPageHorizontalInsets
-import com.ayang.glacier.ui.components.EmptyState
-import com.ayang.glacier.ui.components.HoldDownEffect
-import com.ayang.glacier.ui.components.PageFrame
 import com.ayang.glacier.ui.components.PageMetrics
+import com.ayang.glacier.ui.rememberAppSafePadding
+import com.ayang.glacier.ui.components.EmptyState
+import com.ayang.glacier.ui.components.PageFrame
 import com.ayang.glacier.ui.components.TopBarAction
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Checkbox
@@ -112,10 +121,12 @@ import top.yukonga.miuix.kmp.icon.glass.MultiSelect
 import top.yukonga.miuix.kmp.icon.glass.QuietMode
 import top.yukonga.miuix.kmp.icon.glass.Search
 import top.yukonga.miuix.kmp.icon.glass.Timer
-import top.yukonga.miuix.kmp.icon.glass.UnlockOutline
 import top.yukonga.miuix.kmp.interfaces.ExperimentalScrollBarApi
 import top.yukonga.miuix.kmp.squircle.squircleClip
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.utils.MiuixIndication
+import top.yukonga.miuix.kmp.utils.overScrollVertical
+import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
 /**
  * Home 网格尺寸：`docs/plan/r3-implementation-spec.md` §2.1 的 12dp 网格体系。
@@ -157,29 +168,17 @@ private object HomeGridMetrics {
 }
 
 /**
- * 「已选 N 个」标题的字号补偿系数。
- *
- * 顶栏大标题固定用 `title1`（32sp）。中文方块字满框、拉丁大写只占约 0.64 em，所以同一字号下
- * 「已选 N 个」的字形高度是本机实测 77px、「Glacier」是 64px —— 视觉上中文大一圈。
- * 64 / 77 ≈ 0.83 缩一下，两种标题看起来一样大；顺带让两个状态的标题行高一致
- * （否则进出多选时整页会上下跳 22px）。这是"视觉对齐"的光学校正，不涉及组件字号常量。
- */
-private const val SelectionTitleScale = 0.83f
-
-/**
- * 搜索结果的卡片上下留白。
- *
- * 官方 `IconPage.kt:104`（`SearchResultVerticalPadding = 4.dp`）与
- * `IconPage.kt:221`（卡片 `padding(vertical = SearchResultVerticalPadding)`）同值。
- */
-private val SearchResultVerticalPadding = 4.dp
-
-/**
  * 主页：标签 + 应用网格 + 多选批量操作。
  *
  * 页面骨架由 [PageFrame] 统一：录制层在正文、顶栏在 topBar 槽、浮层在 overlay 槽
  * （浮层永远在 Scaffold 之后组合）。所有弹层都“常驻组合 + show 驱动”，
  * 关闭时保留最后一次内容，保证退出动画、键盘与返回键都由官方组件处理。
+ *
+ * **标题不随多选变化**：大标题恒为应用名，多选进度写进官方副标题（`title` + `subtitle`
+ * 是 MIUIX 顶栏的既有两行，`TopAppBar.kt` 里没有第三行、也没有按状态换字号的入口）。
+ * 早先为了把「已选 N 个」塞进大标题，额外做了一套中文字形补偿（0.83 字号缩放 +
+ * 整条顶栏交叉淡入淡出），那是自造的排版层：同一个 `title1` 被临时缩成 26.5sp，
+ * 与其它页的大标题不再同源。现在改回官方两行，不再有任何字号缩放。
  */
 @OptIn(ExperimentalFoundationApi::class, ExperimentalScrollBarApi::class)
 @Composable
@@ -199,22 +198,46 @@ fun HomeScreen() {
     var selection by remember { mutableStateOf(emptySet<String>()) }
     var searchOpen by remember { mutableStateOf(false) }
     var actionTarget by remember { mutableStateOf<String?>(null) }
-    // 操作单打开期间保持按下态的图标（官方 `holdDownState` 语义，与 Apps 列表同一套做法）：
-    // 弹层退场时官方是"先收面板、再复位按下态"，复位挂在 `onDismissFinished` 上。
-    var heldPackage by remember { mutableStateOf<String?>(null) }
+    // 菜单作用域：`true` = 多选集合。打开时定下来，退场期间保持不变
+    // （否则"移除"类动作清空选区后，标题会在退场动画里突然变成「已选择：0」）。
+    var actionBatch by remember { mutableStateOf(false) }
+    var actionCount by remember { mutableStateOf(0) }
     var tagEditorOpen by remember { mutableStateOf(false) }
+    var tagPickerOpen by remember { mutableStateOf(false) }
+    // 标签弹层的作用域快照：打开时锁定，弹层里勾选的过程中即使选区变了也不会串。
+    var tagPickerTargets by remember { mutableStateOf(emptyList<String>()) }
     var tagNameDialog by remember { mutableStateOf<TagNameRequest?>(null) }
     var deleteTagTarget by remember { mutableStateOf<Tag?>(null) }
     var deferredTarget by remember { mutableStateOf<String?>(null) }
 
     val scope = rememberCoroutineScope()
     val scrollBehavior = MiuixScrollBehavior()
+    // 菜单打开的那一格要立刻退出按下态：手指抬起的那一下会被弹层窗口吃掉，
+    // pressed 无法自然释放。这里准备一个零透明的官方 `MiuixIndication`——
+    // 换实例会让 `Modifier.indication` 重建节点、叠层立即退场，不是自绘高亮。
+    val onBackground = MiuixTheme.colorScheme.onBackground
+    val clearedIndication = remember(onBackground) {
+        MiuixIndication(
+            color = onBackground,
+            pressAlpha = 0f,
+            hoverAlpha = 0f,
+            focusAlpha = 0f,
+        )
+    }
     val runner = remember(repository) { AppActionRunner(context, repository) }
+    val selectionRunner = remember(repository) { SelectionActionRunner(context, repository) }
     val glassActive = LocalGlassActive.current
     val searchListState = rememberLazyListState()
     // 网格滚动状态只有一个用途：告诉顶栏下的标签行"内容是否已经滚进顶栏"，
     // 决定玻璃档 surfaceAlpha（官方 `IconPage.kt:283`：`if (blurActive && contentUnderTopBar) 1f else 0f`）。
     val gridState = rememberLazyGridState()
+    // 菜单锚定在某一格上：一旦网格开始滚动，那一格的坐标就变了，浮层会"漂"在别处。
+    // 直接收起（比让菜单跟着滚更符合"就地弹出"的心智，官方 popup 也只处理点外部/返回键）。
+    LaunchedEffect(gridState) {
+        snapshotFlow { gridState.isScrollInProgress }.collect { scrolling ->
+            if (scrolling) actionTarget = null
+        }
+    }
     // 对齐 0.9.5-beta03 迁移要点：canScrollBackward / overscrollOffset 都是逐帧值，
     // 用 computedStateOf 收敛成 0f/1f 两个离散状态，只有翻转时才重组顶栏；
     // 叠加 overscrollOffset < -1f 让顶部回弹时轨道也能浮起，模糊关闭时保持静止态 0f。
@@ -239,8 +262,22 @@ fun HomeScreen() {
 
     val inSelection = selecting || selection.isNotEmpty()
 
-    // 标题文字在这里算好：既要显示，也要给 PageFrame 判断"这一版标题要不要做字号校正"。
-    val selectedCountTitle = stringResource(R.string.selected_count, selection.size)
+    // 两行文案都是官方顶栏自带的位置：大标题恒为应用名，副标题表达"哪一组 / 选了多少"。
+    // 多选进度放在副标题，不再靠换大标题 + 缩字号（见函数头的说明）。
+    // 「已全部冻结」这半句是必要的状态出口：此时冻结入口（FAB / 多选）都隐去了，
+    // 若用户又关了「冻结图标去色」，整页就再无任何线索说明"为什么没有冻结按钮"。
+    val allFrozen = entries.isNotEmpty() && entries.all { it.frozen }
+    val tagSubtitle = buildString {
+        append(tagLabel)
+        append(" · ")
+        append(stringResource(R.string.app_count, entries.size))
+        if (allFrozen) {
+            append(" · ")
+            append(stringResource(R.string.home_all_frozen))
+        }
+    }
+    val selectionSubtitle =
+        stringResource(R.string.selected_count, selection.size) + " · " + tagLabel
 
     // 多选态下返回键先退出多选，而不是结束 Activity（与 Apps 页同一出口）。
     BackHandler(enabled = inSelection) {
@@ -261,15 +298,9 @@ fun HomeScreen() {
     deferredTarget?.let { lastDeferredPackage = it }
 
     PageFrame(
-        // 多选时大标题换成「已选 N 个」，副标题（标签 · N 个应用）保持不变：
-        // 两态都是"大标题 + 副标题"，顶栏高度/行数不变，只有标题文字在变
-        // （切换动画由 PageFrame 统一处理，见那边对 AnimatedContent 的说明）。
-        title = if (inSelection) selectedCountTitle else stringResource(R.string.app_name),
-        subtitle = "$tagLabel · ${stringResource(R.string.app_count, entries.size)}",
-        // 只有「已选 N 个」这个中文标题需要光学校正（见 [SelectionTitleScale]）。
-        titleFontScale = { pageTitle ->
-            if (pageTitle == selectedCountTitle) SelectionTitleScale else 1f
-        },
+        // 标题恒为应用名：多选态只换副标题，顶栏结构与高度都不变。
+        title = stringResource(R.string.app_name),
+        subtitle = if (inSelection) selectionSubtitle else tagSubtitle,
         scrollBehavior = scrollBehavior,
         searchExpanded = searchOpen,
         // 官方图标网格页每页显式加滚动条（`example/IconPage.kt` / `MainPage.kt:341-345`）。
@@ -286,6 +317,9 @@ fun HomeScreen() {
                     searchOpen = true
                 }
                 // 同一个按钮进/出多选：顶栏不再提供"关闭"，没有别的地方能退出这个模式。
+                // 常驻不隐藏：冻结入口在页面上的位置必须稳定，不能因为"这一页全冻上了"
+                // 就让顶栏少一个按钮（布局跳动比"点了没反应"更让人困惑）；
+                // 全冻时进去确实没有可执行的目标，由 FAB 的点击反馈说明原因。
                 TopBarAction(MiuixIcons.Glass.MultiSelect, stringResource(R.string.action_select)) {
                     if (inSelection) {
                         selecting = false
@@ -323,33 +357,48 @@ fun HomeScreen() {
         },
         // FAB 的位置交给 Scaffold：新版 PageFrame 已把底栏高度计入 bottomBar，
         // 这里不再手算 `padding(bottom = reserve - 20.dp)`。
-        // 显隐同样走官方动画（`CapturedAnimatedVisibility` + `GlassMotion.scaleIn/scaleOut`），
-        // 不再直接 `if` 掉——进多选时它是"缩着淡出"而不是凭空消失。
+        // 只有"这一页没有任何应用"（空态）时才不挂 FAB；挂载本身仍走官方动画
+        // （`CapturedAnimatedVisibility` + `GlassMotion.scaleIn/scaleOut`），进出不硬切。
         floatingActionButton = { fabBackdrop ->
+            // 作用范围：选了几个就只处理这几个，没选则整页。
+            val scopeEntries = if (selection.isEmpty()) {
+                entries
+            } else {
+                entries.filter { it.packageName in selection }
+            }
+            // 「冻结」就只是冻结：主页唯一的批量入口不再按状态翻成解冻。
+            // 解冻只有两个出口——点开应用自动解冻（`AppActionRunner.launch`）、
+            // 长按应用在菜单里选「解冻」；两者都是"针对某个应用"的决定，
+            // 而不是"这一页现在全冻着，所以这个按钮变成反操作"。
+            // **FAB 常驻**：只要这一页有应用就一直在原位，不随冻结状态出现/消失
+            // （位置和语义都稳定，用户不需要先读一遍图标再猜它是什么）。
+            // 范围内已经没有可冻结目标时，点它给一句话说明（官方 Glass FAB 没有
+            // `enabled` 形参，不做自造的灰化禁用态）。
             CapturedAnimatedVisibility(
-                // 多选时 FAB 仍然在：顶栏不再换成一排批量按钮之后，它是多选唯一的执行出口。
                 visible = entries.isNotEmpty(),
                 enter = fadeIn(GlassMotion.barExpand()) + scaleIn(GlassMotion.scaleIn(), initialScale = 0.8f),
                 exit = fadeOut(GlassMotion.barCollapse()) + scaleOut(GlassMotion.scaleOut(), targetScale = 0.8f),
             ) {
-                // 作用范围：选了几个就只处理这几个，没选则整页。语义统一成
-                // "把范围内还没冻的冻上；范围内全都冻着，就反过来解冻"（与原来的整页 FAB 一致）。
-                val scopeEntries = if (selection.isEmpty()) {
-                    entries
-                } else {
-                    entries.filter { it.packageName in selection }
-                }
-                val willFreeze = scopeEntries.any { !it.frozen }
                 GlassFloatingActionButton(
                     onClick = {
-                        val targets = if (willFreeze) {
-                            scopeEntries.filter { !it.frozen }.map { it.packageName }
-                        } else {
-                            scopeEntries.map { it.packageName }
+                        // 目标在点击时才取一次，避免长按/退场动画期间列表变化导致冻错对象。
+                        val targets = scopeEntries.filter { !it.frozen }.map { it.packageName }
+                        if (targets.isEmpty()) {
+                            // 没有可冻结目标：如实说明，而不是静默无反应。
+                            // 多选态说"所选"，整页态才说"全部"——同一个事实两种范围不能共用一句话。
+                            UiFeedback.toast(
+                                context,
+                                if (selection.isEmpty()) {
+                                    R.string.home_all_frozen
+                                } else {
+                                    R.string.home_selection_all_frozen
+                                },
+                            )
+                            return@GlassFloatingActionButton
                         }
                         scope.launch {
-                            val outcome = repository.setFrozenBatch(targets, willFreeze)
-                            reportFreezeBatch(context, outcome, willFreeze)
+                            val outcome = repository.setFrozenBatch(targets, true)
+                            reportFreezeBatch(context, outcome, true)
                             // 真正落地了才退出多选：失败（权限/后端不可用）时保留选区，
                             // 否则用户白选一遍、还得重新挑。
                             if (selection.isNotEmpty() && outcome is FreezeOutcome.Applied && outcome.count > 0) {
@@ -361,10 +410,8 @@ fun HomeScreen() {
                     backdrop = fabBackdrop,
                 ) {
                     Icon(
-                        imageVector = if (willFreeze) MiuixIcons.Glass.QuietMode else MiuixIcons.Glass.UnlockOutline,
-                        contentDescription = stringResource(
-                            if (willFreeze) R.string.action_freeze else R.string.action_unfreeze,
-                        ),
+                        imageVector = MiuixIcons.Glass.QuietMode,
+                        contentDescription = stringResource(R.string.action_freeze),
                         modifier = Modifier.size(24.dp),
                     )
                 }
@@ -408,34 +455,86 @@ fun HomeScreen() {
                 )
             }
 
-            AppActionSheet(
-                entry = lastActionEntry,
-                show = actionTarget != null,
-                // 主页的菜单是"使用向"十行（启动 / 冻结解冻 / 定时 / 置顶 / 白名单 / 标签 /
-                // 添加主屏幕 / 导包名 / 从主页移除 / 解冻并移除），与应用页的管理向菜单不重叠。
-                actions = lastActionEntry?.let { homeMenuActions(it) } ?: emptyList(),
-                onDismiss = { actionTarget = null },
-                // 官方长按示例的收尾：按下态在弹层完全退场后复位，避免图标 alpha 中途跳回。
-                onDismissFinished = { heldPackage = null },
-                onAction = { action ->
-                    val entry = lastActionEntry
-                    actionTarget = null
-                    if (entry != null) {
-                        when (action) {
-                            AppAction.EditTags -> tagNameDialog = TagNameRequest.Assign(entry.packageName)
-                            AppAction.DeferredFreeze -> deferredTarget = entry.packageName
-                            else -> scope.launch {
-                                runner.run(entry, action)
-                                // 移出主页后这一行没了，多选里也不该再留着它。
-                                if (action == AppAction.RemoveFromHome ||
-                                    action == AppAction.UnfreezeAndRemoveFromHome
-                                ) {
-                                    selection = selection - entry.packageName
-                                }
+            // 锚点菜单：从被长按的那一格**原地长大**成菜单（官方 `GlassTransformPopup`）。
+            // 作用域在打开时定死：
+            // - 长按的是已选中的应用 → 批量菜单，标题「已选择：N」；
+            // - 长按的是未选中的应用（含非多选态）→ 单个应用菜单，标题是应用名。
+            val menuTarget = lastActionEntry
+            val handleMenuAction: (AppAction) -> Unit = { action ->
+                val entry = menuTarget
+                val batchTargets = if (actionBatch) {
+                    snapshot.home.filter { it.packageName in selection }
+                } else {
+                    emptyList()
+                }
+                actionTarget = null
+                when {
+                    actionBatch -> when (action) {
+                        // 批量打标签要弹标签多选层，是 UI 决策，不交给批量执行器。
+                        AppAction.EditTags -> {
+                            tagPickerTargets = batchTargets.map { it.packageName }
+                            tagPickerOpen = true
+                        }
+
+                        else -> scope.launch {
+                            // 移除类动作会让这批应用不再在主页，此时多选也没有对象了。
+                            if (selectionRunner.run(batchTargets, action)) {
+                                selection = emptySet()
+                                selecting = false
                             }
                         }
                     }
+
+                    entry != null -> when (action) {
+                        AppAction.EditTags -> tagNameDialog = TagNameRequest.Assign(entry.packageName)
+                        AppAction.DeferredFreeze -> deferredTarget = entry.packageName
+                        else -> scope.launch {
+                            runner.run(entry, action)
+                            // 移出主页后这一行没了，多选里也不该再留着它。
+                            if (action == AppAction.RemoveFromHome ||
+                                action == AppAction.UnfreezeAndRemoveFromHome
+                            ) {
+                                selection = selection - entry.packageName
+                            }
+                        }
+                    }
+                }
+            }
+
+            val menuActions = when {
+                menuTarget == null -> emptyList()
+                actionBatch -> homeSelectionMenuActions()
+                else -> homeMenuActions(menuTarget)
+            }
+            AppActionSheet(
+                entry = menuTarget,
+                show = actionTarget != null,
+                // 单应用是"使用向"十行，多选是"作用于这一批"的六行；标题随之从应用名
+                // 变成「已选择：N」。两套清单不重叠，渲染层只负责排版。
+                // 标题在这里就定死（不是"null 表示用应用名"），因为弹层会保留最后一份内容：
+                // 多选菜单退场后紧接着打开单应用菜单时，null 会让旧标题残留。
+                title = if (actionBatch) {
+                    stringResource(R.string.home_selected_title, actionCount)
+                } else {
+                    menuTarget?.label.orEmpty()
                 },
+                actions = menuActions,
+                onDismiss = { actionTarget = null },
+                onAction = handleMenuAction,
+            )
+
+            TagPickerSheet(
+                show = tagPickerOpen,
+                tags = snapshot.tags,
+                packageNames = tagPickerTargets,
+                entries = snapshot.home,
+                onDismiss = { tagPickerOpen = false },
+                onToggle = { tag, add ->
+                    scope.launch {
+                        repository.setTagForApps(tagPickerTargets, tag.id, add)
+                    }
+                },
+                labelOf = { repository.tagLabel(it) },
             )
 
             TagEditorSheet(
@@ -530,7 +629,8 @@ fun HomeScreen() {
                         labelSize = preferences.homeLabelSize,
                         selected = entry.packageName in selection,
                         selectionMode = inSelection,
-                        holdDown = entry.packageName == heldPackage,
+                        clearedPress = actionTarget == entry.packageName,
+                        clearedIndication = clearedIndication,
                         onClick = {
                             if (inSelection) {
                                 selection = if (entry.packageName in selection) {
@@ -542,11 +642,14 @@ fun HomeScreen() {
                                 scope.launch { runner.run(entry, AppAction.Launch) }
                             }
                         },
-                        // 长按 = 该应用的使用向菜单。多选态里也一样：菜单里的
-                        // 从主页移除 / 解冻并移除会顺带清掉这个包的选中项（见 onAction）。
+                        // 长按的作用域按"这一个应用有没有被选中"决定，而不是"在不在多选态"：
+                        // - 已选中 → 批量菜单（「已选择：N」），操作整批；
+                        // - 未选中（含非多选态）→ 该应用的单应用菜单。
+                        // 这样长按的对象永远落在作用域里，不会出现"我长按 A，菜单却操作 B、C"。
                         onLongClick = {
+                            actionBatch = entry.packageName in selection
+                            actionCount = selection.size
                             actionTarget = entry.packageName
-                            heldPackage = entry.packageName
                         },
                     )
                 }
@@ -560,30 +663,21 @@ fun HomeScreen() {
  * 网格单元。
  *
  * 点击热区是整格 [Column]（含标签）：点 = 启动（多选态里 = 切换勾选）；
- * 长按 = 该应用的使用向操作单，多选态里同样弹菜单（长按是"看这个应用能做什么"，
- * 不该因为进了多选就没反应）。
+ * 长按 = 打开锚点菜单（作用域见调用点：已选中 → 批量，未选中 → 单应用）。
  *
- * **按压/长按叠层的形状**：`combinedClickable` 默认 `indication = LocalIndication`，
- * 而 MIUIX 主题把它设成 [top.yukonga.miuix.kmp.utils.MiuixIndication]（`MiuixTheme.kt:37/67`），
- * 后者的绘制是 `drawRect(color, alpha, size)` —— 一整块矩形、没有任何圆角
- * （`MiuixIndication.kt:129-135`，KDoc 第 36 行写明 "draws a rectangular overlay"）。
- * 只要 no-clip，整格（含标签、宽度=格宽）就会被盖上一块方角灰底，也就是实拍里的"正方形叠层"。
+ * **锚点**：整个单元用 `glassPopupAnchor` 登记为锚点（官方要求挂在控件最外层，
+ * 不是图标上），图标节点再用 `glassPopupAnchorContent` 标出"过渡里要复制的内容"。
+ * 菜单展开时 `GlassTransformPopup` 会把锚点内容淡出，所以长按后不会有任何残留的按下层。
  *
- * 修法与官方图标网格完全一致：**先裁 squircle 再 clickable**，让叠层被裁剪到与图标同一条
- * squircle 轮廓（`IconPage.kt:403-411`：`squircleClip(12.dp)` → `clickable{...}` → `padding(...)`；
- * MIUIX 自己的 `TabRow` 同样用 `squircleClip(cornerRadius)` 包住带 indication 的 `selectable`
- * （`TabRow.kt:410-418`）。`Modifier.clip`/`squircleClip` 只裁绘制、不裁命中测试，
- * 整格热区（含标签）保持不变，不需要把叠层缩小到图标上，也不会引入缩放/位移。
- * （已在官方示例 APK 上实测：按住一个图标单元，叠层就是"覆盖图标 + 标签"的 12dp squircle，
- * 与这里逐像素同级。）
+ * **按压叠层只覆盖图标**：`combinedClickable` 的 `indication` 置 `null`，改由图标
+ * 自己订阅同一个 `interactionSource`（`Modifier.indication`）——与官方 `GlassIconButton`
+ * 的写法同构（`matchParentSize().clip(shape).indication(...)`）。
+ * 叠层因此是图标的 squircle，而不是"整格含标签"的一块方块；松手后由
+ * `MiuixIndication` 自己淡出（beta04 的 200ms 释放保持），不再有任何外力维持按下态。
  *
- * **选中态**：不再自绘 2dp 蓝色描边（R9 删掉的自造轮子），改用官方 [Checkbox] 叠在图标
- * 右上角作角标；`onClick = null` 是因为整格手势已经由 `combinedClickable` 承担，
- * 勾选框只做状态显示，避免一层热区里再套一层点击。
- *
- * 网格里**只在已选中时画勾选角标**（未选中不画）：官方 Checkbox 未选中态是不透明的
- * `secondary` 圆，叠在 56dp 图标上就是一块灰饼（实机截图确认），会把图标糊掉；
- * 列表行有独立的右侧尾巴列，未选中态可以保留空圈作为"可勾选"提示，网格没有这个位置。
+ * **选中态**：官方 [Checkbox] 叠在图标右上角作角标；`onClick = null`（整格手势已由
+ * `combinedClickable` 承担），勾选框只做状态显示。网格里只在已选中时画角标：
+ * 未选中态是不透明的 `secondary` 圆，叠在 56dp 图标上会把图标糊掉。
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -592,28 +686,34 @@ private fun HomeAppItem(
     labelSize: Float,
     selected: Boolean,
     selectionMode: Boolean,
-    holdDown: Boolean,
+    clearedPress: Boolean,
+    clearedIndication: Indication,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
 ) {
-    // 菜单打开期间保持按下态：与官方 `Card(holdDownState)` / `BasicComponent(holdDownState)`
-    // 同一机制（`HoldDownObserver` 往同一个 interactionSource 里塞 PressInteraction，
-    // 由 `LocalIndication`（主题里是 MiuixIndication）画出那层 0.10 叠层），不自绘高亮。
     val interactionSource = remember { MutableInteractionSource() }
-    HoldDownEffect(holdDown, interactionSource)
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
             .fillMaxWidth()
-            .squircleClip(HomeGridMetrics.CellCorner)
             .combinedClickable(
                 interactionSource = interactionSource,
-                indication = LocalIndication.current,
+                // 叠层不铺整格：由下面的图标自己画（见函数头）。
+                indication = null,
                 onClick = onClick,
                 onLongClick = onLongClick,
             ),
     ) {
-        Box {
+        Box(
+            modifier = Modifier
+                .size(PageMetrics.GridAppIcon)
+                .squircleClip(HomeGridMetrics.CellCorner)
+                .indication(
+                    interactionSource,
+                    // 菜单打开的那一格换成零透明的官方 indication：叠层立即退场。
+                    if (clearedPress) clearedIndication else LocalIndication.current,
+                ),
+        ) {
             AppIconView(
                 packageName = entry.packageName,
                 size = PageMetrics.GridAppIcon,
@@ -698,6 +798,87 @@ private fun TagRow(
                 onTabSelected = { onSelect(tags[it].id) },
                 modifier = Modifier.fillMaxWidth(),
             )
+        }
+    }
+}
+
+/**
+ * 多选态的「标签分组」弹层。
+ *
+ * 单应用的标签编辑是"输入标签名 → 存在就切换"（[TagNameRequest.Assign]），
+ * 批量场景下不能用同一套：要一次看好几个标签、还要能表达"这批应用里只有一部分带了这个标签"。
+ * 所以这里用官方 [Checkbox] 的三态 + 官方 [BasicComponent] 行：
+ *
+ * - `On`（全部已带）→ 点一下**全部移除**
+ * - `Off` / `Indeterminate`（部分或没有）→ 点一下**全部添加**
+ *
+ * 勾选立即生效（[onToggle] 直接落盘），不设"保存"——与设置页的开关同一手感；
+ * 底部只留一个「完成」用来收起弹层。作用域在打开时锁定（[packageNames]），
+ * 弹层里改标签不会因为主页选区变化而串对象。
+ */
+@Composable
+private fun TagPickerSheet(
+    show: Boolean,
+    tags: List<Tag>,
+    packageNames: List<String>,
+    entries: List<AppEntry>,
+    onDismiss: () -> Unit,
+    onToggle: (Tag, Boolean) -> Unit,
+    labelOf: (Tag) -> String,
+) {
+    val targets = remember(entries, packageNames) {
+        entries.filter { it.packageName in packageNames }
+    }
+    val states = remember(targets, tags) {
+        tags.associate { tag ->
+            val withTag = targets.count { tag.id in it.tagIds }
+            tag.id to when {
+                withTag == 0 -> ToggleableState.Off
+                withTag == targets.size -> ToggleableState.On
+                else -> ToggleableState.Indeterminate
+            }
+        }
+    }
+    val navigationBarBottom = rememberAppSafePadding().calculateBottomPadding()
+    GlassBottomSheet(
+        onDismissRequest = onDismiss,
+        show = show,
+        backdrop = LocalRootBackdrop.current.takeIf { LocalGlassActive.current },
+        title = stringResource(R.string.action_edit_tags),
+    ) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxWidth()
+                .scrollEndHaptic()
+                .overScrollVertical(),
+            contentPadding = PaddingValues(bottom = navigationBarBottom + PageMetrics.SectionGap),
+        ) {
+            item(key = "tags") {
+                GlassCard(Modifier.fillMaxWidth()) {
+                    tags.forEach { tag ->
+                        val state = states[tag.id] ?: ToggleableState.Off
+                        BasicComponent(
+                            title = labelOf(tag),
+                            onClick = { onToggle(tag, state != ToggleableState.On) },
+                            // 勾选框自己也受理点击：与行同义（点哪里都是切换）。
+                            endActions = {
+                                Checkbox(state = state, onClick = { onToggle(tag, state != ToggleableState.On) })
+                            },
+                        )
+                    }
+                }
+            }
+            item(key = "done") {
+                GlassDialogButton(
+                    onClick = onDismiss,
+                    role = GlassDialogButtonRole.Primary,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = PageMetrics.SectionGap),
+                ) {
+                    Text(stringResource(R.string.done), style = MiuixTheme.textStyles.button)
+                }
+            }
         }
     }
 }

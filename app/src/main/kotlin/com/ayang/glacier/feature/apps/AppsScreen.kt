@@ -98,10 +98,6 @@ fun AppsScreen() {
     var sortOpen by remember { mutableStateOf(false) }
     var filterOpen by remember { mutableStateOf(false) }
     var actionTarget by remember { mutableStateOf<String?>(null) }
-    // 操作单打开期间保持按下态的行（官方 `Card(holdDownState)` 用法，见 `CardSection.kt:110-143`）：
-    // 与 `actionTarget` 分开是因为弹层退场时官方是"先收面板、再复位按下态"，
-    // 复位挂在 `onDismissFinished` 上，所以面板内容清空后这一行仍要保持一小会儿按下态。
-    var heldPackage by remember { mutableStateOf<String?>(null) }
 
     // 弹层退场期间要保留最后一份内容：排序项在 pick 后立即改设置，退场动画里不应闪成新选中态。
     var lastSort by remember { mutableStateOf(preferences.appSort) }
@@ -131,11 +127,11 @@ fun AppsScreen() {
             runner.run(entry, if (onHome) AppAction.RemoveFromHome else AppAction.AddToHome)
         }
     }
-    // 长按语义：打开该应用的操作单（管理向：应用信息 / 导包名 / 提包），
-    // 并让这一行保持官方按下态直到弹层退场。
+    // 长按语义：打开该应用的操作单（管理向：应用信息 / 导包名 / 提包）。
+    // 按下态不做人工保持：松手后由 `MiuixIndication` 自己淡出（beta04 的 200ms 释放保持），
+    // 菜单开着的时候不需要一行"永远按着"的灰底。
     val openActions: (String) -> Unit = { packageName ->
         actionTarget = packageName
-        heldPackage = packageName
     }
 
     PageFrame(
@@ -191,7 +187,6 @@ fun AppsScreen() {
                         openActions(entry.packageName)
                     },
                     homePicker = true,
-                    holdDownPackage = heldPackage,
                     listState = searchListState,
                 )
             }
@@ -219,8 +214,6 @@ fun AppsScreen() {
                 // 冻结、置顶、标签这些使用向操作只在主页出现，两页不重叠。
                 actions = appsMenuActions(),
                 onDismiss = { actionTarget = null },
-                // 官方长按示例的收尾：按下态在弹层完全退场后复位，避免行的 alpha 在退场动画中途跳回。
-                onDismissFinished = { heldPackage = null },
                 onAction = { action ->
                     val entry = actionTarget?.let { pkg -> repository.snapshot.all.firstOrNull { it.packageName == pkg } }
                     actionTarget = null
@@ -256,7 +249,6 @@ fun AppsScreen() {
                         onLongClick = { openActions(entry.packageName) },
                         // 勾选框 = 主页归属（官方 Checkbox），不是多选计数。
                         onHome = entry.packageName in homePackages,
-                        holdDown = entry.packageName == heldPackage,
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }

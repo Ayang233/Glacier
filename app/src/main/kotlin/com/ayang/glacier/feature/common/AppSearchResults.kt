@@ -39,15 +39,14 @@ internal val SearchResultVerticalPadding = 4.dp
  *
  * 为什么由 `Card` 而不是行内 `BasicComponent` 承担手势：`BasicComponent` 只有 `clickable`，
  * 没有长按（`miuix-ui/basic/Component.kt:148-160`）；`Card` 的交互版有官方
- * `onClick` / `onLongPress` / `holdDownState` / `showIndication` 组合
- * （`miuix-ui/basic/Card.kt:87-154`），官方示例的长按写法就是它
- * （`example/component/CardSection.kt:110-143`：长按弹层 + `holdDownState` 保持按下态）。
+ * `onClick` / `onLongPress` / `showIndication` 组合（`miuix-ui/basic/Card.kt:87-154`），
+ * 官方示例的长按写法就是它（`example/component/CardSection.kt:110-143`）。
  *
  * 语义：
  * - 点按 = 交给调用方（应用页是"移进/移出主页"，搜索结果里同样是这个语义）；
  *   行尾的官方 [Checkbox] 只表达"已在主页"，不是多选计数；
- * - 长按 = 弹出该应用的操作单；弹层打开期间 [holdDown] 为 true，
- *   `Card` 用官方 `HoldDownObserver` 保持 0.10 alpha 的按下态，弹层退场后复位。
+ * - 长按 = 弹出该应用的操作单。按下态**不做人工保持**：松手后由 `MiuixIndication`
+ *   自己淡出（beta04 的 200ms 释放保持），菜单开着时不残留一行"永远按着"的灰底。
  *
  * `showIndication = true` + `pressFeedbackType = None`：反馈是 `Card` 的 squircle 表面
  * 裁切过的 `MiuixIndication` 叠层，与设置页 / 弹层行（`BasicComponent`）同一种按压语言，
@@ -63,13 +62,11 @@ fun AppListCardRow(
     modifier: Modifier = Modifier,
     onHome: Boolean? = null,
     onLongClick: (() -> Unit)? = null,
-    holdDown: Boolean = false,
 ) {
     Card(
         modifier = modifier,
         showIndication = true,
         pressFeedbackType = PressFeedbackType.None,
-        holdDownState = holdDown,
         onClick = onClick,
         onLongPress = onLongClick,
     ) {
@@ -113,7 +110,6 @@ fun appRowSummary(entry: AppEntry, inHome: Boolean): String {
  * @param homePicker 是否是"应用页的挑选器"：`true` 时每行渲染官方勾选框（= 已在主页），
  *   `false` 时（主页搜索）不渲染，点了直接启动应用——同一个列表组件不能用同一种手势表达两件事。
  * @param onLongPick 长按一行；`null` = 该入口不支持长按。
- * @param holdDownPackage 操作单正在打开的应用：该行保持官方长按按下态，弹层退场后复位。
  */
 @Composable
 fun AppSearchResults(
@@ -122,7 +118,6 @@ fun AppSearchResults(
     listState: LazyListState = rememberLazyListState(),
     homePicker: Boolean = false,
     onLongPick: ((AppEntry) -> Unit)? = null,
-    holdDownPackage: String? = null,
 ) {
     val context = LocalContext.current
     val app = context.applicationContext as GlacierApplication
@@ -152,17 +147,16 @@ fun AppSearchResults(
     )
 
     if (results.isEmpty()) {
+        // 查询为空时不画任何东西：搜索条自身的 placeholder 已经是"搜索应用"，
+        // 正文再复读一遍同样的字只是噪音（官方 `IconPage` 的搜索结果区在空查询下也是空的）。
+        if (query.isBlank()) return
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .then(Modifier.appPageHorizontalInsets())
                 .padding(top = topInset + searchTop + barSpace),
         ) {
-            EmptyState(
-                text = stringResource(
-                    if (query.isBlank()) R.string.search_hint else R.string.empty_search,
-                ),
-            )
+            EmptyState(text = stringResource(R.string.empty_search))
         }
         return
     }
@@ -185,7 +179,6 @@ fun AppSearchResults(
                 // 挑选器里勾选框表达主页归属；主页搜索不显示（那里点了是启动应用）。
                 onHome = if (homePicker) entry.packageName in homePackages else null,
                 onLongClick = onLongPick?.let { pick -> { pick(entry) } },
-                holdDown = entry.packageName == holdDownPackage,
                 // 官方搜索结果行间距：横向页面留白 12dp + 上下 4dp（`IconPage.kt:221`）。
                 modifier = Modifier.padding(
                     horizontal = PageMetrics.Horizontal,

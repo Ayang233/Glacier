@@ -9,7 +9,19 @@ import android.widget.Toast
 import androidx.annotation.StringRes
 import androidx.core.content.getSystemService
 
-/** 统一的轻量反馈出口，避免各页面自己拼 Toast / Intent。 */
+/**
+ * 统一的轻量反馈出口，避免各页面自己拼 Toast / Intent。
+ *
+ * **为什么是系统 `Toast` 而不是 MIUIX `Snackbar`**（R11 评估过并明确保留）：
+ * 1. `Snackbar` 必须有宿主（`SnackbarHostState` + `Scaffold(snackbarHost = …)`），而冻结相关
+ *    的提示有相当一部分发生在 Worker / Receiver / 快捷方式等没有 Composition 的上下文里；
+ * 2. 页面级浮层（`GlassSearchOverlay`、`GlassBottomSheet`）画在 Scaffold 之上，
+ *    会在搜索结果里"点一行加入/移出主页"这类高频路径上把 Snackbar 盖住，反馈直接丢失；
+ * 3. `Toast` 是**系统**的反馈件而不是自造 UI：在 HyperOS 上由系统按 OS 风格绘制，
+ *    与 MIUIX 的观感并不冲突。
+ *
+ * 因此这里不接管视觉，只保证"所有轻量反馈只有一个出口、措辞一致"。
+ */
 object UiFeedback {
 
     fun toast(context: Context, text: CharSequence, long: Boolean = false) {

@@ -99,7 +99,8 @@ object ShortcutBridge {
         val size = (context.resources.displayMetrics.density * 48).toInt().coerceAtLeast(48)
         val bitmap = app?.let {
             AppIconSource.get(context, it.preferences.iconPack, it.preferences.synthesizeAdaptiveIcons)
-                .load(packageName, size)
+                // 桌面快捷方式用彩色档：桌面图标不表达冻结状态，图标保持原色。
+                .load(packageName, size, grayscale = false)
         } ?: drawableToBitmap(context, PackageTools.applicationInfoOrNull(context, packageName)?.loadIcon(context.packageManager))
         return if (bitmap != null) IconCompat.createWithBitmap(bitmap)
         else IconCompat.createWithResource(context, R.mipmap.ic_launcher)

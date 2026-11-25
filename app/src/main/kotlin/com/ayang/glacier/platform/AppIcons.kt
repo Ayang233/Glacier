@@ -41,8 +41,28 @@ class AppIconSource(
     }
     private val loaders = HashMap<Int, AppIconLoader>()
 
-    fun load(packageName: String, sizePx: Int): Bitmap? {
-        val key = "$packageName@$sizePx"
+    /**
+     * 同步取已缓存的图标。
+     *
+     * 冻结/解冻会让 [rememberAppIcon] 的 `grayscale` key 变化、`produceState` 整体重建；
+     * 没有这个入口时新状态从 `null` 起步，图标会先闪成一帧空占位再回来。
+     * 彩色与灰度各占一个缓存键，因此来回切换都是内存命中，不重新解码。
+     */
+    fun peek(packageName: String, sizePx: Int, grayscale: Boolean): Bitmap? =
+        cache.get(cacheKey(packageName, sizePx, grayscale))
+
+    /** 取图标（含冻结时的去色档）。灰度结果同样进缓存，避免每次重组都重跑去色。 */
+    fun load(packageName: String, sizePx: Int, grayscale: Boolean): Bitmap? {
+        val key = cacheKey(packageName, sizePx, grayscale)
+        cache.get(key)?.let { return it }
+        val base = loadBase(packageName, sizePx) ?: return null
+        val result = if (grayscale) desaturate(base) else base
+        cache.put(key, result)
+        return result
+    }
+
+    private fun loadBase(packageName: String, sizePx: Int): Bitmap? {
+        val key = cacheKey(packageName, sizePx, grayscale = false)
         cache.get(key)?.let { return it }
 
         val fromPack = iconPack?.let { pack ->
@@ -56,6 +76,9 @@ class AppIconSource(
         cache.put(key, bitmap)
         return bitmap
     }
+
+    private fun cacheKey(packageName: String, sizePx: Int, grayscale: Boolean): String =
+        if (grayscale) "$packageName@$sizePx#gray" else "$packageName@$sizePx"
 
     /**
      * 系统图标。
@@ -244,14 +267,15 @@ fun rememberAppIcon(
     val source = AppIconSource.get(context, iconPack, synthesizeAdaptive)
 
     val state by produceState<ImageBitmap?>(
-        initialValue = null,
+        // 命中内存缓存时直接给出正确的档位（彩色 / 灰度），冻结切换不会先闪一帧空图标。
+        initialValue = source.peek(packageName, sizePx, grayscale)?.asImageBitmap(),
         packageName, sizePx, grayscale, iconPack, synthesizeAdaptive, revision,
     ) {
-        value = withContext(Dispatchers.IO) {
-            val bitmap = source.load(packageName, sizePx) ?: return@withContext null
-            val result = if (grayscale) AppIconSource.desaturate(bitmap) else bitmap
-            result.asImageBitmap()
+        val loaded = withContext(Dispatchers.IO) {
+            source.load(packageName, sizePx, grayscale)?.asImageBitmap()
         }
+        // 加载失败时保留上一帧，不要把已有图标清成占位。
+        if (loaded != null) value = loaded
     }
     return state
 }

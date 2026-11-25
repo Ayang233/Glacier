@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -129,9 +130,19 @@ class AppActionRunner(
         }
     }
 
+    /**
+     * 点开应用：**冻结态先解冻再启动**，这是"冻结"这个产品语义的闭环——
+     * 主页上的图标就是入口，用户不该为了打开一个应用先去菜单里解冻。
+     *
+     * 解冻失败就直接停下并如实提示：此时硬启动只会得到一个 `ActivityNotFound`，
+     * 用户看到的是"应用打不开"，而不是"没权限解冻"。
+     */
     private suspend fun launch(entry: AppEntry) {
         if (entry.frozen) {
-            repository.setFrozen(entry.packageName, false)
+            if (!repository.setFrozen(entry.packageName, false)) {
+                UiFeedback.toast(context, R.string.permission_denied)
+                return
+            }
             if (repository.selectedMode() == WorkingMode.IslandFreeze ||
                 repository.selectedMode() == WorkingMode.IslandSuspend
             ) {
@@ -204,51 +215,78 @@ fun apiMenuActions(entry: AppEntry, inHome: Boolean): List<AppAction> = buildLis
 }
 
 /**
- * 操作单里的一行（渲染前的纯数据，避免在 LazyColumn 的 item 作用域里重复拼装条件）。
+ * 主页多选态的长按菜单：**只留与"一批应用"有关的动作**，顺序即渲染顺序。
+ *
+ * 单应用菜单里的启动 / 定时 / 置顶 / 白名单 / 添加到主屏幕都要落到"某一个应用"，
+ * 批量语义不成立（或语义很怪），所以这里不出现。标签分组在批量语境下走标签多选弹层。
  */
-private class SheetActionSpec(
-    val icon: ImageVector,
-    val label: String,
-    val action: AppAction,
+fun homeSelectionMenuActions(): List<AppAction> = listOf(
+    AppAction.Freeze,
+    AppAction.Unfreeze,
+    AppAction.EditTags,
+    AppAction.CopyPackageName,
+    AppAction.RemoveFromHome,
+    AppAction.UnfreezeAndRemoveFromHome,
 )
 
-/** 动作 → 图标 / 文案。语境文案（置顶↔取消置顶、白名单↔移出白名单）在这里收敛。 */
+/**
+ * 菜单里的一行（渲染前的纯数据）。
+ *
+ * sheet 与（将来真机上的）锚点菜单共用这一份文案/图标表：同一个动作在两个容器里
+ * 不能出现两种措辞。`label` 在组合期用 `stringResource` 取好后再构造。
+ */
+@Immutable
+class ActionRowSpec(
+    val icon: ImageVector,
+    val label: String,
+    val enabled: Boolean = true,
+    val onClick: () -> Unit,
+)
+
+/** 动作 → 图标 / 文案 / 可点性。语境文案与禁用态都在这里收敛，两个菜单容器共用。 */
 @Composable
-private fun specOf(action: AppAction, entry: AppEntry): SheetActionSpec = when (action) {
-    AppAction.Launch ->
-        SheetActionSpec(MiuixIcons.Glass.Play, stringResource(R.string.action_launch), action)
-    AppAction.Freeze ->
-        SheetActionSpec(MiuixIcons.Glass.QuietMode, stringResource(R.string.action_freeze), action)
-    AppAction.Unfreeze ->
-        SheetActionSpec(MiuixIcons.Glass.UnlockOutline, stringResource(R.string.action_unfreeze), action)
-    AppAction.DeferredFreeze ->
-        SheetActionSpec(MiuixIcons.Glass.Timer, stringResource(R.string.action_deferred_freeze), action)
-    AppAction.TogglePin -> SheetActionSpec(
-        MiuixIcons.Glass.Pin,
-        stringResource(if (entry.pinned) R.string.action_unpin else R.string.action_pin),
-        action,
-    )
-    AppAction.ToggleWhitelist -> SheetActionSpec(
-        MiuixIcons.Glass.Security,
-        stringResource(if (entry.whitelisted) R.string.action_unwhitelist else R.string.action_whitelist),
-        action,
-    )
-    AppAction.EditTags ->
-        SheetActionSpec(MiuixIcons.Glass.Tags, stringResource(R.string.action_edit_tags), action)
-    AppAction.PinShortcut ->
-        SheetActionSpec(MiuixIcons.Glass.HomeOutline, stringResource(R.string.action_add_pin_shortcut), action)
-    AppAction.CopyPackageName ->
-        SheetActionSpec(MiuixIcons.Glass.Copy, stringResource(R.string.action_copy_package), action)
-    AppAction.AddToHome ->
-        SheetActionSpec(MiuixIcons.Glass.Add, stringResource(R.string.action_add_to_home), action)
-    AppAction.RemoveFromHome ->
-        SheetActionSpec(MiuixIcons.Glass.Remove, stringResource(R.string.action_remove_from_home), action)
-    AppAction.UnfreezeAndRemoveFromHome ->
-        SheetActionSpec(MiuixIcons.Glass.Unpin, stringResource(R.string.action_unfreeze_and_remove), action)
-    AppAction.AppInfo ->
-        SheetActionSpec(MiuixIcons.Glass.Info, stringResource(R.string.action_app_info), action)
-    AppAction.ExtractApk ->
-        SheetActionSpec(MiuixIcons.Glass.Extract, stringResource(R.string.action_extract_apk), action)
+fun actionSpecOf(
+    action: AppAction,
+    entry: AppEntry,
+    onAction: (AppAction) -> Unit,
+): ActionRowSpec {
+    val spec = when (action) {
+        AppAction.Launch ->
+            ActionRowSpec(MiuixIcons.Glass.Play, stringResource(R.string.action_launch), onClick = { onAction(action) })
+        AppAction.Freeze ->
+            ActionRowSpec(MiuixIcons.Glass.QuietMode, stringResource(R.string.action_freeze), onClick = { onAction(action) })
+        AppAction.Unfreeze ->
+            ActionRowSpec(MiuixIcons.Glass.UnlockOutline, stringResource(R.string.action_unfreeze), onClick = { onAction(action) })
+        AppAction.DeferredFreeze ->
+            ActionRowSpec(MiuixIcons.Glass.Timer, stringResource(R.string.action_deferred_freeze), onClick = { onAction(action) })
+        AppAction.TogglePin -> ActionRowSpec(
+            MiuixIcons.Glass.Pin,
+            stringResource(if (entry.pinned) R.string.action_unpin else R.string.action_pin),
+            onClick = { onAction(action) },
+        )
+        AppAction.ToggleWhitelist -> ActionRowSpec(
+            MiuixIcons.Glass.Security,
+            stringResource(if (entry.whitelisted) R.string.action_unwhitelist else R.string.action_whitelist),
+            onClick = { onAction(action) },
+        )
+        AppAction.EditTags ->
+            ActionRowSpec(MiuixIcons.Glass.Tags, stringResource(R.string.action_edit_tags), onClick = { onAction(action) })
+        AppAction.PinShortcut ->
+            ActionRowSpec(MiuixIcons.Glass.HomeOutline, stringResource(R.string.action_add_pin_shortcut), onClick = { onAction(action) })
+        AppAction.CopyPackageName ->
+            ActionRowSpec(MiuixIcons.Glass.Copy, stringResource(R.string.action_copy_package), onClick = { onAction(action) })
+        AppAction.AddToHome ->
+            ActionRowSpec(MiuixIcons.Glass.Add, stringResource(R.string.action_add_to_home), onClick = { onAction(action) })
+        AppAction.RemoveFromHome ->
+            ActionRowSpec(MiuixIcons.Glass.Remove, stringResource(R.string.action_remove_from_home), onClick = { onAction(action) })
+        AppAction.UnfreezeAndRemoveFromHome ->
+            ActionRowSpec(MiuixIcons.Glass.Unpin, stringResource(R.string.action_unfreeze_and_remove), onClick = { onAction(action) })
+        AppAction.AppInfo ->
+            ActionRowSpec(MiuixIcons.Glass.Info, stringResource(R.string.action_app_info), onClick = { onAction(action) })
+        AppAction.ExtractApk ->
+            ActionRowSpec(MiuixIcons.Glass.Extract, stringResource(R.string.action_extract_apk), onClick = { onAction(action) })
+    }
+    return spec
 }
 
 /**
@@ -285,6 +323,7 @@ fun AppActionSheet(
     actions: List<AppAction>,
     onDismiss: () -> Unit,
     onAction: (AppAction) -> Unit,
+    title: String? = null,
     onDismissFinished: (() -> Unit)? = null,
 ) {
     // 保留最后一次内容用于退场：entry 变 null 后仍按上一份 entry / 清单排版。
@@ -292,6 +331,10 @@ fun AppActionSheet(
     if (entry != null) lastEntry = entry
     var lastActions by remember { mutableStateOf(actions) }
     if (entry != null) lastActions = actions
+    // 标题可以由调用方覆盖（多选态是「已选择：N」，单应用用应用名）。
+    // 同样只保留最后一份，退场动画期间不会闪空。
+    var lastTitle by remember { mutableStateOf<String?>(null) }
+    if (title != null) lastTitle = title
 
     val backdrop = LocalRootBackdrop.current.takeIf { LocalGlassActive.current }
     // 弹层内容自己让出系统底部安全区（官方 BottomSheet KDoc 的同款做法），
@@ -302,12 +345,12 @@ fun AppActionSheet(
         onDismissRequest = onDismiss,
         show = show,
         backdrop = backdrop,
-        title = lastEntry?.label,
+        title = lastTitle ?: lastEntry?.label,
         onDismissFinished = onDismissFinished,
     ) {
         lastEntry?.let { item ->
             // 行数据在组合期一次算好（label 走 stringResource），item 里只做纯渲染。
-            val rows = lastActions.map { specOf(it, item) }
+            val rows = lastActions.map { actionSpecOf(it, item, onAction) }
 
             LazyColumn(
                 modifier = Modifier
@@ -322,7 +365,8 @@ fun AppActionSheet(
                             SheetActionRow(
                                 icon = row.icon,
                                 label = row.label,
-                                onClick = { onAction(row.action) },
+                                enabled = row.enabled,
+                                onClick = row.onClick,
                             )
                         }
                     }
@@ -362,5 +406,79 @@ fun reportFreezeBatch(
 
         FreezeOutcome.Denied ->
             UiFeedback.toast(context, R.string.permission_denied)
+    }
+}
+
+/**
+ * 多选菜单的批量执行器。
+ *
+ * 与 [AppActionRunner] 分开：那边每个动作都绑定**一个** [AppEntry]（启动 / 置顶 / 定时…），
+ * 这边的每个动作都作用于一个集合，"是否需要退出多选"用返回值表达而不是副作用。
+ *
+ * 只处理 [homeSelectionMenuActions] 里除「标签分组」以外的动作——标签分组要打开标签多选弹层，
+ * 属于 UI 决策，由调用方拦下。
+ */
+class SelectionActionRunner(
+    private val context: Context,
+    private val repository: GlacierRepository,
+) {
+
+    /** @return `true` = 这批应用已经不在主页，调用方应清空选区并退出多选。 */
+    suspend fun run(entries: List<AppEntry>, action: AppAction): Boolean {
+        if (entries.isEmpty()) return false
+        val names = entries.map { it.packageName }
+        return when (action) {
+            AppAction.Freeze -> {
+                val targets = entries.filter { !it.frozen }.map { it.packageName }
+                if (targets.isNotEmpty()) {
+                    reportFreezeBatch(context, repository.setFrozenBatch(targets, true), true)
+                }
+                false
+            }
+
+            AppAction.Unfreeze -> {
+                val targets = entries.filter { it.frozen }.map { it.packageName }
+                if (targets.isNotEmpty()) {
+                    reportFreezeBatch(context, repository.setFrozenBatch(targets, false), false)
+                }
+                false
+            }
+
+            AppAction.CopyPackageName -> {
+                // 一次复制整批，每行一个包名——脚本/终端可以直接按行读取。
+                UiFeedback.copy(
+                    context,
+                    context.getString(R.string.action_copy_package),
+                    names.joinToString("\n"),
+                )
+                UiFeedback.toast(context, context.getString(R.string.home_copied_packages, names.size))
+                false
+            }
+
+            AppAction.RemoveFromHome -> {
+                repository.removeFromHome(names)
+                UiFeedback.toast(context, context.getString(R.string.home_removed_many, names.size))
+                true
+            }
+
+            AppAction.UnfreezeAndRemoveFromHome -> {
+                // 先解冻再移除：解冻失败就整件事中止（不静默移出一批"看不见但被冻着"的应用）。
+                val frozen = entries.filter { it.frozen }.map { it.packageName }
+                if (frozen.isNotEmpty()) {
+                    val outcome = repository.setFrozenBatch(frozen, false)
+                    val failed = outcome is FreezeOutcome.Denied ||
+                        (outcome as? FreezeOutcome.Applied)?.count == 0
+                    if (failed) {
+                        UiFeedback.toast(context, R.string.permission_denied)
+                        return false
+                    }
+                }
+                repository.removeFromHome(names)
+                UiFeedback.toast(context, context.getString(R.string.home_removed_many, names.size))
+                true
+            }
+
+            else -> false
+        }
     }
 }

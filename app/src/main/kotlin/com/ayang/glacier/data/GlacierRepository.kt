@@ -20,6 +20,8 @@ import com.ayang.glacier.platform.UiFeedback
 import com.ayang.glacier.system.FreezeController
 import com.ayang.glacier.system.FreezeOutcome
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.text.Collator
@@ -44,12 +46,25 @@ class GlacierRepository(
     var refreshing by mutableStateOf(false)
         private set
 
+    /**
+     * 刷新串行化。
+     *
+     * 早先是"正在刷新就丢弃本次请求"（`if (refreshing) return`）：冻结完成后紧跟的
+     * `refresh()` 一旦撞上 `ON_RESUME` 触发的那次，就会被直接丢掉，界面停在冻结前的快照上
+     * ——表现就是"冻结成功了，但主页图标/文案一直不变，得再切一次页面才刷新"。
+     * 现在改为排队：后来的刷新等前一次结束再跑，永远不会被丢弃。
+     */
+    private val refreshLock = Mutex()
+
     init {
         store.onChanged = { preferences.bumpRevision() }
     }
 
     suspend fun refresh() = withContext(Dispatchers.IO) {
-        if (refreshing) return@withContext
+        refreshLock.withLock { refreshSnapshot() }
+    }
+
+    private suspend fun refreshSnapshot() {
         refreshing = true
         try {
             store.load()
@@ -165,6 +180,24 @@ class GlacierRepository(
 
     suspend fun setTags(packageName: String, tagIds: List<Int>) {
         store.setTags(packageName, tagIds)
+        refresh()
+    }
+
+    /**
+     * 给一批应用统一加上 / 去掉一个标签。
+     *
+     * 批量打标签不能循环调用 [setTags]：那会为每个应用跑一次全量 `refresh()`（扫描所有包 +
+     * 逐个查冻结态），十个应用就是十次。这里只在最后刷新一次。
+     */
+    suspend fun setTagForApps(packageNames: Collection<String>, tagId: Int, add: Boolean) {
+        if (packageNames.isEmpty()) return
+        withContext(Dispatchers.IO) {
+            packageNames.forEach { packageName ->
+                val current = store.findApp(packageName)?.tagIds?.toList() ?: listOf(DEFAULT_TAG_ID)
+                val next = if (add) (current + tagId).distinct() else current - tagId
+                store.setTags(packageName, next)
+            }
+        }
         refresh()
     }
 
