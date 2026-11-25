@@ -23,65 +23,65 @@ val SnowflakeIcon: ImageVector by lazy {
         viewportWidth = 24f,
         viewportHeight = 24f,
     ).apply {
-        path(fill = null, stroke = mainColor, strokeLineWidth = 1.80f, strokeLineCap = StrokeCap.Round) {
-            moveTo(12.00f, 4.00f)
-            lineTo(12.00f, 20.00f)
+        path(fill = null, stroke = mainColor, strokeLineWidth = 1.90f, strokeLineCap = StrokeCap.Round) {
+            moveTo(12.00f, 1.00f)
+            lineTo(12.00f, 23.00f)
         }
-        path(fill = null, stroke = mainColor, strokeLineWidth = 1.80f, strokeLineCap = StrokeCap.Round) {
-            moveTo(5.07f, 8.00f)
-            lineTo(18.93f, 16.00f)
+        path(fill = null, stroke = mainColor, strokeLineWidth = 1.90f, strokeLineCap = StrokeCap.Round) {
+            moveTo(2.47f, 6.50f)
+            lineTo(21.53f, 17.50f)
         }
-        path(fill = null, stroke = mainColor, strokeLineWidth = 1.80f, strokeLineCap = StrokeCap.Round) {
-            moveTo(18.93f, 8.00f)
-            lineTo(5.07f, 16.00f)
+        path(fill = null, stroke = mainColor, strokeLineWidth = 1.90f, strokeLineCap = StrokeCap.Round) {
+            moveTo(21.53f, 6.50f)
+            lineTo(2.47f, 17.50f)
         }
-        path(fill = null, stroke = mainColor, strokeLineWidth = 1.50f, strokeLineCap = StrokeCap.Round) {
-            moveTo(12.00f, 17.00f)
-            lineTo(9.75f, 18.30f)
+        path(fill = null, stroke = mainColor, strokeLineWidth = 1.60f, strokeLineCap = StrokeCap.Round) {
+            moveTo(12.00f, 18.90f)
+            lineTo(9.06f, 20.60f)
         }
-        path(fill = null, stroke = mainColor, strokeLineWidth = 1.50f, strokeLineCap = StrokeCap.Round) {
-            moveTo(12.00f, 17.00f)
-            lineTo(14.25f, 18.30f)
+        path(fill = null, stroke = mainColor, strokeLineWidth = 1.60f, strokeLineCap = StrokeCap.Round) {
+            moveTo(12.00f, 18.90f)
+            lineTo(14.94f, 20.60f)
         }
-        path(fill = null, stroke = mainColor, strokeLineWidth = 1.50f, strokeLineCap = StrokeCap.Round) {
-            moveTo(16.33f, 14.50f)
-            lineTo(16.33f, 17.10f)
+        path(fill = null, stroke = mainColor, strokeLineWidth = 1.60f, strokeLineCap = StrokeCap.Round) {
+            moveTo(17.98f, 15.45f)
+            lineTo(17.98f, 18.85f)
         }
-        path(fill = null, stroke = mainColor, strokeLineWidth = 1.50f, strokeLineCap = StrokeCap.Round) {
-            moveTo(16.33f, 14.50f)
-            lineTo(18.58f, 13.20f)
+        path(fill = null, stroke = mainColor, strokeLineWidth = 1.60f, strokeLineCap = StrokeCap.Round) {
+            moveTo(17.98f, 15.45f)
+            lineTo(20.92f, 13.75f)
         }
-        path(fill = null, stroke = mainColor, strokeLineWidth = 1.50f, strokeLineCap = StrokeCap.Round) {
-            moveTo(16.33f, 9.50f)
-            lineTo(18.58f, 10.80f)
+        path(fill = null, stroke = mainColor, strokeLineWidth = 1.60f, strokeLineCap = StrokeCap.Round) {
+            moveTo(17.98f, 8.55f)
+            lineTo(20.92f, 10.25f)
         }
-        path(fill = null, stroke = mainColor, strokeLineWidth = 1.50f, strokeLineCap = StrokeCap.Round) {
-            moveTo(16.33f, 9.50f)
-            lineTo(16.33f, 6.90f)
+        path(fill = null, stroke = mainColor, strokeLineWidth = 1.60f, strokeLineCap = StrokeCap.Round) {
+            moveTo(17.98f, 8.55f)
+            lineTo(17.98f, 5.15f)
         }
-        path(fill = null, stroke = mainColor, strokeLineWidth = 1.50f, strokeLineCap = StrokeCap.Round) {
-            moveTo(12.00f, 7.00f)
-            lineTo(14.25f, 5.70f)
+        path(fill = null, stroke = mainColor, strokeLineWidth = 1.60f, strokeLineCap = StrokeCap.Round) {
+            moveTo(12.00f, 5.10f)
+            lineTo(14.94f, 3.40f)
         }
-        path(fill = null, stroke = mainColor, strokeLineWidth = 1.50f, strokeLineCap = StrokeCap.Round) {
-            moveTo(12.00f, 7.00f)
-            lineTo(9.75f, 5.70f)
+        path(fill = null, stroke = mainColor, strokeLineWidth = 1.60f, strokeLineCap = StrokeCap.Round) {
+            moveTo(12.00f, 5.10f)
+            lineTo(9.06f, 3.40f)
         }
-        path(fill = null, stroke = mainColor, strokeLineWidth = 1.50f, strokeLineCap = StrokeCap.Round) {
-            moveTo(7.67f, 9.50f)
-            lineTo(7.67f, 6.90f)
+        path(fill = null, stroke = mainColor, strokeLineWidth = 1.60f, strokeLineCap = StrokeCap.Round) {
+            moveTo(6.02f, 8.55f)
+            lineTo(6.02f, 5.15f)
         }
-        path(fill = null, stroke = mainColor, strokeLineWidth = 1.50f, strokeLineCap = StrokeCap.Round) {
-            moveTo(7.67f, 9.50f)
-            lineTo(5.42f, 10.80f)
+        path(fill = null, stroke = mainColor, strokeLineWidth = 1.60f, strokeLineCap = StrokeCap.Round) {
+            moveTo(6.02f, 8.55f)
+            lineTo(3.08f, 10.25f)
         }
-        path(fill = null, stroke = mainColor, strokeLineWidth = 1.50f, strokeLineCap = StrokeCap.Round) {
-            moveTo(7.67f, 14.50f)
-            lineTo(5.42f, 13.20f)
+        path(fill = null, stroke = mainColor, strokeLineWidth = 1.60f, strokeLineCap = StrokeCap.Round) {
+            moveTo(6.02f, 15.45f)
+            lineTo(3.08f, 13.75f)
         }
-        path(fill = null, stroke = mainColor, strokeLineWidth = 1.50f, strokeLineCap = StrokeCap.Round) {
-            moveTo(7.67f, 14.50f)
-            lineTo(7.67f, 17.10f)
+        path(fill = null, stroke = mainColor, strokeLineWidth = 1.60f, strokeLineCap = StrokeCap.Round) {
+            moveTo(6.02f, 15.45f)
+            lineTo(6.02f, 18.85f)
         }
     }.build()
 }

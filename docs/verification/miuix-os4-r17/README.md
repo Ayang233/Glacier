@@ -11,7 +11,8 @@
 | `03-settings-search-page.png` | 搜索二级页 |
 | `04-settings-automation-page.png` | 自动化二级页（自动冻结关闭时依赖项收起） |
 | `05-settings-system-page.png` | 系统二级页：通知使用权 / 使用情况访问权 / 设备所有者命令 |
-| `06-home-fab-snowflake.png` | 主页冻结 FAB 的雪花图标特写 |
+| `06-home-fab-snowflake.png` | 主页冻结 FAB 的雪花图标特写（放大后占 FAB 直径 37%，与官方 24dp 图标比例一致） |
+| `07-home-fab-before.png` | 放大前的同一位置（雪花只占 FAB 直径 28%，明显偏小） |
 
 ## 说明
 
