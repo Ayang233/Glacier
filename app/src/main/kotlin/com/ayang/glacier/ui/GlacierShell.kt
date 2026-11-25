@@ -47,7 +47,11 @@ import com.ayang.glacier.feature.about.AboutScreen
 import com.ayang.glacier.feature.about.LicensesScreen
 import com.ayang.glacier.feature.apps.AppsScreen
 import com.ayang.glacier.feature.home.HomeScreen
+import com.ayang.glacier.feature.settings.AutomationSettingsScreen
+import com.ayang.glacier.feature.settings.SearchSettingsScreen
 import com.ayang.glacier.feature.settings.SettingsScreen
+import com.ayang.glacier.feature.settings.SystemSettingsScreen
+import com.ayang.glacier.feature.settings.ThemeSettingsScreen
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.blur.Backdrop
 import top.yukonga.miuix.kmp.blur.layerBackdrop
@@ -320,6 +324,10 @@ fun GlacierShell() {
                                                 0 -> HomeScreen()
                                                 1 -> AppsScreen()
                                                 else -> SettingsScreen(
+                                                    onOpenThemeSettings = { backStack.add(Route.ThemeSettings) },
+                                                    onOpenSearchSettings = { backStack.add(Route.SearchSettings) },
+                                                    onOpenAutomationSettings = { backStack.add(Route.AutomationSettings) },
+                                                    onOpenSystemSettings = { backStack.add(Route.SystemSettings) },
                                                     onOpenAbout = { backStack.add(Route.About) },
                                                 )
                                             }
@@ -371,6 +379,47 @@ fun GlacierShell() {
                                 LocalTopBarObstructionStart provides obstructionStart,
                             ) {
                                 LicensesScreen(
+                                    onBack = { backStack.removeAt(backStack.lastIndex) },
+                                )
+                            }
+                        }
+                        // ---- 设置二级页（R16）：外观/搜索/自动化/系统各自成页，首页只留入口 ----
+                        entry<Route.ThemeSettings>(swipeDismiss = backSwipe) {
+                            CompositionLocalProvider(
+                                LocalTopBarTitleAlpha provides { 1f },
+                                LocalTopBarObstructionStart provides obstructionStart,
+                            ) {
+                                ThemeSettingsScreen(
+                                    onBack = { backStack.removeAt(backStack.lastIndex) },
+                                )
+                            }
+                        }
+                        entry<Route.SearchSettings>(swipeDismiss = backSwipe) {
+                            CompositionLocalProvider(
+                                LocalTopBarTitleAlpha provides { 1f },
+                                LocalTopBarObstructionStart provides obstructionStart,
+                            ) {
+                                SearchSettingsScreen(
+                                    onBack = { backStack.removeAt(backStack.lastIndex) },
+                                )
+                            }
+                        }
+                        entry<Route.AutomationSettings>(swipeDismiss = backSwipe) {
+                            CompositionLocalProvider(
+                                LocalTopBarTitleAlpha provides { 1f },
+                                LocalTopBarObstructionStart provides obstructionStart,
+                            ) {
+                                AutomationSettingsScreen(
+                                    onBack = { backStack.removeAt(backStack.lastIndex) },
+                                )
+                            }
+                        }
+                        entry<Route.SystemSettings>(swipeDismiss = backSwipe) {
+                            CompositionLocalProvider(
+                                LocalTopBarTitleAlpha provides { 1f },
+                                LocalTopBarObstructionStart provides obstructionStart,
+                            ) {
+                                SystemSettingsScreen(
                                     onBack = { backStack.removeAt(backStack.lastIndex) },
                                 )
                             }

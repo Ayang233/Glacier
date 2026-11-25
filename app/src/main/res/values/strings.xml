@@ -81,10 +81,14 @@
 
     <!-- Settings -->
     <string name="settings_general">General</string>
-    <string name="settings_appearance">Appearance</string>
+    <string name="settings_appearance">Theme settings</string>
+    <string name="settings_theme_summary">Theme, glass, icons and Home labels</string>
     <string name="settings_search">Search</string>
+    <string name="settings_search_summary">Fuzzy search and T9</string>
     <string name="settings_automation">Automation</string>
+    <string name="settings_automation_summary">Auto freeze, skip rules and tile actions</string>
     <string name="settings_system">System</string>
+    <string name="settings_system_summary">Notification access, usage access and device owner</string>
     <string name="settings_about">About</string>
     <string name="working_mode">Working mode</string>
     <string name="working_mode_summary">%1$s · %2$s</string>

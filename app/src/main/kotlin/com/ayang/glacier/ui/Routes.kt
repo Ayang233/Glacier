@@ -20,4 +20,18 @@ sealed interface Route : NavKey {
 
     @Serializable
     data object Licenses : Route
+
+    // ---- 设置二级页（R16：设置首页只留通用项与入口，其余归类到二级页）----
+
+    @Serializable
+    data object ThemeSettings : Route
+
+    @Serializable
+    data object SearchSettings : Route
+
+    @Serializable
+    data object AutomationSettings : Route
+
+    @Serializable
+    data object SystemSettings : Route
 }

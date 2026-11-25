@@ -81,10 +81,14 @@
 
     <!-- 设置 -->
     <string name="settings_general">通用</string>
-    <string name="settings_appearance">外观</string>
+    <string name="settings_appearance">主题设置</string>
+    <string name="settings_theme_summary">主题、玻璃、图标与主页名称</string>
     <string name="settings_search">搜索</string>
+    <string name="settings_search_summary">模糊搜索与 T9</string>
     <string name="settings_automation">自动化</string>
+    <string name="settings_automation_summary">自动冻结、跳过规则与磁贴操作</string>
     <string name="settings_system">系统</string>
+    <string name="settings_system_summary">通知使用权、使用情况访问权与设备所有者</string>
     <string name="settings_about">关于</string>
     <string name="working_mode">工作模式</string>
     <string name="working_mode_summary">%1$s · %2$s</string>

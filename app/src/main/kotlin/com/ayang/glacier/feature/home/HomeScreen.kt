@@ -123,13 +123,13 @@ import top.yukonga.miuix.kmp.glass.GlassTransformPopup
 import top.yukonga.miuix.kmp.glass.glassPopupAnchor
 import top.yukonga.miuix.kmp.glass.glassPopupAnchorContent
 import top.yukonga.miuix.kmp.glass.rememberGlassPopupAnchor
+import com.ayang.glacier.ui.icons.SnowflakeIcon
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.Add
 import top.yukonga.miuix.kmp.icon.glass.Close
 import top.yukonga.miuix.kmp.icon.glass.Delete
 import top.yukonga.miuix.kmp.icon.glass.Edit
 import top.yukonga.miuix.kmp.icon.glass.MultiSelect
-import top.yukonga.miuix.kmp.icon.glass.QuietMode
 import top.yukonga.miuix.kmp.icon.glass.Search
 import top.yukonga.miuix.kmp.icon.glass.Timer
 import top.yukonga.miuix.kmp.interfaces.ExperimentalScrollBarApi
@@ -417,7 +417,7 @@ fun HomeScreen() {
                     backdrop = fabBackdrop,
                 ) {
                     Icon(
-                        imageVector = MiuixIcons.Glass.QuietMode,
+                        imageVector = SnowflakeIcon,
                         contentDescription = stringResource(R.string.action_freeze),
                         modifier = Modifier.size(24.dp),
                     )

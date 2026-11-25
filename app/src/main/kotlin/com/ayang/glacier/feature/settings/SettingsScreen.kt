@@ -1,13 +1,10 @@
 package com.ayang.glacier.feature.settings
 
-import android.content.Intent
-import android.provider.Settings
-import androidx.compose.animation.CapturedAnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -19,9 +16,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.core.app.NotificationManagerCompat
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LifecycleEventEffect
 import com.ayang.glacier.GlacierApplication
 import com.ayang.glacier.R
 import com.ayang.glacier.domain.BackendState
@@ -29,38 +23,42 @@ import com.ayang.glacier.domain.QuickAction
 import com.ayang.glacier.domain.ThemeMode
 import com.ayang.glacier.domain.WorkingMode
 import com.ayang.glacier.platform.auto.AutoFreezeScheduler
-import com.ayang.glacier.platform.PackageTools
-import com.ayang.glacier.platform.Platform
-import com.ayang.glacier.platform.PredictiveBack
-import com.ayang.glacier.platform.UiFeedback
-import com.ayang.glacier.platform.findActivity
-import com.ayang.glacier.platform.recreateWithoutTransition
 import com.ayang.glacier.ui.LocalGlassActive
 import com.ayang.glacier.ui.LocalRootBackdrop
+import com.ayang.glacier.ui.components.BackNavigationAction
 import com.ayang.glacier.ui.components.GroupCard
 import com.ayang.glacier.ui.components.PageFrame
 import com.ayang.glacier.ui.components.PageMetrics
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.rememberScrollBarAdapter
 import top.yukonga.miuix.kmp.glass.GlassDropdownPreference
 import top.yukonga.miuix.kmp.interfaces.ExperimentalScrollBarApi
-import top.yukonga.miuix.kmp.material.isRuntimeShaderSupported
 import top.yukonga.miuix.kmp.preference.ArrowPreference
-import top.yukonga.miuix.kmp.preference.SliderPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 
 /**
- * 设置页。
+ * 设置**首页**。
  *
- * 行一律用官方 Preference 组件：设置页是信息密度单位，整页玻璃会让文字对比度不稳。
- * 只有"离散选项"用官方玻璃下拉，这是 OS4 的既有范式。
+ * R16 起按"一级页面只留常用项与入口"重排：
+ * - 去掉「通用 / 外观 / 搜索 / …」这些小标题（`SmallTitle`），页面不再是一长串分组标题；
+ * - **通用**两项（工作模式、启动时验证）直接留在首页；
+ * - 外观 / 搜索 / 自动化 / 系统权限各自归到一个**二级页**，首页只放一行入口
+ *   （官方 `ArrowPreference`），点进去是同一套 `PageFrame` 的二级页；
+ * - 关于保持一级页面一行入口（用户要求）。
+ *
+ * 入口行只负责导航，不显示计数或摘要，避免首页重新变成一页设置清单。
  */
 @OptIn(ExperimentalScrollBarApi::class)
 @Composable
-fun SettingsScreen(onOpenAbout: () -> Unit) {
+fun SettingsScreen(
+    onOpenThemeSettings: () -> Unit,
+    onOpenSearchSettings: () -> Unit,
+    onOpenAutomationSettings: () -> Unit,
+    onOpenSystemSettings: () -> Unit,
+    onOpenAbout: () -> Unit,
+) {
     val context = LocalContext.current
     val app = context.applicationContext as GlacierApplication
     val preferences = app.preferences
@@ -68,7 +66,6 @@ fun SettingsScreen(onOpenAbout: () -> Unit) {
     val repository = app.repository
 
     val scrollBehavior = MiuixScrollBehavior()
-    // 官方示例每页显式加滚动条（`example/SettingsPage.kt` 等）；轨道内边距由 PageFrame 计算。
     val listState = rememberLazyListState()
     val glassActive = LocalGlassActive.current
     val backdrop = LocalRootBackdrop.current.takeIf { glassActive }
@@ -83,75 +80,24 @@ fun SettingsScreen(onOpenAbout: () -> Unit) {
         value = withContext(Dispatchers.IO) { freeze.stateOf() }
     }
 
-    val iconPacks by produceState(initialValue = emptyList<Pair<String, String>>()) {
-        value = withContext(Dispatchers.IO) {
-            val packs = mutableListOf<Pair<String, String>>()
-            PackageTools.installedApplications(context).forEach { info ->
-                val hasFilter = runCatching {
-                    context.packageManager.getResourcesForApplication(info.packageName)
-                        .getIdentifier("appfilter", "xml", info.packageName) != 0
-                }.getOrDefault(false)
-                if (hasFilter) {
-                    packs += info.packageName to runCatching {
-                        info.loadLabel(context.packageManager).toString()
-                    }.getOrDefault(info.packageName)
-                }
-            }
-            packs
-        }
-    }
-
-    var autoFreezeEnabled by remember(revision) { mutableStateOf(preferences.autoFreezeEnabled) }
     var requireUnlock by remember(revision) { mutableStateOf(preferences.requireUnlock) }
-    var glassEnabled by remember(revision) { mutableStateOf(preferences.glassEnabled) }
-    var grayscale by remember(revision) { mutableStateOf(preferences.grayscaleFrozenIcons) }
-    var compact by remember(revision) { mutableStateOf(preferences.compactGrid) }
-    var synthesize by remember(revision) { mutableStateOf(preferences.synthesizeAdaptiveIcons) }
-    var fuzzy by remember(revision) { mutableStateOf(preferences.fuzzySearch) }
-    var nineKey by remember(revision) { mutableStateOf(preferences.nineKeySearch) }
-    var skipCharging by remember(revision) { mutableStateOf(preferences.skipWhileCharging) }
-    var skipForeground by remember(revision) { mutableStateOf(preferences.skipForegroundApp) }
-    var skipNotifying by remember(revision) { mutableStateOf(preferences.skipNotifyingApp) }
-    var labelSize by remember(revision) { mutableStateOf(preferences.homeLabelSize) }
-    var hideHomeLabels by remember(revision) { mutableStateOf(preferences.hideHomeLabels) }
-    var predictiveBack by remember(revision) { mutableStateOf(preferences.predictiveBackEnabled) }
-    var delay by remember(revision) { mutableStateOf(preferences.autoFreezeDelayMinutes.toFloat()) }
-
-    // 权限/能力状态不是 Compose 状态：从系统设置返回时在 ON_RESUME 重新读一次，
-    // 否则会出现"刚授权完，开关仍是禁用态"或相反。官方 example 同样在组合期直接读能力开关
-    // （SettingsPage.kt:210 `if (isRuntimeShaderSupported())`）。
-    var accessEpoch by remember { mutableStateOf(0) }
-    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { accessEpoch++ }
-    val glassSupported = isRuntimeShaderSupported()
-    val hasUsageAccess = remember(accessEpoch, context) { Platform.hasUsageStatsAccess(context) }
-    val hasNotificationAccess = remember(accessEpoch, context) {
-        NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName)
-    }
-
-    // onClick 不是 @Composable 上下文，字符串必须在组合期取好。
-    val appName = stringResource(R.string.app_name)
-    val deviceOwnerCommand = stringResource(R.string.settings_device_owner_command)
 
     PageFrame(
         title = stringResource(R.string.nav_settings),
         subtitle = repository.deviceSummary(),
         scrollBehavior = scrollBehavior,
         scrollBarAdapter = rememberScrollBarAdapter(listState),
-        // 横向 12dp 只给卡片，不给 SmallTitle（官方 SettingsPage 的 outerHorizontalPadding 只管卡片）。
+        // 横向 12dp 只给卡片，由每张卡片的 horizontal padding 提供。
         contentPaddingHorizontal = 0.dp,
     ) { contentPadding ->
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize(),
-            // 内容 padding 的横向为 0（见 PageFrame 的 contentPaddingHorizontal），
-            // 12dp 由每张卡片的 horizontal padding 提供：分节标题保持 SmallTitle 自带的 28dp，
-            // 不会变成 12 + 28 = 40dp（官方 SettingsPage.kt:415 同构）。
             contentPadding = contentPadding,
             // 弹性 overscroll 由 PageFrame 的官方 pageScrollModifiers 统一消费（官方 SettingsPage 同参）。
             overscrollEffect = null,
             verticalArrangement = Arrangement.spacedBy(PageMetrics.SectionGap),
         ) {
-            item { SmallTitle(stringResource(R.string.settings_general)) }
             item {
                 GroupCard(modifier = Modifier.padding(horizontal = PageMetrics.Horizontal)) {
                     GlassDropdownPreference(
@@ -189,295 +135,34 @@ fun SettingsScreen(onOpenAbout: () -> Unit) {
                         title = stringResource(R.string.biometric_login),
                         summary = stringResource(R.string.biometric_login_summary),
                     )
-                    // 预测性返回动画：照官方 example 的做法（改进程内 ApplicationInfo 标志 + 重建
-                    // Activity）。关闭只是不再有系统跟手预览，返回手势仍会触发 OnBackPressedDispatcher，
-                    // MIUIX NavDisplay 照常播自己的 pop 转场，动画不会消失。
-                    if (PredictiveBack.isSupported) {
-                        SwitchPreference(
-                            checked = predictiveBack,
-                            onCheckedChange = { enabled ->
-                                predictiveBack = enabled
-                                preferences.predictiveBackEnabled = enabled
-                                preferences.bumpRevision()
-                                context.findActivity()?.recreateWithoutTransition()
-                            },
-                            title = stringResource(R.string.predictive_back),
-                            summary = stringResource(R.string.predictive_back_summary),
-                        )
-                    }
                 }
             }
 
-            item { SmallTitle(stringResource(R.string.settings_appearance)) }
             item {
                 GroupCard(modifier = Modifier.padding(horizontal = PageMetrics.Horizontal)) {
-                    GlassDropdownPreference(
-                        onSelectedIndexChange = { index ->
-                            preferences.updateThemeMode(ThemeMode.entries[index])
-                            preferences.bumpRevision()
-                        },
-                        items = ThemeMode.entries.map { themeLabel(it) },
-                        selectedIndex = ThemeMode.entries.indexOf(preferences.themeMode),
-                        title = stringResource(R.string.app_theme),
-                        backdrop = backdrop,
-                    )
-                    // 设备不支持 RuntimeShader 时玻璃开关是"可点但无效"的控件；
-                    // 官方 example 同样只在支持时展示玻璃/模糊开关（SettingsPage.kt:210-229）。
-                    if (glassSupported) {
-                        SwitchPreference(
-                            checked = glassEnabled,
-                            onCheckedChange = {
-                                glassEnabled = it
-                                preferences.updateGlass(it)
-                            },
-                            title = stringResource(R.string.glass_effect),
-                            summary = stringResource(R.string.glass_effect_summary),
-                        )
-                    }
-                    // 没有任何已安装图标包时，这一行的候选项只有 "None"，属于"看起来可点但选了没效果"。
-                    // 官方 example 对"候选依赖其它状态"的行一律用 CapturedAnimatedVisibility 收起
-                    // （SettingsPage.kt:172-207、257-265），这里沿用同一做法。
-                    CapturedAnimatedVisibility(visible = iconPacks.isNotEmpty()) {
-                        GlassDropdownPreference(
-                            onSelectedIndexChange = { index ->
-                                preferences.iconPack = if (index == 0) null else iconPacks[index - 1].first
-                                preferences.bumpRevision()
-                            },
-                            items = listOf(stringResource(R.string.action_none)) + iconPacks.map { it.second },
-                            selectedIndex = (iconPacks.indexOfFirst { it.first == preferences.iconPack } + 1)
-                                .coerceAtLeast(0),
-                            title = stringResource(R.string.icon_pack),
-                            summary = stringResource(R.string.icon_pack_summary),
-                            backdrop = backdrop,
-                        )
-                    }
-                    SwitchPreference(
-                        checked = grayscale,
-                        onCheckedChange = {
-                            grayscale = it
-                            preferences.grayscaleFrozenIcons = it
-                            preferences.bumpRevision()
-                        },
-                        title = stringResource(R.string.grayscale_icon),
-                        summary = stringResource(R.string.grayscale_icon_summary),
-                    )
-                    SwitchPreference(
-                        checked = compact,
-                        onCheckedChange = {
-                            compact = it
-                            preferences.compactGrid = it
-                            preferences.bumpRevision()
-                        },
-                        title = stringResource(R.string.compact_icon),
-                        summary = stringResource(R.string.compact_icon_summary),
-                    )
-                    // 顺序对调回来：合成自适应图标在前、主页标签字号在后（R16 用户要求）。
-                    SwitchPreference(
-                        checked = synthesize,
-                        onCheckedChange = {
-                            synthesize = it
-                            preferences.synthesizeAdaptiveIcons = it
-                            preferences.bumpRevision()
-                        },
-                        title = stringResource(R.string.synthesize_adaptive_icons),
-                        summary = stringResource(R.string.synthesize_adaptive_icons_summary),
-                    )
-                    // 名称隐藏后字号就没有作用对象，按官方 dependent-option 范式收起这一行
-                    // （SettingsPage.kt:257-265 的 CapturedAnimatedVisibility）。
-                    CapturedAnimatedVisibility(visible = !hideHomeLabels) {
-                        SliderPreference(
-                            value = labelSize,
-                            onValueChange = { labelSize = it },
-                            onValueChangeFinished = {
-                                preferences.homeLabelSize = labelSize
-                                preferences.bumpRevision()
-                            },
-                            title = stringResource(R.string.home_font_size),
-                            valueText = stringResource(R.string.settings_font_size_value, labelSize.toInt()),
-                            valueRange = 11f..18f,
-                            steps = 6,
-                        )
-                    }
-                    SwitchPreference(
-                        checked = hideHomeLabels,
-                        onCheckedChange = {
-                            hideHomeLabels = it
-                            preferences.hideHomeLabels = it
-                            preferences.bumpRevision()
-                        },
-                        title = stringResource(R.string.hide_home_labels),
-                        summary = stringResource(R.string.hide_home_labels_summary),
-                    )
-                }
-            }
-
-            item { SmallTitle(stringResource(R.string.settings_search)) }
-            item {
-                GroupCard(modifier = Modifier.padding(horizontal = PageMetrics.Horizontal)) {
-                    SwitchPreference(
-                        checked = fuzzy,
-                        onCheckedChange = {
-                            fuzzy = it
-                            preferences.fuzzySearch = it
-                            preferences.bumpRevision()
-                        },
-                        title = stringResource(R.string.fuzzy_search),
-                        summary = stringResource(R.string.fuzzy_search_summary),
-                    )
-                    SwitchPreference(
-                        checked = nineKey,
-                        onCheckedChange = {
-                            nineKey = it
-                            preferences.nineKeySearch = it
-                            preferences.bumpRevision()
-                        },
-                        title = stringResource(R.string.nine_key_search),
-                        summary = stringResource(R.string.nine_key_search_summary),
-                    )
-                }
-            }
-
-            item { SmallTitle(stringResource(R.string.settings_automation)) }
-            item {
-                GroupCard(modifier = Modifier.padding(horizontal = PageMetrics.Horizontal)) {
-                    SwitchPreference(
-                        checked = autoFreezeEnabled,
-                        onCheckedChange = {
-                            autoFreezeEnabled = it
-                            preferences.autoFreezeEnabled = it
-                            preferences.bumpRevision()
-                            AutoFreezeScheduler.syncService(context)
-                        },
-                        title = stringResource(R.string.auto_freeze),
-                        summary = stringResource(R.string.auto_freeze_summary),
-                    )
-                    // 依赖"自动冻结已开启"的项整组收起，而不是置灰后不给任何解释：
-                    // 官方的 dependent-option 范式就是 CapturedAnimatedVisibility(visible = parent)
-                    // （SettingsPage.kt:257-265、275-283、303-309）。
-                    CapturedAnimatedVisibility(visible = autoFreezeEnabled) {
-                        Column {
-                            SliderPreference(
-                                value = delay,
-                                onValueChange = { delay = it },
-                                onValueChangeFinished = {
-                                    preferences.autoFreezeDelayMinutes = delay.toLong()
-                                    preferences.bumpRevision()
-                                },
-                                title = stringResource(R.string.auto_freeze_delay),
-                                summary = stringResource(R.string.auto_freeze_delay_summary, delay.toInt()),
-                                valueText = stringResource(R.string.settings_minutes_value, delay.toInt()),
-                                valueRange = 0f..30f,
-                                steps = 29,
-                            )
-                            SwitchPreference(
-                                checked = skipCharging,
-                                onCheckedChange = {
-                                    skipCharging = it
-                                    preferences.skipWhileCharging = it
-                                    preferences.bumpRevision()
-                                },
-                                title = stringResource(R.string.skip_while_charging),
-                            )
-                            // 这两个开关各依赖一项系统权限；未授权时 AutoFreezeWorker 拿不到前台/通知数据，
-                            // 开关会"点了但没效果"（Platform.lastForegroundPackage 直接返回 null，
-                            // AutoFreezeService.activePackages 返回空集）。按 InstallerX 成熟做法：
-                            // 禁用开关 + 在 summary 说明缺哪项权限（MiuixPrivPage.kt:136-180）。
-                            SwitchPreference(
-                                checked = skipForeground,
-                                onCheckedChange = {
-                                    skipForeground = it
-                                    preferences.skipForegroundApp = it
-                                    preferences.bumpRevision()
-                                },
-                                title = stringResource(R.string.skip_foreground_app),
-                                summary = if (hasUsageAccess) null else {
-                                    stringResource(R.string.settings_skip_foreground_needs_access)
-                                },
-                                enabled = hasUsageAccess,
-                            )
-                            SwitchPreference(
-                                checked = skipNotifying,
-                                onCheckedChange = {
-                                    skipNotifying = it
-                                    preferences.skipNotifyingApp = it
-                                    preferences.bumpRevision()
-                                },
-                                title = stringResource(R.string.skip_notifying_app),
-                                summary = if (hasNotificationAccess) null else {
-                                    stringResource(R.string.settings_skip_notifying_needs_access)
-                                },
-                                enabled = hasNotificationAccess,
-                            )
-                        }
-                    }
-                    GlassDropdownPreference(
-                        onSelectedIndexChange = { index ->
-                            preferences.tileAction = QuickAction.entries[index]
-                            preferences.bumpRevision()
-                        },
-                        items = QuickAction.entries.map { actionLabel(it) },
-                        selectedIndex = QuickAction.entries.indexOf(preferences.tileAction),
-                        title = stringResource(R.string.tile_action),
-                        backdrop = backdrop,
-                    )
-                    GlassDropdownPreference(
-                        onSelectedIndexChange = { index ->
-                            preferences.shortcutAction = QuickAction.entries[index]
-                            preferences.bumpRevision()
-                        },
-                        items = QuickAction.entries.map { actionLabel(it) },
-                        selectedIndex = QuickAction.entries.indexOf(preferences.shortcutAction),
-                        title = stringResource(R.string.dynamic_shortcut_action),
-                        backdrop = backdrop,
-                    )
-                }
-            }
-
-            item { SmallTitle(stringResource(R.string.settings_system)) }
-            item {
-                GroupCard(modifier = Modifier.padding(horizontal = PageMetrics.Horizontal)) {
-                    // 这里只保留"跳系统设置 / 复制命令"的入口。
-                    // 自动冻结已在「自动化」节完整配置过，不再重复一个只弹提示的 ArrowPreference。
                     ArrowPreference(
-                        title = stringResource(R.string.settings_notification_access),
-                        summary = stringResource(R.string.settings_notification_access_summary),
-                        onClick = {
-                            runCatching {
-                                context.startActivity(
-                                    Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
-                                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                                )
-                            }
-                        },
+                        title = stringResource(R.string.settings_appearance),
+                        summary = stringResource(R.string.settings_theme_summary),
+                        onClick = onOpenThemeSettings,
                     )
                     ArrowPreference(
-                        title = stringResource(R.string.settings_usage_access),
-                        summary = stringResource(R.string.settings_usage_access_summary),
-                        onClick = {
-                            runCatching {
-                                context.startActivity(
-                                    Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
-                                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                                )
-                            }
-                        },
+                        title = stringResource(R.string.settings_search),
+                        summary = stringResource(R.string.settings_search_summary),
+                        onClick = onOpenSearchSettings,
                     )
                     ArrowPreference(
-                        title = stringResource(R.string.settings_device_owner),
-                        summary = stringResource(R.string.settings_device_owner_summary),
-                        onClick = {
-                            UiFeedback.copy(
-                                context,
-                                appName,
-                                deviceOwnerCommand,
-                            )
-                            UiFeedback.toast(context, R.string.settings_device_owner_copied)
-                        },
+                        title = stringResource(R.string.settings_automation),
+                        summary = stringResource(R.string.settings_automation_summary),
+                        onClick = onOpenAutomationSettings,
+                    )
+                    ArrowPreference(
+                        title = stringResource(R.string.settings_system),
+                        summary = stringResource(R.string.settings_system_summary),
+                        onClick = onOpenSystemSettings,
                     )
                 }
             }
 
-            item { SmallTitle(stringResource(R.string.settings_about)) }
             item {
                 GroupCard(modifier = Modifier.padding(horizontal = PageMetrics.Horizontal)) {
                     ArrowPreference(
@@ -487,6 +172,47 @@ fun SettingsScreen(onOpenAbout: () -> Unit) {
                     )
                 }
             }
+        }
+    }
+}
+
+/**
+ * 设置二级页的统一骨架：官方二级页的 `PageFrame(expandable = false)` + 返回按钮 + 滚动条。
+ *
+ * 与 About / Licenses 两个二级页同构（同一个 [BackNavigationAction]、同一套滚动条适配），
+ * 页面内容由各页自己给。
+ */
+@OptIn(ExperimentalScrollBarApi::class)
+@Composable
+internal fun SettingsSubPage(
+    title: String,
+    onBack: () -> Unit,
+    content: LazyListScope.() -> Unit,
+) {
+    val scrollBehavior = MiuixScrollBehavior()
+    val listState = rememberLazyListState()
+    PageFrame(
+        title = title,
+        scrollBehavior = scrollBehavior,
+        // 二级页不折叠大标题（官方 AboutPage.kt:139 的 `expandable = false`）。
+        expandable = false,
+        contentPaddingHorizontal = 0.dp,
+        scrollBarAdapter = rememberScrollBarAdapter(listState),
+        navigationIcon = {
+            BackNavigationAction(
+                onClick = onBack,
+                contentDescription = stringResource(R.string.close),
+            )
+        },
+    ) { contentPadding ->
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = contentPadding,
+            overscrollEffect = null,
+            verticalArrangement = Arrangement.spacedBy(PageMetrics.SectionGap),
+        ) {
+            content()
         }
     }
 }
@@ -525,7 +251,7 @@ private fun backendSummary(state: BackendState): String = stringResource(
 )
 
 @Composable
-private fun themeLabel(mode: ThemeMode): String = stringResource(
+internal fun themeLabel(mode: ThemeMode): String = stringResource(
     when (mode) {
         ThemeMode.FollowSystem -> R.string.theme_follow_system
         ThemeMode.Light -> R.string.theme_light
