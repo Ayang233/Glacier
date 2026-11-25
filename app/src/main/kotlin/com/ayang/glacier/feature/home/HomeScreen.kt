@@ -53,6 +53,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.state.ToggleableState
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -682,6 +686,7 @@ fun HomeScreen() {
                     HomeAppItem(
                         entry = entry,
                         labelSize = preferences.homeLabelSize,
+                        showLabels = !preferences.hideHomeLabels,
                         selected = entry.packageName in selection,
                         selectionMode = inSelection,
                         onClick = {
@@ -739,6 +744,7 @@ fun HomeScreen() {
 private fun HomeAppItem(
     entry: AppEntry,
     labelSize: Float,
+    showLabels: Boolean,
     selected: Boolean,
     selectionMode: Boolean,
     onClick: () -> Unit,
@@ -750,6 +756,15 @@ private fun HomeAppItem(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
             .fillMaxWidth()
+            // 名称隐藏时把可访问名称补回整格（读屏仍念得出应用名），
+            // 视觉上标签只是透明，不参与隐藏后的布局变化。
+            .then(
+                if (showLabels) {
+                    Modifier
+                } else {
+                    Modifier.semantics { contentDescription = entry.label }
+                },
+            )
             // 整格登记为锚点：浮层从这一格原地长大，展开期间整格（图标 + 标签）一起隐藏。
             .glassPopupAnchor(anchor, cornerRadius = HomeGridMetrics.CellCorner)
             .combinedClickable(
@@ -792,6 +807,14 @@ private fun HomeAppItem(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center,
+            // 隐藏名称时**不删节点、不删间距**：标签仍量出同样的行高，网格行距（16dp）与
+            // 图文间距（6dp）继续是 MIUIX token，开/关不会让图标位移或改变行距；
+            // 只是画成透明，语义换成整格的 contentDescription。
+            modifier = if (showLabels) {
+                Modifier
+            } else {
+                Modifier.alpha(0f).clearAndSetSemantics {}
+            },
         )
     }
 }

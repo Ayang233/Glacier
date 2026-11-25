@@ -10,6 +10,7 @@ import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import com.ayang.glacier.GlacierApplication
+import com.ayang.glacier.platform.PredictiveBack
 import com.ayang.glacier.ui.theme.GlacierTheme
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
@@ -23,10 +24,14 @@ import androidx.compose.runtime.rememberCoroutineScope
 class MainActivity : FragmentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // 预测性返回动画开关必须在 super.onCreate 之前落到进程的 ApplicationInfo 上：
+        // Activity 创建窗口时就决定是否走 OnBackInvokedCallback（官方 example 同样位置）。
+        // 关闭它只去掉系统的跟手预览，返回手势与 NavDisplay 的转场动画不受影响。
+        val app = application as GlacierApplication
+        PredictiveBack.apply(app, app.preferences.predictiveBackEnabled)
+
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-
-        val app = application as GlacierApplication
 
         setContent {
             val scope = rememberCoroutineScope()

@@ -106,6 +106,10 @@
     <string name="synthesize_adaptive_icons">合成自适应图标</string>
     <string name="synthesize_adaptive_icons_summary">把旧图标套进自适应图标遮罩</string>
     <string name="home_font_size">主页标签字号</string>
+    <string name="hide_home_labels">隐藏应用名称</string>
+    <string name="hide_home_labels_summary">主页只显示图标；名称仍可在长按菜单里看到</string>
+    <string name="predictive_back">预测性返回动画</string>
+    <string name="predictive_back_summary">返回手势滑动时预览页面。关闭后仍保留返回动画，只是不再预览</string>
     <string name="fuzzy_search">模糊搜索</string>
     <string name="fuzzy_search_summary">容忍错字与缺字</string>
     <string name="nine_key_search">T9 搜索</string>

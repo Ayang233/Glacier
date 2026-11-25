@@ -82,6 +82,28 @@ class GlacierPreferences(context: Context) {
         get() = prefs.getFloat(KEY_LABEL_SIZE, 14f)
         set(value) = prefs.edit().putFloat(KEY_LABEL_SIZE, value).apply()
 
+    /**
+     * 主页是否隐藏应用名称（只影响网格排版，不改数据）。
+     *
+     * 隐藏时标签仍然参与布局（占位不变），所以网格的 16dp 行距 / 6dp 图文间距
+     * 仍是同一套 MIUIX token，图标位置不会因为开关而跳动。
+     */
+    var hideHomeLabels: Boolean
+        get() = prefs.getBoolean(KEY_HIDE_HOME_LABELS, false)
+        set(value) = prefs.edit().putBoolean(KEY_HIDE_HOME_LABELS, value).apply()
+
+    /**
+     * 预测性返回动画（系统返回手势的跟手预览）。
+     *
+     * 关闭只是让应用退出 `OnBackInvokedCallback` 体系：系统不再给返回进度，
+     * Glacier 的页面返回仍走 MIUIX `NavDisplay` 的普通 pop 动画，**动画不会消失**。
+     * 这个开关必须在 Activity 创建前生效，因此写完后需要重建 Activity
+     * （官方 example 同样做 `recreateWithoutTransition()`）。
+     */
+    var predictiveBackEnabled: Boolean
+        get() = prefs.getBoolean(KEY_PREDICTIVE_BACK, true)
+        set(value) = prefs.edit().putBoolean(KEY_PREDICTIVE_BACK, value).apply()
+
     // ---- 搜索 ----
     var fuzzySearch: Boolean
         get() = prefs.getBoolean(KEY_FUZZY, false)
@@ -159,6 +181,8 @@ class GlacierPreferences(context: Context) {
         private const val KEY_COMPACT = "compact_icon"
         private const val KEY_SYNTHESIZE = "synthesize_adaptive_icons"
         private const val KEY_LABEL_SIZE = "home_font_size_f"
+        private const val KEY_HIDE_HOME_LABELS = "hide_home_labels"
+        private const val KEY_PREDICTIVE_BACK = "predictive_back_animation"
         private const val KEY_FUZZY = "fuzzy_search"
         private const val KEY_NINE_KEY = "nine_key"
         private const val KEY_REQUIRE_UNLOCK = "biometric_login"

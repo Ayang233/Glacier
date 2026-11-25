@@ -31,7 +31,10 @@ import com.ayang.glacier.domain.WorkingMode
 import com.ayang.glacier.platform.auto.AutoFreezeScheduler
 import com.ayang.glacier.platform.PackageTools
 import com.ayang.glacier.platform.Platform
+import com.ayang.glacier.platform.PredictiveBack
 import com.ayang.glacier.platform.UiFeedback
+import com.ayang.glacier.platform.findActivity
+import com.ayang.glacier.platform.recreateWithoutTransition
 import com.ayang.glacier.ui.LocalGlassActive
 import com.ayang.glacier.ui.LocalRootBackdrop
 import com.ayang.glacier.ui.components.GroupCard
@@ -110,6 +113,8 @@ fun SettingsScreen(onOpenAbout: () -> Unit) {
     var skipForeground by remember(revision) { mutableStateOf(preferences.skipForegroundApp) }
     var skipNotifying by remember(revision) { mutableStateOf(preferences.skipNotifyingApp) }
     var labelSize by remember(revision) { mutableStateOf(preferences.homeLabelSize) }
+    var hideHomeLabels by remember(revision) { mutableStateOf(preferences.hideHomeLabels) }
+    var predictiveBack by remember(revision) { mutableStateOf(preferences.predictiveBackEnabled) }
     var delay by remember(revision) { mutableStateOf(preferences.autoFreezeDelayMinutes.toFloat()) }
 
     // 权限/能力状态不是 Compose 状态：从系统设置返回时在 ON_RESUME 重新读一次，
@@ -184,6 +189,22 @@ fun SettingsScreen(onOpenAbout: () -> Unit) {
                         title = stringResource(R.string.biometric_login),
                         summary = stringResource(R.string.biometric_login_summary),
                     )
+                    // 预测性返回动画：照官方 example 的做法（改进程内 ApplicationInfo 标志 + 重建
+                    // Activity）。关闭只是不再有系统跟手预览，返回手势仍会触发 OnBackPressedDispatcher，
+                    // MIUIX NavDisplay 照常播自己的 pop 转场，动画不会消失。
+                    if (PredictiveBack.isSupported) {
+                        SwitchPreference(
+                            checked = predictiveBack,
+                            onCheckedChange = { enabled ->
+                                predictiveBack = enabled
+                                preferences.predictiveBackEnabled = enabled
+                                preferences.bumpRevision()
+                                context.findActivity()?.recreateWithoutTransition()
+                            },
+                            title = stringResource(R.string.predictive_back),
+                            summary = stringResource(R.string.predictive_back_summary),
+                        )
+                    }
                 }
             }
 
@@ -250,18 +271,7 @@ fun SettingsScreen(onOpenAbout: () -> Unit) {
                         title = stringResource(R.string.compact_icon),
                         summary = stringResource(R.string.compact_icon_summary),
                     )
-                    SliderPreference(
-                        value = labelSize,
-                        onValueChange = { labelSize = it },
-                        onValueChangeFinished = {
-                            preferences.homeLabelSize = labelSize
-                            preferences.bumpRevision()
-                        },
-                        title = stringResource(R.string.home_font_size),
-                        valueText = stringResource(R.string.settings_font_size_value, labelSize.toInt()),
-                        valueRange = 11f..18f,
-                        steps = 6,
-                    )
+                    // 顺序对调回来：合成自适应图标在前、主页标签字号在后（R16 用户要求）。
                     SwitchPreference(
                         checked = synthesize,
                         onCheckedChange = {
@@ -271,6 +281,32 @@ fun SettingsScreen(onOpenAbout: () -> Unit) {
                         },
                         title = stringResource(R.string.synthesize_adaptive_icons),
                         summary = stringResource(R.string.synthesize_adaptive_icons_summary),
+                    )
+                    // 名称隐藏后字号就没有作用对象，按官方 dependent-option 范式收起这一行
+                    // （SettingsPage.kt:257-265 的 CapturedAnimatedVisibility）。
+                    CapturedAnimatedVisibility(visible = !hideHomeLabels) {
+                        SliderPreference(
+                            value = labelSize,
+                            onValueChange = { labelSize = it },
+                            onValueChangeFinished = {
+                                preferences.homeLabelSize = labelSize
+                                preferences.bumpRevision()
+                            },
+                            title = stringResource(R.string.home_font_size),
+                            valueText = stringResource(R.string.settings_font_size_value, labelSize.toInt()),
+                            valueRange = 11f..18f,
+                            steps = 6,
+                        )
+                    }
+                    SwitchPreference(
+                        checked = hideHomeLabels,
+                        onCheckedChange = {
+                            hideHomeLabels = it
+                            preferences.hideHomeLabels = it
+                            preferences.bumpRevision()
+                        },
+                        title = stringResource(R.string.hide_home_labels),
+                        summary = stringResource(R.string.hide_home_labels_summary),
                     )
                 }
             }
