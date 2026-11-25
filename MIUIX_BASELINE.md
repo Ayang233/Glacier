@@ -27,13 +27,19 @@
 | 项 | 值 |
 |---|---|
 | MIUIX 版本 | `0.9.5`（`build-logic/src/main/kotlin/BuildConfig.kt` 的 `LIBRARY_VERSION`） |
-| 官方 tag | `v0.9.5-beta03`（`3526cfe2`，基线在其之上还有 18 个 main 提交） |
-| **MIUIX commit** | `44f1d31580bd127360d79bdb0bb869bd6c5af025` |
-| commit 时间 | 2026-11-22 16:55:20 +0800 |
-| commit 标题 | `build: Add googleapis maven-central for ci` |
-| 官方 main 追踪 | 与基线相同（`origin/main`，落后 0 个提交） |
+| 官方 tag | `v0.9.5-beta04`（基线**就是**该 tag 指向的提交，不再站在 tag 之后） |
+| **MIUIX commit** | `3c560868758f80cd97bbdab2f8e53612ad1c56be` |
+| commit 时间 | 2026-11-24 17:51:15 +0800 |
+| commit 标题 | `fix(ui): release overlay touch blocking before exit tail and refine motion` |
+| 官方 main 追踪 | `origin/main` = `03d15786`（比基线多 2 个提交：`fix(glass): preserve closing rebound on anchor button` 等，未纳入） |
 | 本地补丁 | 已应用（`tools/miuix-composite-build.patch`） |
-| 核对日期 | 2026-11-22（第七轮：从 `9128921c` 升到 `44f1d315`，跨 2 个官方提交） |
+| 核对日期 | 2026-11-24（第八轮：从 `44f1d315` 切到 tag `v0.9.5-beta04`） |
+
+> **注意：官方在 2026-11-24 重写过 main 历史。** 上一轮基线 `44f1d315` 已不在 `origin/main` 上
+> （fetch 时出现 `+ 44f1d315...03d15786 main -> origin/main (forced update)`），
+> 因此那一轮的"main 提交数"不再可复算。基线从此改为**对齐 tag**，不用"tag + N 个 main 提交"
+> 这种会漂移的表达。
+
 
 ## 3. 工具链
 
@@ -88,6 +94,7 @@ miuix-squircle      squircleClip / squircleBorder / squircleBackground
 | 主题 | `MiuixTheme` + `ThemeController` | 固定浅/深色板，见 §7 |
 | 动效 | `scrollEndHaptic` / `overScrollVertical` / `PagerNavigationSpringSpec` / `springAnimateToPage` / `GlassMotion.*` / 弹层 `DialogMotion.Glass` | 官方原语组合；按压反馈全部走组件的内建实现（玻璃档 `GlassIconButton` 的 `buttonPressedOverlay` + `PressedContentAlpha`，非玻璃档 `IconButton` 的 `MiuixIndication`），弹层进出动画自基线 `44f1d315` 起由 `DialogMotion` 统一 |
 | 顶栏动作区 | 单态 `Row(spacedBy(8.dp))` + `TopBarAction`（官方 `example/GlassPage.kt:363` 的间距） | R10 追加：多选不再换成一排批量按钮，`AnimatedTopBarActions` 组件已从 `PageFrame.kt` 删除；批量动作的出口收敛到 FAB |
+| 顶栏标题 | `TopAppBar` / `GlassTopAppBar` 的 `title` + `subtitle` 两行 | R11：多选进度写进 `subtitle`，删掉 `titleFontScale`（0.83 字号补偿）与整条顶栏的 `AnimatedContent`——`TopAppBar` 只有两行，第三行/换字号都是自造 |
 | 局部显隐（FAB / 页签行） | `CapturedAnimatedVisibility` + `fadeIn/scaleIn`、`expandVertically/shrinkVertically` | 官方顶栏子内容 / 悬浮件显隐的同一写法（`AppContent.kt:720-728`） |
 | 多选态返回 | `BackHandler`（activity-compose，注册到 NavigationEventDispatcher 栈顶） | 多选态先退模式，不结束 Activity |
 | 状态派生 | `computedStateOf` / `CapturedAnimatedVisibility` | Compose 1.13 官方 API（官方 example 已全量使用），替代 `derivedStateOf` / `AnimatedVisibility` |
@@ -100,7 +107,7 @@ miuix-squircle      squircleClip / squircleBorder / squircleBackground
 | 文件 | 性质 | 官方是否有库 API |
 |---|---|---|
 | `ui/PageInsets.kt`（`AppPageInsets` / `LocalAppPageInsets` / `rememberAppPageInsets` / `appPageHorizontalInsets` / `appPageTopBarInsets` / `rememberAppSafePadding` / `pageBottomPadding`） | 官方 `example/utils/PageUtils.kt` 的逐字节移植（Apache-2.0），与 `ui/effect/` 同一处理方式 | 否（官方只在 example 里给，库不导出） |
-| `ui/components/PageFrame.kt`（PageFrame / PageTopBar / TopBarAction / AnimatedTopBarActions / GroupCard / EmptyState / pageContentPadding / pageScrollModifiers） | 页面骨架组合 + 官方 `pageContentPadding` / `pageScrollModifiers` 的同参落地；`AnimatedTopBarActions` 只是把官方 `AnimatedContent` 与 `GlassMotion` 曲线组装成"普通档 ⇄ 多选档" | 否（官方只有 `example/GlassPage.kt` 与 `PageUtils.kt`） |
+| `ui/components/PageFrame.kt`（PageFrame / PageTopBar / TopBarAction / GroupCard / EmptyState / pageContentPadding / pageScrollModifiers） | 页面骨架组合 + 官方 `pageContentPadding` / `pageScrollModifiers` 的同参落地；标题只用官方 `title` / `subtitle` 两行，不再有任何字号缩放或顶栏级动画容器 | 否（官方只有 `example/GlassPage.kt` 与 `PageUtils.kt`） |
 | `PageMetrics` | 尺寸常量，全部取自官方 example 或 `CardDefaults` | 否 |
 | `ui/GlassEnvironment.kt` 的 `Local*` | 宿主职责：玻璃开关、根录制层、底栏实测高度、标题透明度、标题避让 | 否（官方 example 同款做法） |
 | `ui/GlacierShell.kt` | 一级/二级页路由 + 三态导航（底栏/折叠胶囊/展开侧栏）；底栏在一级目的地 `entry<Route.Main>` 内部（官方结构），采样页内录制层 | 否 |
@@ -113,9 +120,12 @@ miuix-squircle      squircleClip / squircleBorder / squircleBackground
 
 | 项 | 现状 | 原因 |
 |---|---|---|
-| 官方 tag 落后基线 18 个提交 | 基线取 `origin/main` 最新提交 `44f1d315`，而最新 tag 仍是 `v0.9.5-beta03` | 需要 `GlassCard`（#495）与弹层 `DialogMotion`（#494），两者都只在 main；提交已 pin，复现无歧义 |
+| 官方 main 比基线多 2 个提交 | 基线钉在 tag `v0.9.5-beta04`（`3c560868`），`origin/main` 已到 `03d15786` | 基线只跟 tag，不跟 main 游走；`44f1d315` 那次"tag + N"的写法在官方重写历史后已无法复算，不再使用 |
 | `UiFeedback.toast()` | 仍用 Android `Toast` | 调用点包含 Worker / Receiver / 快捷方式等非 UI 上下文，MIUIX `Snackbar` 需要宿主 Scaffold，不能整体替换；属系统反馈而非自造 UI |
 | 二级页切 Tab 的转场 | 仍走 `NavTransitions.MiuixDefault`（官方 example 在二级页点导航时切到私有的 `InstantNavTransition`，`AppContent.kt:320/1155`） | 该 helper 是 example 私有实现而非库 API；当前表现为"退回一级页时播放 pop 转场"，与官方观感有差异，但语义正确。需要完全一致时再移植 |
+| `UiFeedback.toast()` | 仍用 Android `Toast`（R11 评估后**确认保留**） | ① 调用点包含 Worker / Receiver / 快捷方式等无 Composition 的上下文，`Snackbar` 需要宿主；② 页面级浮层（`GlassSearchOverlay` / `GlassBottomSheet`）画在 Scaffold 之上，会在"搜索结果里点一行加入/移出主页"这类高频路径上把 Snackbar 盖住，反馈直接丢失；③ `Toast` 是系统反馈件而非自造 UI，HyperOS 上由系统按 OS 风格绘制 |
+| 主页大标题 | 恒为应用名，多选进度写在副标题 | 之前用"换大标题 + 0.83 字号补偿 + 整条顶栏 `AnimatedContent`"表达「已选 N 个」，属自造排版层（`title1` 被临时缩成 26.5sp）；R11 删除，回到官方 `title` + `subtitle` 两行 |
+| 锚点浮层（`GlassPopup` / `GlassTransformPopup`） | **已实现后移除**，长按菜单继续用 `GlassBottomSheet` | 本机稳定崩在 RenderThread（`SIGSEGV` / RenderNode 递归 512 层），换 `GlassPopup`、置空 anchorContent、关 shadow、跳过 morph 动画帧均复现；库内无关闭该渲染路径的入口，`isRuntimeShaderSupported()` 只判 `SDK_INT >= 33` 无法探到 SwiftShader 的缺陷。真机验证通过后可按 `docs/audit/miuix-os4-r12-audit.md` §5 接回 |
 | 关于页背景效果调试面板 | 未移植（官方 AboutPage `:456-495` 的 `Background Effect` BottomSheet） | 官方 example 用来现场调 BgEffect 参数（OS2/OS3、动态背景、全屏）的调试面板，无产品意义；动态背景本体已完整对齐 |
 | Monet 动态取色 | 未接入。官方 `ColorSchemeMode.MonetSystem` 可用，Glacier 固定浅/深色板 | 品牌一致性；如需要可作为「主题」第三档，属于产品决策 |
 | 宽屏 + 刘海 | 顶栏 `defaultWindowInsetsPadding = false` + `appPageTopBarInsets()`；正文的横向让位只由内容 padding 提供一次 | 与官方 `AdaptiveTopAppBar`（`PageUtils.kt:265-304`）同构，不再有 End-only inset 补丁 |
@@ -135,8 +145,8 @@ tools/miuix-baseline.sh status
 #    https://github.com/compose-miuix-ui/miuix/releases
 #    重点看：@Deprecated 新增、公开签名变化、默认值变化、Compose/Kotlin 版本要求
 
-# 4. 切到目标 tag / commit（会顺带打本地补丁）；当前基线含尚未进 tag 的 GlassCard 与 DialogMotion
-tools/miuix-baseline.sh pin 44f1d31580bd127360d79bdb0bb869bd6c5af025
+# 4. 切到目标 tag / commit（会顺带打本地补丁）；基线对齐 tag，不再取 main 最新提交
+tools/miuix-baseline.sh pin v0.9.5-beta04
 
 # 5. 先让 MIUIX 自己编过，再编 app
 ./gradlew :app:assembleDebug
@@ -194,3 +204,6 @@ adb install -r app/build/outputs/apk/debug/Glacier-debug.apk
 | 2026-11-22（同基线） | — | — | 交互与转场对齐 OS4（审计 R7）：底栏按官方结构挪进 `entry<Route.Main>`（官方 `Home()` 的 `Scaffold(bottomBar)` 同构），二级页没有底栏、转场时底栏随一级页一起走（不再用 `visible` 的 0.6 倍缩小退场）；Apps 行改用官方 `Card(onClick, onLongPress, holdDownState)`，点按=选中（新增多选 + 顶栏批量动作）、长按=操作单，搜索行同语义，多选态 `BackHandler` 先退模式；顶栏动作区两态切换改用 `AnimatedContent` + `GlassMotion` 曲线（`AnimatedTopBarActions`），FAB / 页签行改用 `CapturedAnimatedVisibility`。详见 `docs/audit/miuix-os4-r7-audit.md` |
 | 2026-11-23（同基线） | — | — | 按压反馈核对 + 删除最后一处自绘选中态（审计 R9）：实机对照官方 example APK 确认，顶栏圆形反馈＝`GlassIconButton`（44dp / 0.10 叠层 / 图标 0.6）与 `IconButton`（40dp）两档的官方内建行为，图标单元灰底＝官方 `squircleClip(12dp) + clickable` 整格叠层，两者都不需要改；真正自造的是"选中＝图标 2dp 蓝色描边"，已改为官方 `Checkbox`（列表行尾 / 网格选中角标）。详见 `docs/audit/miuix-os4-r9-audit.md` |
 | 2026-11-23（同基线） | — | — | 主页/应用页职责拆分（审计 R10）：应用页改成"挑应用"（点 = 移进/移出主页，行尾官方 `Checkbox` 表达归属，删掉多选/计数/批量动作），长按弹管理向 3 行菜单并去掉弹层底部包名脚注；主页长按改为使用向 9/10 行菜单（冻结/解冻语境行、`ShortcutBridge.requestPin` 的"添加到主屏幕"、"解冻并从主页移除"仅在已冻结时出现），多选入口收敛到顶栏按钮；`AppActionSheet` 改为"调用方给动作清单"（`appsMenuActions`/`homeMenuActions`/`apiMenuActions`），删除 `inHome`/`unsupportedActions` 补丁参数与卸载/重装动作；图标按下态用官方 `HoldDownInteraction`（`HoldDownObserver` 为 internal，按官方实现移植 `ui/components/HoldDownEffect.kt`）。详见 `docs/audit/miuix-os4-r10-audit.md` |
+| 2026-11-24 | `44f1d315`（main，`v0.9.5-beta03` + 18） | `3c560868`（**tag `v0.9.5-beta04`**） | 基线改为对齐 tag（官方重写 main，旧基线已不在 main 上）。官方变更：弹层动效统一到 `SheetMotion` / 精修 `DialogMotion`、`MiuixIndication` 按压层改 20/255 并加 200ms 释放保持、`Slider` 支持点按定位、搜索清除按钮样式统一、`GlassPopup` 支持水平对齐。Glacier 侧无需改 API（编译零改动通过），实际收益是弹层/按压的手感直接跟随官方。详见 `docs/audit/miuix-os4-r11-audit.md` |
+| 2026-11-25（同基线） | — | — | 长按菜单交互（R12）：多选态长按**已选中**项 → 批量菜单（标题「已选择：N」+ 冻结/解冻/标签分组/导出/移除/解冻并移除），长按未选中项仍是单应用菜单；删除 `HoldDownEffect`（按下层不再人工保持），菜单打开的那一格改用零透明度官方 `MiuixIndication` 让叠层立即退场；新增 `SelectionActionRunner`、`setTagForApps`（批量打标签）、`TagPickerSheet`（官方三态 `Checkbox`）。详见 `docs/audit/miuix-os4-r12-audit.md` |
+| 2026-11-24（同基线） | — | — | 自造轮子清查 R11 + 冻结交互重构：删掉"已选 N 个"的自造排版层（`titleFontScale` 0.83 字号补偿 + 整条顶栏 `AnimatedContent` + 逐状态 `MiuixTheme` 覆盖），多选进度改回官方副标题；主页 FAB 改为**只冻结**（不再在"全冻"时翻成解冻；FAB 与多选入口**常驻原位**，确实无可冻目标时点击提示「已全部冻结」，不做自造禁用态）；`refresh()` 由"正在刷新就丢弃"改成 Mutex 串行（修"冻结后图标/文案不刷新"）；应用图标灰度档进 LRU 并支持同步 `peek`，冻结切换不再闪空占位 |

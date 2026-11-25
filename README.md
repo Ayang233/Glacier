@@ -79,7 +79,7 @@ MIUIX 走 composite build 引入，默认找 `../miuix`，可以用 `MIUIX_DIR` 
 第一次构建前先把 MIUIX 切到基线提交并打上本地补丁：
 
 ```bash
-tools/miuix-baseline.sh pin 44f1d31580bd127360d79bdb0bb869bd6c5af025
+tools/miuix-baseline.sh pin v0.9.5-beta04
 tools/miuix-baseline.sh verify
 tools/miuix-baseline.sh status
 ```
@@ -142,15 +142,24 @@ squircle 图标轮廓，都是照着 MIUIX 源码和 `example/shared` 一项项�
 宽屏断点读窗口尺寸（官方 `AdaptiveUtils` 用的 `LocalWindowInfo.containerSize`），
 不是屏幕尺寸，分屏和自由窗口下不会误判成宽屏。
 
-多选的勾选、顶栏标题切换、弹层进出，用的都是库里的组件和曲线（`Checkbox`、
-`AnimatedContent` 加 `GlassMotion`），没有自己画的图标描边或高亮层。
+多选的勾选、弹层进出、按压反馈，用的都是库里的组件和曲线（`Checkbox`、
+`DialogMotion` / `SheetMotion`、`MiuixIndication`），没有自己画的图标描边或高亮层。
+顶栏只有官方 `title` + `subtitle` 两行：多选进度写在副标题里，不靠换标题或缩字号。
+
+冻结在主页面只有一个入口——右下角的**冻结**按钮：它不会因为"这一页已经全冻上"就翻成解冻，
+也不会消失（位置和语义都常驻；确实没有可冻结目标时点它只给一句「已全部冻结」）。
+解冻只有两个出口：点开应用自动解冻并启动，或者长按应用在菜单里选「解冻」。
+
+长按菜单按"这一个应用有没有被选中"决定作用域：长按**已选中**的图标是批量菜单
+（标题「已选择：N」，六行：冻结/解冻/标签分组/导出到剪切板/从主页移除/解冻并从主页移除），
+长按未选中的图标仍是单应用菜单。按下层不做人工保持——松手即走 `MiuixIndication` 自己的淡出。
 
 审计与验收记录：
 
-- [基线、升级流程与组件对照](MIUIX_BASELINE.md)（当前 MIUIX `44f1d315`）
-- [R10 两页菜单分工](docs/audit/miuix-os4-r10-audit.md) · [R9 按压反馈与选中态](docs/audit/miuix-os4-r9-audit.md)
-- [R8 宽屏间距与自定值清单](docs/audit/miuix-os4-r8-audit.md) · [R7 交互整改](docs/audit/miuix-os4-r7-audit.md)
-- [R6 自造轮子清查](docs/audit/miuix-os4-r6-audit.md) · [MIUIX 官方契约摘录](docs/reference/miuix-os4-contract.md)
+- [基线、升级流程与组件对照](MIUIX_BASELINE.md)（当前 MIUIX `v0.9.5-beta04` / `3c560868`）
+- [R12 长按菜单与按下态](docs/audit/miuix-os4-r12-audit.md) · [R11 自造轮子清查与冻结交互](docs/audit/miuix-os4-r11-audit.md) · [R10 两页菜单分工](docs/audit/miuix-os4-r10-audit.md)
+- [R9 按压反馈与选中态](docs/audit/miuix-os4-r9-audit.md) · [R8 宽屏间距与自定值清单](docs/audit/miuix-os4-r8-audit.md)
+- [R7 交互整改](docs/audit/miuix-os4-r7-audit.md) · [R6 自造轮子清查](docs/audit/miuix-os4-r6-audit.md) · [MIUIX 官方契约摘录](docs/reference/miuix-os4-contract.md)
 
 ## 许可证
 
