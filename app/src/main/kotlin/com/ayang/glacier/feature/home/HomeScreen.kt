@@ -27,7 +27,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -286,6 +285,11 @@ fun HomeScreen() {
 
     // 浮层退场期间继续使用最后一次内容（规范 0 节红线 1）。
     var lastActionEntry by remember { mutableStateOf<AppEntry?>(null) }
+    // 预热：浮层常驻组合（官方要求），首帧就要有完整菜单内容。否则第一次长按时会先按
+    // "空菜单"量一次面板，`GlassPopupSurface` 的固有尺寸缓存会把这次量到的极小尺寸记住，
+    // 内容随后补上也不再重量（表现为只留一条细条）。用列表第一项预热即可：浮层此时不可见，
+    // 真正被长按的条目会在同一次组合里替换进来。
+    if (lastActionEntry == null) lastActionEntry = entries.firstOrNull()
     var lastTagNameRequest by remember { mutableStateOf<TagNameRequest?>(null) }
     var lastDeleteTag by remember { mutableStateOf<Tag?>(null) }
     var lastDeferredPackage by remember { mutableStateOf<String?>(null) }
@@ -514,40 +518,42 @@ fun HomeScreen() {
                 menuTarget?.label.orEmpty()
             }
             // 锚点浮层提升到根部 TopLayer：不进页面录制层（避免自采样），也不被玻璃侧栏盖住。
-            // 首次长按前不组合浮层：`GlassPopupSurface` 的固有尺寸缓存以 content lambda 为 token，
-            // 先在"空菜单"状态下组合一次会把面板高度缓存成只有标题行，之后菜单内容补上也不再
-            // 重新量（表现为只显示标题、行被裁掉）。等有目标时第一次就带完整菜单组合即可。
-            if (menuTarget != null) {
-                TopLayer {
-                    GlassTransformPopup(
-                        show = actionTarget != null,
-                        onDismissRequest = { actionTarget = null },
-                        anchor = menuAnchor,
-                        // 采样页面录制层：浮层自己不在这一层里（TopLayer 在外），不会采到自己。
-                        backdrop = pageBackdrop,
-                        anchorContent = {
+            // 浮层必须**常驻组合**，只用 `show` 控制开合（官方文档："关闭时仍须保留组件调用，
+            // 直到离场动画完成；不要使用 `if (show)` 包裹调用"）。首次长按才组合的话，
+            // `updateTransition` 的初始值已经是 `true`，展开动画不会播——这正是"第一次长按
+            // 直接弹出、没有动画"的原因。浮层未激活时 `GlassPopupSurface` 不组合，
+            // 真正激活那一帧的内容由下面的 `lastActionEntry` 预热保证是完整菜单。
+            TopLayer {
+                GlassTransformPopup(
+                    show = actionTarget != null,
+                    onDismissRequest = { actionTarget = null },
+                    anchor = menuAnchor,
+                    // 采样页面录制层：浮层自己不在这一层里（TopLayer 在外），不会采到自己。
+                    backdrop = pageBackdrop,
+                    anchorContent = {
+                        menuTarget?.let { target ->
                             AppIconView(
-                                packageName = menuTarget.packageName,
+                                packageName = target.packageName,
                                 size = PageMetrics.GridAppIcon,
-                                frozen = menuTarget.frozen,
+                                frozen = target.frozen,
                             )
-                        },
-                        // 与官方 example 一致：普通展开不复制锚点外围内容，只做原地生长。
-                        simplified = true,
-                        gap = 8.dp,
-                    ) {
+                        }
+                    },
+                    // 与官方 example 一致：普通展开不复制锚点外围内容，只做原地生长。
+                    simplified = true,
+                    gap = 8.dp,
+                ) {
+                    menuTarget?.let { target ->
                         Text(
                             text = popupTitle,
                             style = MiuixTheme.textStyles.footnote1,
                             color = MiuixTheme.colorScheme.onSurfaceContainerVariant,
-                            // 菜单行是中文长文案（「添加到主屏幕」等），默认 200dp 会省略；
-                            // 标题行给明确宽度把面板撑宽（仍受窗口安全边距与 MaxWidth 夹紧）。
-                            modifier = Modifier
-                                .width(320.dp)
-                                .padding(
-                                    horizontal = GlassPopupDefaults.ItemPaddingHorizontal,
-                                    vertical = 8.dp,
-                                ),
+                            // 面板宽度交回官方内容驱动（GlassPopupDefaults.MinWidth/MaxWidth）；
+                            // 这里只给菜单行的同一套内边距，不再写死宽度把面板顶到 MaxWidth。
+                            modifier = Modifier.padding(
+                                horizontal = GlassPopupDefaults.ItemPaddingHorizontal,
+                                vertical = 8.dp,
+                            ),
                         )
                         HorizontalDivider(
                             modifier = Modifier.padding(
@@ -557,7 +563,7 @@ fun HomeScreen() {
                             thickness = GlassPopupDefaults.DividerThickness,
                         )
                         menuActions.forEach { action ->
-                            val row = actionSpecOf(action, menuTarget, handleMenuAction)
+                            val row = actionSpecOf(action, target, handleMenuAction)
                             GlassPopupItem(
                                 text = row.label,
                                 icon = row.icon,

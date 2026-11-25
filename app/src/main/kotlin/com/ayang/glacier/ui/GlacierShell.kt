@@ -400,7 +400,20 @@ fun GlacierShell() {
                 }
                 // 浮层最后画：在 NavDisplay 的录制层和玻璃侧栏之外，盖住所有 chrome，
                 // 同时能安全采样页面录制层（官方 AppContent 的 TopLayerHost 同一位置）。
-                TopLayerHost(topLayer)
+                // 横屏展开侧栏时按侧栏让位宽度内缩宿主：`GlassPopupSurface` 会把面板夹在
+                // 宿主边界与安全边距内（官方契约："放在带 inset 内边距或侧栏偏移的面板中也能对齐"），
+                // 于是长按菜单自动停在侧栏右侧，不再盖住侧栏。宿主仍在侧栏之后绘制，z 序不变。
+                // 让位值在布局期读取，侧栏 morph 不会每帧触发整壳重组。
+                TopLayerHost(
+                    state = topLayer,
+                    modifier = Modifier.layout { measurable, constraints ->
+                        val inset = overlayStart().roundToPx().coerceIn(0, constraints.maxWidth)
+                        val placeable = measurable.measure(constraints.offset(horizontal = -inset))
+                        layout(placeable.width + inset, placeable.height) {
+                            placeable.place(inset, 0)
+                        }
+                    },
+                )
             }
         }
     }

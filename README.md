@@ -161,12 +161,14 @@ squircle 图标轮廓，都是照着 MIUIX 源码和 `example/shared` 一项项�
 长按菜单按"这一个应用有没有被选中"决定作用域：长按**已选中**的图标是批量菜单
 （标题「已选择：N」，六行：冻结/解冻/标签分组/导出到剪切板/从主页移除/解冻并从主页移除），
 长按未选中的图标仍是单应用菜单。菜单展开期间锚点内容由官方 `glassPopupAnchor` 隐藏，
-关闭时按官方回弹曲线复位，不留按下层。
+关闭时按官方回弹曲线复位，不留按下层。面板宽度由官方内容驱动（`GlassPopupDefaults.MinWidth`
+200dp / `MaxWidth` 288dp，不再写死宽度），首次长按也有完整的原地展开动画；横屏展开侧栏时
+`TopLayerHost` 按侧栏让位宽度内缩，浮层自动停在侧栏右侧。
 
 审计与验收记录：
 
 - [基线、升级流程与组件对照](MIUIX_BASELINE.md)（当前 MIUIX main `542463a0`）
-- [R13 基线升级与自造轮子清查](docs/audit/miuix-os4-r13-audit.md) · [R12 长按菜单与按下态](docs/audit/miuix-os4-r12-audit.md) · [R11 自造轮子清查与冻结交互](docs/audit/miuix-os4-r11-audit.md) · [R10 两页菜单分工](docs/audit/miuix-os4-r10-audit.md)
+- [R14 锚点浮层收尾（宽度/动画/侧栏让位）](docs/audit/miuix-os4-r14-audit.md) · [R13 基线升级与自造轮子清查](docs/audit/miuix-os4-r13-audit.md) · [R12 长按菜单与按下态](docs/audit/miuix-os4-r12-audit.md) · [R11 自造轮子清查与冻结交互](docs/audit/miuix-os4-r11-audit.md) · [R10 两页菜单分工](docs/audit/miuix-os4-r10-audit.md)
 - [R9 按压反馈与选中态](docs/audit/miuix-os4-r9-audit.md) · [R8 宽屏间距与自定值清单](docs/audit/miuix-os4-r8-audit.md)
 - [R7 交互整改](docs/audit/miuix-os4-r7-audit.md) · [R6 自造轮子清查](docs/audit/miuix-os4-r6-audit.md) · [MIUIX 官方契约摘录](docs/reference/miuix-os4-contract.md)
 

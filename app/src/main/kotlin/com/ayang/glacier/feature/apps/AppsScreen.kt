@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -129,6 +128,10 @@ fun AppsScreen() {
     val listState = rememberLazyListState()
 
     val entries = remember(repository.snapshot, revision) { repository.apps() }
+    // 预热：浮层常驻组合，首帧即带完整菜单内容（否则首次打开会先量出"空菜单"并被
+    // `GlassPopupSurface` 的固有尺寸缓存记住，之后内容补上也不重量）。浮层此时不可见，
+    // 真正被长按的条目会在同一次组合里替换进来。
+    if (lastActionEntry == null) lastActionEntry = entries.firstOrNull()
     // 「不在主页」徽标需要的集合：与搜索结果行共用同一份摘要文案（`appRowSummary`）。
     val homePackages = remember(repository.snapshot) {
         repository.snapshot.home.mapTo(HashSet()) { it.packageName }
@@ -232,37 +235,37 @@ fun AppsScreen() {
             SideEffect {
                 if (actionEntry != null) lastActionEntry = actionEntry
             }
-            // 首次长按前不组合浮层：`GlassPopupSurface` 的固有尺寸缓存以 content lambda 为 token，
-            // 先在"仅标题"状态下组合一次会把面板高度缓存住，菜单行补上也不再重新量。
-            val menuEntry = lastActionEntry
-            if (menuEntry != null) {
-                TopLayer {
-                    GlassTransformPopup(
-                        show = actionTarget != null,
-                        onDismissRequest = { actionTarget = null },
-                        anchor = popupAnchor ?: placeholderAnchor,
-                        backdrop = pageBackdrop,
-                        anchorContent = {
+            // 浮层**常驻组合**（官方文档：退场期间仍须保留调用，不要用 `if (show)` 包裹）：
+            // 首次长按才组合的话，`updateTransition` 初始值已是 `true`，展开动画不播。
+            // 浮层未激活时 `GlassPopupSurface` 不组合，真正激活那一帧的内容由上面的预热保证。
+            TopLayer {
+                GlassTransformPopup(
+                    show = actionTarget != null,
+                    onDismissRequest = { actionTarget = null },
+                    anchor = popupAnchor ?: placeholderAnchor,
+                    backdrop = pageBackdrop,
+                    anchorContent = {
+                        lastActionEntry?.let { entry ->
                             AppIconView(
-                                packageName = menuEntry.packageName,
+                                packageName = entry.packageName,
                                 size = PageMetrics.ListAppIcon,
-                                frozen = menuEntry.frozen,
+                                frozen = entry.frozen,
                             )
-                        },
-                        simplified = true,
-                        gap = 8.dp,
-                    ) {
+                        }
+                    },
+                    simplified = true,
+                    gap = 8.dp,
+                ) {
+                    lastActionEntry?.let { entry ->
                         Text(
-                            text = menuEntry.label,
+                            text = entry.label,
                             style = MiuixTheme.textStyles.footnote1,
                             color = MiuixTheme.colorScheme.onSurfaceContainerVariant,
-                            // 中文长行（「导出到剪切板」）在默认 200dp 下会被省略；标题行明确撑到 280dp。
-                            modifier = Modifier
-                                .width(280.dp)
-                                .padding(
-                                    horizontal = GlassPopupDefaults.ItemPaddingHorizontal,
-                                    vertical = 8.dp,
-                                ),
+                            // 宽度交回官方内容驱动（MinWidth/MaxWidth），只保留菜单行内边距。
+                            modifier = Modifier.padding(
+                                horizontal = GlassPopupDefaults.ItemPaddingHorizontal,
+                                vertical = 8.dp,
+                            ),
                         )
                         HorizontalDivider(
                             modifier = Modifier.padding(
@@ -272,9 +275,9 @@ fun AppsScreen() {
                             thickness = GlassPopupDefaults.DividerThickness,
                         )
                         appsMenuActions().forEach { action ->
-                            val row = actionSpecOf(action, menuEntry) { picked ->
+                            val row = actionSpecOf(action, entry) { picked ->
                                 actionTarget = null
-                                scope.launch { runner.run(menuEntry, picked) }
+                                scope.launch { runner.run(entry, picked) }
                             }
                             GlassPopupItem(
                                 text = row.label,

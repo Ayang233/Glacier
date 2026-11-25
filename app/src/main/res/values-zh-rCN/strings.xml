@@ -126,14 +126,14 @@
     <!-- 工作模式 -->
     <string name="mode_default">默认</string>
     <string name="mode_shizuku_stop">Shizuku · 强制停止</string>
-    <string name="mode_shizuku_disable">Shizuku · 禁用</string>
+    <string name="mode_shizuku_disable">Shizuku · 停用</string>
     <string name="mode_shizuku_hide">Shizuku · 隐藏</string>
     <string name="mode_shizuku_suspend">Shizuku · 挂起</string>
     <string name="mode_su_stop">Root · 强制停止</string>
-    <string name="mode_su_disable">Root · 禁用</string>
+    <string name="mode_su_disable">Root · 停用</string>
     <string name="mode_su_hide">Root · 隐藏</string>
     <string name="mode_su_suspend">Root · 挂起</string>
-    <string name="mode_jailbreak_disable">越狱 · 禁用</string>
+    <string name="mode_jailbreak_disable">越狱 · 停用</string>
     <string name="mode_dhizuku_hide">Dhizuku · 隐藏</string>
     <string name="mode_dhizuku_suspend">Dhizuku · 挂起</string>
     <string name="mode_owner_hide">设备所有者 · 隐藏</string>
@@ -141,7 +141,7 @@
     <string name="mode_island_hide">Island · 冻结</string>
     <string name="mode_island_suspend">Island · 挂起</string>
     <string name="mode_privapp_stop">特权应用 · 强制停止</string>
-    <string name="mode_privapp_disable">特权应用 · 禁用</string>
+    <string name="mode_privapp_disable">特权应用 · 停用</string>
 
     <!-- 提示 -->
     <string name="msg_freeze">已冻结 %1$s</string>

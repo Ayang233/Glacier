@@ -250,16 +250,6 @@ fun SettingsScreen(onOpenAbout: () -> Unit) {
                         title = stringResource(R.string.compact_icon),
                         summary = stringResource(R.string.compact_icon_summary),
                     )
-                    SwitchPreference(
-                        checked = synthesize,
-                        onCheckedChange = {
-                            synthesize = it
-                            preferences.synthesizeAdaptiveIcons = it
-                            preferences.bumpRevision()
-                        },
-                        title = stringResource(R.string.synthesize_adaptive_icons),
-                        summary = stringResource(R.string.synthesize_adaptive_icons_summary),
-                    )
                     SliderPreference(
                         value = labelSize,
                         onValueChange = { labelSize = it },
@@ -271,6 +261,16 @@ fun SettingsScreen(onOpenAbout: () -> Unit) {
                         valueText = stringResource(R.string.settings_font_size_value, labelSize.toInt()),
                         valueRange = 11f..18f,
                         steps = 6,
+                    )
+                    SwitchPreference(
+                        checked = synthesize,
+                        onCheckedChange = {
+                            synthesize = it
+                            preferences.synthesizeAdaptiveIcons = it
+                            preferences.bumpRevision()
+                        },
+                        title = stringResource(R.string.synthesize_adaptive_icons),
+                        summary = stringResource(R.string.synthesize_adaptive_icons_summary),
                     )
                 }
             }
