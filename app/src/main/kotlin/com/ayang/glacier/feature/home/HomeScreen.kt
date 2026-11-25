@@ -84,7 +84,7 @@ import com.ayang.glacier.ui.LocalAppPageInsets
 import com.ayang.glacier.ui.TopLayer
 import com.ayang.glacier.ui.appPageHorizontalInsets
 import com.ayang.glacier.ui.components.PageMetrics
-import com.ayang.glacier.ui.rememberAppSafePadding
+import com.ayang.glacier.ui.rememberSheetBottomPadding
 import com.ayang.glacier.ui.components.EmptyState
 import com.ayang.glacier.ui.components.PageFrame
 import com.ayang.glacier.ui.components.TopBarAction
@@ -893,7 +893,10 @@ private fun TagPickerSheet(
             }
         }
     }
-    val navigationBarBottom = rememberAppSafePadding().calculateBottomPadding()
+    // 弹层内容自己让出系统底部安全区（官方 BottomSheet KDoc 的同款做法）。
+    // [rememberSheetBottomPadding] 在导航栏之外并入手势区与屏幕圆角，隐藏手势提示线的
+    // 设备上 navigationBars 是 0，只按导航栏留白会让最后一行贴底、被大 R 角裁掉。
+    val sheetBottom = rememberSheetBottomPadding(PageMetrics.SectionGap)
     GlassBottomSheet(
         onDismissRequest = onDismiss,
         show = show,
@@ -908,7 +911,7 @@ private fun TagPickerSheet(
             // 首屏内容必须让出实测的标题栏高度，否则第一张卡会压到标题下面。
             contentPadding = PaddingValues(
                 top = innerPadding.calculateTopPadding(),
-                bottom = navigationBarBottom + PageMetrics.SectionGap,
+                bottom = sheetBottom,
             ),
         ) {
             item(key = "tags") {
@@ -959,6 +962,7 @@ private fun TagEditorSheet(
     labelOf: (Tag) -> String,
 ) {
     val backdrop = LocalRootBackdrop.current.takeIf { LocalGlassActive.current }
+    val sheetBottom = rememberSheetBottomPadding(PageMetrics.BottomGap)
     GlassBottomSheet(
         onDismissRequest = onDismiss,
         show = show,
@@ -967,7 +971,10 @@ private fun TagEditorSheet(
     ) { innerPadding ->
         LazyColumn(
             modifier = Modifier.fillMaxWidth(),
-            contentPadding = PaddingValues(top = innerPadding.calculateTopPadding()),
+            contentPadding = PaddingValues(
+                top = innerPadding.calculateTopPadding(),
+                bottom = sheetBottom,
+            ),
         ) {
             item {
                 GlassCard(Modifier.padding(bottom = PageMetrics.SectionGap)) {
@@ -1005,7 +1012,6 @@ private fun TagEditorSheet(
                     )
                 }
             }
-            item { Spacer(Modifier.height(PageMetrics.BottomGap)) }
         }
     }
 }
@@ -1158,7 +1164,7 @@ private fun DeferredSheet(
                     )
                 }
             }
-            Spacer(Modifier.height(PageMetrics.BottomGap))
+            Spacer(Modifier.height(rememberSheetBottomPadding(PageMetrics.BottomGap)))
         }
     }
 }

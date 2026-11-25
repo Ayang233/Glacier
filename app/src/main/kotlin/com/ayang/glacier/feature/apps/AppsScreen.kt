@@ -37,7 +37,7 @@ import com.ayang.glacier.feature.common.AppSearchResults
 import com.ayang.glacier.feature.common.SearchResultVerticalPadding
 import com.ayang.glacier.feature.common.actionSpecOf
 import com.ayang.glacier.feature.common.appsMenuActions
-import com.ayang.glacier.ui.rememberAppSafePadding
+import com.ayang.glacier.ui.rememberSheetBottomPadding
 import com.ayang.glacier.ui.LocalGlassActive
 import com.ayang.glacier.ui.LocalRootBackdrop
 import com.ayang.glacier.ui.LocalAppPageInsets
@@ -353,9 +353,9 @@ private fun SortSheet(
     onDismiss: () -> Unit,
     onPick: (AppSort) -> Unit,
 ) {
-    // 弹层内容自己让出系统底部安全区（官方 BottomSheet KDoc 的同款做法），
-    // 值来自官方 safeInsets 契约，不再逐处手写 WindowInsets。
-    val navigationBarBottom = rememberAppSafePadding().calculateBottomPadding()
+    // 弹层内容自己让出系统底部安全区（官方 BottomSheet KDoc 的同款做法）。
+    // [rememberSheetBottomPadding] 在导航栏之外并入手势区与屏幕圆角。
+    val sheetBottom = rememberSheetBottomPadding(PageMetrics.SectionGap)
     GlassBottomSheet(
         onDismissRequest = onDismiss,
         show = show,
@@ -368,7 +368,7 @@ private fun SortSheet(
                 .scrollEndHaptic(),
             contentPadding = PaddingValues(
                 top = innerPadding.calculateTopPadding(),
-                bottom = navigationBarBottom + PageMetrics.SectionGap,
+                bottom = sheetBottom,
             ),
         ) {
             item(key = "sort-options") {
@@ -414,9 +414,9 @@ private fun FilterSheet(
     val filterStates = remember(filterRevision) {
         AppFilter.entries.associateWith(preferences::filterEnabled)
     }
-    // 弹层内容自己让出系统底部安全区（官方 BottomSheet KDoc 的同款做法），
-    // 值来自官方 safeInsets 契约，不再逐处手写 WindowInsets。
-    val navigationBarBottom = rememberAppSafePadding().calculateBottomPadding()
+    // 弹层内容自己让出系统底部安全区（官方 BottomSheet KDoc 的同款做法）。
+    // [rememberSheetBottomPadding] 在导航栏之外并入手势区与屏幕圆角。
+    val sheetBottom = rememberSheetBottomPadding(PageMetrics.SectionGap)
     GlassBottomSheet(
         onDismissRequest = onDismiss,
         show = show,
@@ -429,7 +429,7 @@ private fun FilterSheet(
                 .scrollEndHaptic(),
             contentPadding = PaddingValues(
                 top = innerPadding.calculateTopPadding(),
-                bottom = navigationBarBottom + PageMetrics.SectionGap,
+                bottom = sheetBottom,
             ),
         ) {
             item(key = "filters") {

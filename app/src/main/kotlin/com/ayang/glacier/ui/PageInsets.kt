@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.captionBar
 import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.mandatorySystemGestures
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.union
@@ -15,10 +16,12 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import top.yukonga.miuix.kmp.utils.getRoundedCorner
 
 /**
  * 宿主 → 页面的 inset 契约。
@@ -151,3 +154,43 @@ fun pageBottomPadding(
         }
     }
 }
+
+/**
+ * 底部弹层（[top.yukonga.miuix.kmp.glass.GlassBottomSheet]）内容该留多少底部空白。
+ *
+ * 官方把这块交给调用方：`glassbottomsheet.md` 写「主体导航栏内边距由调用方提供」，
+ * `insideMargin` 默认底部 `0.dp`，官方示例也只 `navigationBarsPadding() + 16.dp`。
+ * 但那只覆盖「导航栏 inset 有值」的机器，两种真实设备会漏：
+ *
+ * 1. **隐藏了手势提示线**：`navigationBars` 底部 inset 会变成 0，
+ *    而屏幕底边那一条手势区仍会抢触摸（系统用 `mandatorySystemGestures` 报它），
+ *    只按导航栏留白时弹层最后一行既贴底又被手势区占掉；
+ * 2. **大 R 角屏幕**：物理圆角不属于任何 `WindowInsets`，窗口内容画进去会被裁掉。
+ *    库没有自动避让，只提供 `getRoundedCorner()` 这个原语（`miuix-core/.../utils/Utils.kt`：
+ *    Android 上读 `RoundedCorner.POSITION_BOTTOM_LEFT`，读不到退回
+ *    `android:rounded_corner_radius_bottom`，桌面/其它平台 0dp；官方只有
+ *    `DialogContentLayout` 拿它推对话框的同心理圆角，没有组件拿它做避让）。
+ *
+ * 所以取「安全区底部 ∪ 手势区底部 ∪ 屏幕圆角」的较大值，再加调用方自己的额外留白
+ * （例如 [com.ayang.glacier.ui.components.PageMetrics.SectionGap]）。
+ * 圆角为 0、导航栏有值的设备（含模拟器）结果与只留导航栏一致或略大。
+ *
+ * @param extraBottom 额外留白，通常是分节间距；加在最大安全值之后，不相加系统值。
+ */
+@Composable
+fun rememberSheetBottomPadding(extraBottom: Dp = 0.dp): Dp {
+    val safeBottom = rememberAppSafePadding().calculateBottomPadding()
+    val gestureBottom = with(LocalDensity.current) {
+        WindowInsets.mandatorySystemGestures.getBottom(this).toDp()
+    }
+    val screenCorner = getRoundedCorner()
+    return sheetBottomPadding(safeBottom, gestureBottom, screenCorner, extraBottom)
+}
+
+/** [rememberSheetBottomPadding] 的纯函数部分（单测覆盖取值规则）。 */
+internal fun sheetBottomPadding(
+    safeBottom: Dp,
+    gestureBottom: Dp,
+    screenCorner: Dp,
+    extraBottom: Dp = 0.dp,
+): Dp = maxOf(safeBottom, gestureBottom, screenCorner) + extraBottom

@@ -23,7 +23,7 @@ import com.ayang.glacier.system.FreezeOutcome
 import com.ayang.glacier.ui.LocalGlassActive
 import com.ayang.glacier.ui.LocalRootBackdrop
 import com.ayang.glacier.ui.components.PageMetrics
-import com.ayang.glacier.ui.rememberAppSafePadding
+import com.ayang.glacier.ui.rememberSheetBottomPadding
 import top.yukonga.miuix.kmp.glass.GlassBottomSheet
 import top.yukonga.miuix.kmp.glass.GlassCard
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -338,9 +338,9 @@ fun AppActionSheet(
     if (title != null) lastTitle = title
 
     val backdrop = LocalRootBackdrop.current.takeIf { LocalGlassActive.current }
-    // 弹层内容自己让出系统底部安全区（官方 BottomSheet KDoc 的同款做法），
-    // 值来自官方 safeInsets 契约，不再逐处手写 WindowInsets。
-    val navigationBarBottom = rememberAppSafePadding().calculateBottomPadding()
+    // 弹层内容自己让出系统底部安全区（官方 BottomSheet KDoc 的同款做法）。
+    // [rememberSheetBottomPadding] 在导航栏之外并入手势区与屏幕圆角。
+    val sheetBottom = rememberSheetBottomPadding(PageMetrics.SectionGap)
 
     GlassBottomSheet(
         onDismissRequest = onDismiss,
@@ -360,7 +360,7 @@ fun AppActionSheet(
                 contentPadding = PaddingValues(
                     // 新版标题栏覆盖在内容之上（progressiveBlur）：首屏让出实测标题高度。
                     top = innerPadding.calculateTopPadding(),
-                    bottom = navigationBarBottom + PageMetrics.SectionGap,
+                    bottom = sheetBottom,
                 ),
             ) {
                 item(key = "actions") {
