@@ -124,6 +124,7 @@ tag 由 `target_commitish = main` 自动创建，指向远端 main 的最新提�
 | 1.5.0 | 2026-11-22 | d45e5a3 | v1.5.0 | R7 交互整改（底栏归属 / 应用页点选 / 动作动画）+ R8 宽屏间距与自定值清查 |
 | 1.6.0 | 2026-11-23 | 37d8c9a | v1.6.0 | R9 按压反馈与选中态 + R10 主页/应用页菜单分工 |
 | 1.6.1 | 2026-11-25 | c631ef4 | v1.6.1 | R11 基线对齐 `v0.9.5-beta04` + 自造轮子清查 + 冻结交互；R12 长按菜单按选中状态分流 |
+| 1.6.2 | 2026-11-25 | 325b523 | v1.6.2 | R13 基线升到 MIUIX main `542463a0` + 长按菜单换官方锚点浮层；R14 浮层宽度/首次动画/横屏侧栏让位收尾 |
 
 1.2.0 发布细节：
 - 源码经 Git Data API 推送（github.com 直连被拦），远端 main 树与本地 HEAD 树一致（1620cc3c…）；
@@ -190,3 +191,16 @@ tag 由 `target_commitish = main` 自动创建，指向远端 main 的最新提�
   同签名覆盖成功，`versionCode 7 → 8`、`versionName 1.6.0 → 1.6.1`，启动无 crash；
 - 已知未交付项：锚点浮层（`GlassTransformPopup`）在无硬件 `RenderEffect` 支持的环境会崩在
   RenderThread，本版未启用，长按菜单仍是底部弹层（见 `docs/audit/miuix-os4-r12-audit.md` §3）。
+
+1.6.2 发布细节：
+- 源码 `git push` 直连成功（github.com:443 连接不稳，`ls-remote` 重试到第 5 次才通；push 首次即成功），
+  3 个提交（`ecd2bfe` R13 / `ef48b42` R14 / `325b523` 发版）推上去，远端 main = `325b523`；
+- Release 由 `gh release create v1.6.2 --target 325b5239…` 创建：tag `v1.6.2` → `325b523`，
+  与远端 main 一致；注意 `--target` 传短 SHA 会被 API 拒为 `target_commitish is invalid`，必须给完整 SHA；
+- 附件：`Glacier-release.apk` 4,569,869 B（sha256 `238d310d…ddbc`）、`SHA256SUMS.txt`（86 B）；
+  重新下载线上附件核对 sha256 一致，API 返回的 asset `digest` 也一致；
+- 签名证书未变（`CN=Glacier, OU=Release, O=Ayang, C=CN`，证书 sha256 `46b3f848…82cf4`）；
+- 覆盖升级实测：模拟器上从已装的 1.6.1 release 包 `adb install -r` 到 1.6.2，
+  同签名覆盖成功，`versionCode 8 → 9`、`versionName 1.6.1 → 1.6.2`，启动无 crash；
+- 本轮首次启用 `GlassTransformPopup`：需要硬件 `RenderEffect`，验证在接宿主 GPU 的模拟器上完成，
+  软渲染环境仍会崩（原因见 `docs/audit/miuix-os4-r13-audit.md`、`docs/audit/miuix-os4-r14-audit.md`）。
