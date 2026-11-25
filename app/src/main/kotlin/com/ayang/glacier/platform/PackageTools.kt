@@ -46,25 +46,37 @@ object PackageTools {
             it.flags and ApplicationInfo.FLAG_SYSTEM == ApplicationInfo.FLAG_SYSTEM
         } ?: false
 
+    /**
+     * 下面四个状态的「带 [ApplicationInfo] 重载」。
+     *
+     * 冻结态全部落在 [ApplicationInfo] 的 flags / privateFlags 上，所以已经有 info 时
+     * 不必再查一次 `PackageManager`（每次查询都是一次跨进程 binder 往返）。
+     * 主页快照里每个应用本来就要读一次 info，冻结态可以直接复用。
+     */
+    fun isDisabled(info: ApplicationInfo): Boolean = !info.enabled
+
+    fun isHidden(info: ApplicationInfo): Boolean = runCatching {
+        privateFlags(info) and PRIVATE_FLAG_HIDDEN == PRIVATE_FLAG_HIDDEN
+    }.getOrDefault(false)
+
+    fun isStopped(info: ApplicationInfo): Boolean =
+        info.flags and ApplicationInfo.FLAG_STOPPED == ApplicationInfo.FLAG_STOPPED
+
+    fun isSuspended(info: ApplicationInfo): Boolean =
+        info.flags and ApplicationInfo.FLAG_SUSPENDED == ApplicationInfo.FLAG_SUSPENDED
+
     fun isDisabled(context: Context, packageName: String): Boolean =
-        applicationInfoOrNull(context, packageName)?.enabled == false
+        applicationInfoOrNull(context, packageName)?.let(::isDisabled) ?: false
 
     /** 隐藏（`pm hide`）状态读的是 privateFlags 的第 0 位。 */
     fun isHidden(context: Context, packageName: String): Boolean =
-        applicationInfoOrNull(context, packageName)?.let { info ->
-            runCatching { privateFlags(info) and PRIVATE_FLAG_HIDDEN == PRIVATE_FLAG_HIDDEN }
-                .getOrDefault(false)
-        } ?: false
+        applicationInfoOrNull(context, packageName)?.let(::isHidden) ?: false
 
     fun isStopped(context: Context, packageName: String): Boolean =
-        applicationInfoOrNull(context, packageName)?.let {
-            it.flags and ApplicationInfo.FLAG_STOPPED == ApplicationInfo.FLAG_STOPPED
-        } ?: false
+        applicationInfoOrNull(context, packageName)?.let(::isStopped) ?: false
 
     fun isSuspended(context: Context, packageName: String): Boolean =
-        applicationInfoOrNull(context, packageName)?.let {
-            it.flags and ApplicationInfo.FLAG_SUSPENDED == ApplicationInfo.FLAG_SUSPENDED
-        } ?: false
+        applicationInfoOrNull(context, packageName)?.let(::isSuspended) ?: false
 
     fun isPrivileged(context: Context, packageName: String): Boolean =
         applicationInfoOrNull(context, packageName)?.let { info ->

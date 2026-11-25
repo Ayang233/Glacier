@@ -1,6 +1,7 @@
 package com.ayang.glacier.system
 
 import android.content.Context
+import android.content.pm.ApplicationInfo
 import com.ayang.glacier.data.GlacierPreferences
 import com.ayang.glacier.domain.Backend
 import com.ayang.glacier.domain.BackendState
@@ -72,6 +73,26 @@ class FreezeController(
                 PackageTools.isSuspended(context, packageName)
         }
         return backendOf(mode)?.isFrozen(packageName, action) ?: false
+    }
+
+    /**
+     * 已经拿到 [ApplicationInfo] 时的冻结态判断。
+     *
+     * 所有后端的 `isFrozen` 都只是按当前动作去读同一个 [ApplicationInfo] 的
+     * flags / privateFlags（见 `ShizukuBackend` / `RootBackend` 等实现），
+     * 所以这里不经过后端、不再查一次 `PackageManager`，语义与 [isFrozen] 完全一致。
+     *
+     * 用途：冷启动首帧与主页快照——那里本来就要读 info，冻结态顺带算出来，
+     * 不必等"枚举全部应用"的后台刷新跑完才有冻结图标。
+     */
+    fun isFrozen(info: ApplicationInfo): Boolean = when (mode.action) {
+        FreezeAction.None -> PackageTools.isDisabled(info) ||
+            PackageTools.isHidden(info) ||
+            PackageTools.isSuspended(info)
+        FreezeAction.Stop -> PackageTools.isStopped(info)
+        FreezeAction.Disable -> PackageTools.isDisabled(info)
+        FreezeAction.Hide -> PackageTools.isHidden(info)
+        FreezeAction.Suspend -> PackageTools.isSuspended(info)
     }
 
     // ---- 写 ----

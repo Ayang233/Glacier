@@ -2,6 +2,7 @@ package com.ayang.glacier.data
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.os.Build
 import android.util.Log
 import androidx.compose.runtime.getValue
@@ -60,8 +61,18 @@ class GlacierRepository(
         store.onChanged = { preferences.bumpRevision() }
     }
 
+    /**
+     * 刷新分两段：先用主页上的那几个包把**主页**补齐（便宜），再枚举全部应用（贵）。
+     *
+     * 主页只有十几个包，冻结态、安装态、标签都能在几十毫秒内算完；全量枚举要遍历几百个包、
+     * 每个包若干次 `PackageManager` 查询，是秒级开销。之前只有全量那一段，于是主页的冻结图标
+     * 要等"全部应用"枚举完才转灰——用户看到的就是"应用出来了，冻结状态还要等一会儿"。
+     */
     suspend fun refresh() = withContext(Dispatchers.IO) {
-        refreshLock.withLock { refreshSnapshot() }
+        refreshLock.withLock {
+            publishHome()
+            refreshSnapshot()
+        }
     }
 
     /**
@@ -71,36 +82,57 @@ class GlacierRepository(
      * 于是主页会先渲染一帧"还没有应用 / 0 个应用"，再闪回真实列表——用户看到的就是
      * "已经加到主页的应用没有第一时间显示出来"。
      *
-     * 这里只做三件便宜的事：读 `apps.json` / `tags.json`、按包名查几项 `PackageManager` 基本信息、
-     * 组条目；**不查冻结状态、不枚举全部已安装应用**（那些留给随后的 [refresh]）。
-     * 代价是冻结图标可能晚一帧转灰，但比"主页空一下"的观感影响小得多。
+     * 这里只做便宜的事：读 `apps.json` / `tags.json`、按包名查几项 `PackageManager` 基本信息
+     * （冻结态复用同一份 `ApplicationInfo` 算，不额外查询），**不枚举全部已安装应用**
+     * （那部分留给随后的 [refresh]）。于是首帧既有应用、也有正确的冻结态。
      */
     fun primeSnapshot() {
         if (snapshot.home.isNotEmpty()) return
         store.load()
         if (store.apps.isEmpty()) return
-        val tags = store.tags.toList()
+        val home = homeEntries()
+        if (home.isEmpty()) return
+        snapshot = snapshot.copy(
+            home = home,
+            tags = store.tags.toList(),
+            revision = preferences.revision.intValue,
+        )
+    }
+
+    /** 只重建主页条目：读主页包的基本信息 + 冻结态，不做全量枚举。 */
+    private fun publishHome() {
+        store.load()
+        val home = homeEntries()
+        snapshot = snapshot.copy(
+            home = home,
+            tags = store.tags.toList(),
+            revision = preferences.revision.intValue,
+        )
+    }
+
+    private fun homeEntries(): List<AppEntry> {
         val homeOrder = store.apps.mapIndexed { index, app -> app.packageName to index }.toMap()
-        val home = store.apps
+        return store.apps
             .asSequence()
-            .mapNotNull { managed -> primeEntry(managed.packageName) }
+            .mapNotNull { managed -> entryFor(managed.packageName) }
             .sortedWith(
                 compareBy<AppEntry> { if (it.pinned) 0 else 1 }
                     .thenBy { homeOrder[it.packageName] ?: Int.MAX_VALUE },
             )
             .toList()
-        if (home.isEmpty()) return
-        snapshot = AppSnapshot(
-            // 全部应用列表交给 refresh 填，避免用半份数据冒充"全部应用"。
-            all = emptyList(),
-            home = home,
-            tags = tags,
-            revision = preferences.revision.intValue,
-        )
     }
 
-    private fun primeEntry(packageName: String): AppEntry? {
-        val info = PackageTools.applicationInfoOrNull(context, packageName) ?: return null
+    private fun entryFor(packageName: String): AppEntry? =
+        PackageTools.applicationInfoOrNull(context, packageName)?.let(::entryFor)
+
+    /**
+     * 用已有的 [ApplicationInfo] 组条目。
+     *
+     * 冻结态、系统位、安装位都直接读这份对象，不再为每个应用多跑几次
+     * `PackageManager`（每次都是跨进程往返）——首帧和全量刷新共用这一条路径。
+     */
+    private fun entryFor(info: ApplicationInfo): AppEntry {
+        val packageName = info.packageName
         val label = runCatching { info.loadLabel(context.packageManager).toString() }
             .getOrDefault(packageName)
         val packageInfo = PackageTools.packageInfoOrNull(context, packageName)
@@ -108,10 +140,9 @@ class GlacierRepository(
         return AppEntry(
             packageName = packageName,
             label = label,
-            isSystem = info.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM != 0,
-            isInstalled = PackageTools.isInstalled(context, packageName),
-            // 冻结态要问后端（可能是 root / Shizuku），首帧不做；refresh 会修正。
-            frozen = false,
+            isSystem = info.flags and ApplicationInfo.FLAG_SYSTEM != 0,
+            isInstalled = info.flags and ApplicationInfo.FLAG_INSTALLED != 0,
+            frozen = freeze.isFrozen(info),
             pinned = managed?.pinned ?: false,
             whitelisted = managed?.whitelisted ?: false,
             tagIds = managed?.tagIds?.toList() ?: emptyList(),
@@ -129,7 +160,8 @@ class GlacierRepository(
             val all = PackageTools.installedApplications(context)
                 .asSequence()
                 .filter { it.packageName != context.packageName }
-                .mapNotNull { info -> buildEntry(info.packageName) }
+                // 枚举时已经拿到了 ApplicationInfo，直接复用，不再按包名重查。
+                .map(::entryFor)
                 .toList()
 
             val homeOrder = store.apps.mapIndexed { index, app -> app.packageName to index }.toMap()
@@ -150,27 +182,6 @@ class GlacierRepository(
         } finally {
             refreshing = false
         }
-    }
-
-    private fun buildEntry(packageName: String): AppEntry? {
-        val info = PackageTools.applicationInfoOrNull(context, packageName) ?: return null
-        val label = runCatching { info.loadLabel(context.packageManager).toString() }
-            .getOrDefault(packageName)
-        val packageInfo = PackageTools.packageInfoOrNull(context, packageName)
-        val managed = store.findApp(packageName)
-        return AppEntry(
-            packageName = packageName,
-            label = label,
-            isSystem = info.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM != 0,
-            isInstalled = PackageTools.isInstalled(context, packageName),
-            frozen = freeze.isFrozen(packageName),
-            pinned = managed?.pinned ?: false,
-            whitelisted = managed?.whitelisted ?: false,
-            tagIds = managed?.tagIds?.toList() ?: emptyList(),
-            installTime = packageInfo?.firstInstallTime ?: 0L,
-            updateTime = packageInfo?.lastUpdateTime ?: 0L,
-            search = TextIndex.build(label),
-        )
     }
 
     // ---- 查询 ----
