@@ -214,6 +214,9 @@ fun GlacierShell() {
         NavSwipeDirection.LeftToRight
     }
 
+    // 页面级浮层（长按锚点菜单等）的根宿主：在录制层与玻璃 side chrome 之外，
+    // 既不会被侧栏盖住，也不进入自己的采样源（官方 example 的 TopLayer 同款结构）。
+    val topLayer = remember { TopLayerState() }
     val navItems = listOf(
         GlassNavigationItem(MiuixIcons.Glass.HomeOutline, stringResource(R.string.nav_home)),
         GlassNavigationItem(MiuixIcons.Glass.GridView, stringResource(R.string.nav_apps)),
@@ -236,6 +239,7 @@ fun GlacierShell() {
         // 官方宿主→页面 inset 契约：系统安全区 + 侧栏让位 + 搜索让位都在这一处组合，
         // 页面与顶栏只消费 appPageHorizontalInsets / appPageTopBarInsets / searchTop。
         LocalAppPageInsets provides pageInsets,
+        LocalTopLayer provides topLayer,
     ) {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
@@ -394,6 +398,9 @@ fun GlacierShell() {
                         defaultWindowInsetsPadding = false,
                     )
                 }
+                // 浮层最后画：在 NavDisplay 的录制层和玻璃侧栏之外，盖住所有 chrome，
+                // 同时能安全采样页面录制层（官方 AppContent 的 TopLayerHost 同一位置）。
+                TopLayerHost(topLayer)
             }
         }
     }

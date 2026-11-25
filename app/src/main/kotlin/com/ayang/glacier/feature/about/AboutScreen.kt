@@ -44,13 +44,9 @@ import com.ayang.glacier.ui.LocalGlassActive
 import com.ayang.glacier.ui.components.BackNavigationAction
 import com.ayang.glacier.ui.components.PageFrame
 import com.ayang.glacier.ui.components.PageMetrics
-import com.ayang.glacier.ui.effect.AboutCardBlendDark
-import com.ayang.glacier.ui.effect.AboutCardBlendLight
 import com.ayang.glacier.ui.effect.BgEffectBackground
 import com.ayang.glacier.ui.effect.aboutLogoBlend
 import top.yukonga.miuix.kmp.basic.BasicComponent
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
@@ -60,6 +56,7 @@ import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.blur.textureBlur
+import top.yukonga.miuix.kmp.glass.GlassCard
 import top.yukonga.miuix.kmp.interfaces.ExperimentalScrollBarApi
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -142,7 +139,6 @@ fun AboutScreen(
         drawRect(surface)
         drawContent()
     }.takeIf { glassActive }
-    val cardBlend = if (isDark) AboutCardBlendDark else AboutCardBlendLight
     val logoBlend = remember(isDark) { aboutLogoBlend(isDark) }
 
     PageFrame(
@@ -210,6 +206,8 @@ fun AboutScreen(
                 state = lazyListState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = scrollPadding,
+                // 弹性 overscroll 由 PageFrame 的官方 pageScrollModifiers 统一消费（官方 AboutPage 同参）。
+                overscrollEffect = null,
                 verticalArrangement = Arrangement.spacedBy(PageMetrics.SectionGap),
             ) {
                 // 官方 AboutPage.kt:318-339 的透明占位。
@@ -232,7 +230,7 @@ fun AboutScreen(
 
                 item { SmallTitle(stringResource(R.string.about_section_app)) }
                 item {
-                    AboutCard(backdrop = aboutBackdrop, blendColors = cardBlend) {
+                    AboutCard() {
                         BasicComponent(
                             title = stringResource(R.string.about_version_label),
                             endActions = {
@@ -258,7 +256,7 @@ fun AboutScreen(
 
                 item { SmallTitle(stringResource(R.string.settings_system)) }
                 item {
-                    AboutCard(backdrop = aboutBackdrop, blendColors = cardBlend) {
+                    AboutCard() {
                         BasicComponent(
                             title = stringResource(R.string.working_mode),
                             // selectedMode() 最终读 preferences.workingMode（普通 SharedPreferences
@@ -276,7 +274,7 @@ fun AboutScreen(
 
                 item { SmallTitle(stringResource(R.string.about_section_open_source)) }
                 item {
-                    AboutCard(backdrop = aboutBackdrop, blendColors = cardBlend) {
+                    AboutCard() {
                         ArrowPreference(
                             title = stringResource(R.string.about_licenses),
                             endActions = {
@@ -403,42 +401,21 @@ private fun brandProgress(progress: Float, start: Float): Float =
     ((progress - start) / BrandFadeSpan).coerceIn(0f, 1f)
 
 /**
- * 官方信息卡（对齐 `AboutPage.kt:345-375 / 400-426`）。
+ * 官方信息卡（对齐最新官方 `AboutPage.kt:352-400`）。
  *
- * 有 [backdrop] 时：卡片底色转透明，靠官方 `textureBlur` 采 aboutBackdrop 得到玻璃质感，
- * 混色走官方 token（[blendColors]）；无 backdrop（玻璃关闭 / shader 不支持）时退回
- * `CardDefaults.defaultColors()` 纯色底，两档都不会自采样。
+ * 官方已把关于页的信息卡从"Card + 自己 textureBlur"改成官方 [GlassCard]：
+ * 半透明浅色填充让底下的玻璃材质透出来，本身不再采样/模糊 backdrop，
+ * 因此不需要传 `aboutBackdrop`，也不会自采样。圆角/填充色全部走 `GlassCardDefaults`。
  *
  * 横向 12dp 留白由 [pageContentPadding] 的默认 `PageMetrics.Horizontal` 提供（页面统一），
- * 卡片本身不再叠加第二层 horizontal padding，否则会变成 24dp；这与官方 AboutPage
- * `Card(padding(horizontal = 12.dp))` 的视觉等价（官方 pageContentPadding 横向只管安全区）。
- * `CardDefaults.InsideMargin` 在 0.9.5 是 0dp，行内留白由 `BasicComponent` 的 16dp 提供。
+ * 卡片本身不再叠加第二层 horizontal padding，否则会变成 24dp。
  */
 @Composable
 private fun AboutCard(
-    backdrop: LayerBackdrop?,
-    blendColors: List<top.yukonga.miuix.kmp.blur.BlendColorEntry>,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .then(
-                if (backdrop != null) {
-                    Modifier.textureBlur(
-                        backdrop = backdrop,
-                        shape = AboutCardBlurShape,
-                        blurRadius = AboutCardBlurRadius,
-                        noiseCoefficient = BlurDefaults.NoiseCoefficient,
-                        colors = BlurDefaults.blurColors(blendColors = blendColors),
-                    )
-                } else {
-                    Modifier
-                },
-            ),
-        colors = CardDefaults.defaultColors(
-            if (backdrop != null) Color.Transparent else MiuixTheme.colorScheme.surfaceContainer,
-        ),
+    GlassCard(
+        modifier = Modifier.fillMaxWidth(),
         content = content,
     )
 }
@@ -488,10 +465,8 @@ private val BrandNameBottomPadding = 5.dp
 private val BrandNameFontSize = 35.sp
 private val BrandVersionFontSize = 14.sp
 
-// ---- 纹理模糊（官方 AboutPage.kt:276-286 品牌名 / :358-367 信息卡）----
-/** 官方品牌名与信息卡的模糊裁切圆角均为 16dp。 */
+// ---- 纹理模糊（官方 AboutPage.kt:276-286 品牌名）----
+/** 官方品牌名的模糊裁切圆角 16dp。 */
 private val BrandLogoBlurShape = RoundedCornerShape(16.dp)
-private val AboutCardBlurShape = RoundedCornerShape(16.dp)
-/** 官方品牌名前景模糊半径 100f，信息卡默认 60f。 */
+/** 官方品牌名前景模糊半径 100f。 */
 private const val BrandLogoBlurRadius = 100f
-private const val AboutCardBlurRadius = 60f

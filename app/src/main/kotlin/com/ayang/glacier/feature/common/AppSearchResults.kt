@@ -25,7 +25,9 @@ import com.ayang.glacier.ui.components.EmptyState
 import com.ayang.glacier.ui.components.PageMetrics
 import com.ayang.glacier.ui.pageBottomPadding
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.glass.GlassPopupAnchor
 import top.yukonga.miuix.kmp.glass.GlassSearchOverlayDefaults
+import top.yukonga.miuix.kmp.glass.rememberGlassPopupAnchor
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 
 /** 官方搜索结果行的上下间距：`example/IconPage.kt:104`（`SearchResultVerticalPadding = 4.dp`）。 */
@@ -62,6 +64,7 @@ fun AppListCardRow(
     modifier: Modifier = Modifier,
     onHome: Boolean? = null,
     onLongClick: (() -> Unit)? = null,
+    anchor: GlassPopupAnchor? = null,
 ) {
     Card(
         modifier = modifier,
@@ -76,6 +79,7 @@ fun AppListCardRow(
             summary = appRowSummary(entry, inHome),
             frozen = entry.frozen,
             onHome = onHome,
+            anchor = anchor,
         )
     }
 }
@@ -117,7 +121,7 @@ fun AppSearchResults(
     onPick: (AppEntry) -> Unit,
     listState: LazyListState = rememberLazyListState(),
     homePicker: Boolean = false,
-    onLongPick: ((AppEntry) -> Unit)? = null,
+    onLongPick: ((AppEntry, GlassPopupAnchor) -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val app = context.applicationContext as GlacierApplication
@@ -172,13 +176,16 @@ fun AppSearchResults(
         ),
     ) {
         items(results, key = { it.packageName }) { entry ->
+            // 长按菜单的锚点：每行图标一个，随长按回调交给页面里的 GlassTransformPopup。
+            val anchor = rememberGlassPopupAnchor()
             AppListCardRow(
                 entry = entry,
                 inHome = entry.packageName in homePackages,
                 onClick = { onPick(entry) },
                 // 挑选器里勾选框表达主页归属；主页搜索不显示（那里点了是启动应用）。
                 onHome = if (homePicker) entry.packageName in homePackages else null,
-                onLongClick = onLongPick?.let { pick -> { pick(entry) } },
+                onLongClick = onLongPick?.let { pick -> { pick(entry, anchor) } },
+                anchor = anchor.takeIf { onLongPick != null },
                 // 官方搜索结果行间距：横向页面留白 12dp + 上下 4dp（`IconPage.kt:221`）。
                 modifier = Modifier.padding(
                     horizontal = PageMetrics.Horizontal,

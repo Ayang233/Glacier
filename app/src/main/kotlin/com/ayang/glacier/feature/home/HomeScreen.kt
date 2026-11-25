@@ -11,7 +11,6 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.Indication
 import androidx.compose.foundation.indication
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -28,6 +27,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -66,7 +66,6 @@ import com.ayang.glacier.domain.DEFAULT_TAG_ID
 import com.ayang.glacier.domain.Tag
 import com.ayang.glacier.feature.common.AppAction
 import com.ayang.glacier.feature.common.AppActionRunner
-import com.ayang.glacier.feature.common.AppActionSheet
 import com.ayang.glacier.feature.common.AppIconCornerRatio
 import com.ayang.glacier.feature.common.AppIconView
 import com.ayang.glacier.feature.common.AppLabelTextStyle
@@ -83,6 +82,7 @@ import com.ayang.glacier.system.FreezeOutcome
 import com.ayang.glacier.ui.LocalGlassActive
 import com.ayang.glacier.ui.LocalRootBackdrop
 import com.ayang.glacier.ui.LocalAppPageInsets
+import com.ayang.glacier.ui.TopLayer
 import com.ayang.glacier.ui.appPageHorizontalInsets
 import com.ayang.glacier.ui.components.PageMetrics
 import com.ayang.glacier.ui.rememberAppSafePadding
@@ -93,6 +93,7 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Checkbox
+import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -108,10 +109,17 @@ import top.yukonga.miuix.kmp.glass.GlassDialogButton
 import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import top.yukonga.miuix.kmp.glass.GlassFloatingActionButton
 import top.yukonga.miuix.kmp.glass.GlassMotion
+import top.yukonga.miuix.kmp.glass.GlassPopupAnchor
+import top.yukonga.miuix.kmp.glass.GlassPopupDefaults
+import top.yukonga.miuix.kmp.glass.GlassPopupItem
 import top.yukonga.miuix.kmp.glass.GlassSearchOverlay
 import top.yukonga.miuix.kmp.glass.GlassSearchOverlayDefaults
 import top.yukonga.miuix.kmp.glass.GlassSegmentedTabRow
 import top.yukonga.miuix.kmp.glass.GlassTextField
+import top.yukonga.miuix.kmp.glass.GlassTransformPopup
+import top.yukonga.miuix.kmp.glass.glassPopupAnchor
+import top.yukonga.miuix.kmp.glass.glassPopupAnchorContent
+import top.yukonga.miuix.kmp.glass.rememberGlassPopupAnchor
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.Add
 import top.yukonga.miuix.kmp.icon.glass.Close
@@ -124,8 +132,6 @@ import top.yukonga.miuix.kmp.icon.glass.Timer
 import top.yukonga.miuix.kmp.interfaces.ExperimentalScrollBarApi
 import top.yukonga.miuix.kmp.squircle.squircleClip
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.MiuixIndication
-import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
 /**
@@ -212,18 +218,11 @@ fun HomeScreen() {
 
     val scope = rememberCoroutineScope()
     val scrollBehavior = MiuixScrollBehavior()
-    // 菜单打开的那一格要立刻退出按下态：手指抬起的那一下会被弹层窗口吃掉，
-    // pressed 无法自然释放。这里准备一个零透明的官方 `MiuixIndication`——
-    // 换实例会让 `Modifier.indication` 重建节点、叠层立即退场，不是自绘高亮。
-    val onBackground = MiuixTheme.colorScheme.onBackground
-    val clearedIndication = remember(onBackground) {
-        MiuixIndication(
-            color = onBackground,
-            pressAlpha = 0f,
-            hoverAlpha = 0f,
-            focusAlpha = 0f,
-        )
-    }
+    // 长按那一刻记下被长按格的官方锚点；`GlassTransformPopup` 从它原地展开。
+    // 只在长按回调里写入（不在组合期猜），网格滚动收起菜单时也不会用到已回收的锚点。
+    var popupAnchor by remember { mutableStateOf<GlassPopupAnchor?>(null) }
+    // 浮层常驻组合，第一次打开前也需要一个合法锚点；它永远不会被展示。
+    val placeholderAnchor = rememberGlassPopupAnchor()
     val runner = remember(repository) { AppActionRunner(context, repository) }
     val selectionRunner = remember(repository) { SelectionActionRunner(context, repository) }
     val glassActive = LocalGlassActive.current
@@ -417,7 +416,7 @@ fun HomeScreen() {
                 }
             }
         },
-        overlay = {
+        overlay = { pageBackdrop ->
             // 搜索浮层常驻组合：只由 expanded 驱动，官方组件负责 400ms 进出动画、
             // query 清理、焦点/键盘与返回键（GlassSearchOverlay.kt:229-245）。
             // onDismissRequest 只关闭搜索，绝不触达标签编辑。
@@ -506,22 +505,69 @@ fun HomeScreen() {
                 actionBatch -> homeSelectionMenuActions()
                 else -> homeMenuActions(menuTarget)
             }
-            AppActionSheet(
-                entry = menuTarget,
-                show = actionTarget != null,
-                // 单应用是"使用向"十行，多选是"作用于这一批"的六行；标题随之从应用名
-                // 变成「已选择：N」。两套清单不重叠，渲染层只负责排版。
-                // 标题在这里就定死（不是"null 表示用应用名"），因为弹层会保留最后一份内容：
-                // 多选菜单退场后紧接着打开单应用菜单时，null 会让旧标题残留。
-                title = if (actionBatch) {
-                    stringResource(R.string.home_selected_title, actionCount)
-                } else {
-                    menuTarget?.label.orEmpty()
-                },
-                actions = menuActions,
-                onDismiss = { actionTarget = null },
-                onAction = handleMenuAction,
-            )
+            // 当前长按格的锚点；`popupAnchor` 在退场期间保持最后一格（锚点不能中途变）。
+            val menuAnchor = popupAnchor ?: placeholderAnchor
+            // 菜单标题：单应用是应用名，多选是「已选择：N」；退场期间沿用最后一份。
+            val popupTitle = if (actionBatch) {
+                stringResource(R.string.home_selected_title, actionCount)
+            } else {
+                menuTarget?.label.orEmpty()
+            }
+            // 锚点浮层提升到根部 TopLayer：不进页面录制层（避免自采样），也不被玻璃侧栏盖住。
+            // 首次长按前不组合浮层：`GlassPopupSurface` 的固有尺寸缓存以 content lambda 为 token，
+            // 先在"空菜单"状态下组合一次会把面板高度缓存成只有标题行，之后菜单内容补上也不再
+            // 重新量（表现为只显示标题、行被裁掉）。等有目标时第一次就带完整菜单组合即可。
+            if (menuTarget != null) {
+                TopLayer {
+                    GlassTransformPopup(
+                        show = actionTarget != null,
+                        onDismissRequest = { actionTarget = null },
+                        anchor = menuAnchor,
+                        // 采样页面录制层：浮层自己不在这一层里（TopLayer 在外），不会采到自己。
+                        backdrop = pageBackdrop,
+                        anchorContent = {
+                            AppIconView(
+                                packageName = menuTarget.packageName,
+                                size = PageMetrics.GridAppIcon,
+                                frozen = menuTarget.frozen,
+                            )
+                        },
+                        // 与官方 example 一致：普通展开不复制锚点外围内容，只做原地生长。
+                        simplified = true,
+                        gap = 8.dp,
+                    ) {
+                        Text(
+                            text = popupTitle,
+                            style = MiuixTheme.textStyles.footnote1,
+                            color = MiuixTheme.colorScheme.onSurfaceContainerVariant,
+                            // 菜单行是中文长文案（「添加到主屏幕」等），默认 200dp 会省略；
+                            // 标题行给明确宽度把面板撑宽（仍受窗口安全边距与 MaxWidth 夹紧）。
+                            modifier = Modifier
+                                .width(320.dp)
+                                .padding(
+                                    horizontal = GlassPopupDefaults.ItemPaddingHorizontal,
+                                    vertical = 8.dp,
+                                ),
+                        )
+                        HorizontalDivider(
+                            modifier = Modifier.padding(
+                                horizontal = GlassPopupDefaults.DividerPaddingHorizontal,
+                                vertical = GlassPopupDefaults.DividerPaddingVertical,
+                            ),
+                            thickness = GlassPopupDefaults.DividerThickness,
+                        )
+                        menuActions.forEach { action ->
+                            val row = actionSpecOf(action, menuTarget, handleMenuAction)
+                            GlassPopupItem(
+                                text = row.label,
+                                icon = row.icon,
+                                enabled = row.enabled,
+                                onClick = row.onClick,
+                            )
+                        }
+                    }
+                }
+            }
 
             TagPickerSheet(
                 show = tagPickerOpen,
@@ -615,6 +661,9 @@ fun HomeScreen() {
                 modifier = Modifier.fillMaxSize(),
                 // 页面留白走统一 token（12dp），不再出现 16dp 硬编码。
                 contentPadding = contentPadding,
+                // 弹性 overscroll 由 PageFrame 的官方 pageScrollModifiers 统一消费，
+                // 列表自己再开一份会双份回弹（官方所有列表页都在这里传 null）。
+                overscrollEffect = null,
                 horizontalArrangement = Arrangement.spacedBy(HomeGridMetrics.HorizontalSpacing),
                 verticalArrangement = Arrangement.spacedBy(HomeGridMetrics.VerticalSpacing),
             ) {
@@ -629,8 +678,6 @@ fun HomeScreen() {
                         labelSize = preferences.homeLabelSize,
                         selected = entry.packageName in selection,
                         selectionMode = inSelection,
-                        clearedPress = actionTarget == entry.packageName,
-                        clearedIndication = clearedIndication,
                         onClick = {
                             if (inSelection) {
                                 selection = if (entry.packageName in selection) {
@@ -646,9 +693,10 @@ fun HomeScreen() {
                         // - 已选中 → 批量菜单（「已选择：N」），操作整批；
                         // - 未选中（含非多选态）→ 该应用的单应用菜单。
                         // 这样长按的对象永远落在作用域里，不会出现"我长按 A，菜单却操作 B、C"。
-                        onLongClick = {
+                        onLongClick = { anchor ->
                             actionBatch = entry.packageName in selection
                             actionCount = selection.size
+                            popupAnchor = anchor
                             actionTarget = entry.packageName
                         },
                     )
@@ -674,6 +722,7 @@ fun HomeScreen() {
  * 的写法同构（`matchParentSize().clip(shape).indication(...)`）。
  * 叠层因此是图标的 squircle，而不是"整格含标签"的一块方块；松手后由
  * `MiuixIndication` 自己淡出（beta04 的 200ms 释放保持），不再有任何外力维持按下态。
+ * 锚点浮层展开时整格内容由 `glassPopupAnchor` 隐藏，按下叠层和标签都不会残留。
  *
  * **选中态**：官方 [Checkbox] 叠在图标右上角作角标；`onClick = null`（整格手势已由
  * `combinedClickable` 承担），勾选框只做状态显示。网格里只在已选中时画角标：
@@ -686,38 +735,37 @@ private fun HomeAppItem(
     labelSize: Float,
     selected: Boolean,
     selectionMode: Boolean,
-    clearedPress: Boolean,
-    clearedIndication: Indication,
     onClick: () -> Unit,
-    onLongClick: () -> Unit,
+    onLongClick: (GlassPopupAnchor) -> Unit,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
+    val anchor = rememberGlassPopupAnchor()
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
             .fillMaxWidth()
+            // 整格登记为锚点：浮层从这一格原地长大，展开期间整格（图标 + 标签）一起隐藏。
+            .glassPopupAnchor(anchor, cornerRadius = HomeGridMetrics.CellCorner)
             .combinedClickable(
                 interactionSource = interactionSource,
                 // 叠层不铺整格：由下面的图标自己画（见函数头）。
                 indication = null,
                 onClick = onClick,
-                onLongClick = onLongClick,
+                onLongClick = { onLongClick(anchor) },
             ),
     ) {
         Box(
             modifier = Modifier
                 .size(PageMetrics.GridAppIcon)
                 .squircleClip(HomeGridMetrics.CellCorner)
-                .indication(
-                    interactionSource,
-                    // 菜单打开的那一格换成零透明的官方 indication：叠层立即退场。
-                    if (clearedPress) clearedIndication else LocalIndication.current,
-                ),
+                .indication(interactionSource, LocalIndication.current),
         ) {
             AppIconView(
                 packageName = entry.packageName,
                 size = PageMetrics.GridAppIcon,
                 frozen = entry.frozen,
+                // 过渡动画里复制的是图标本身（不含左上角的勾选角标与按压叠层）。
+                modifier = Modifier.glassPopupAnchorContent(anchor),
             )
             if (selectionMode && selected) {
                 Checkbox(
@@ -845,13 +893,17 @@ private fun TagPickerSheet(
         show = show,
         backdrop = LocalRootBackdrop.current.takeIf { LocalGlassActive.current },
         title = stringResource(R.string.action_edit_tags),
-    ) {
+    ) { innerPadding ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxWidth()
-                .scrollEndHaptic()
-                .overScrollVertical(),
-            contentPadding = PaddingValues(bottom = navigationBarBottom + PageMetrics.SectionGap),
+                .scrollEndHaptic(),
+            // 新版 GlassBottomSheet 的标题栏**覆盖**在内容上（progressiveBlur），
+            // 首屏内容必须让出实测的标题栏高度，否则第一张卡会压到标题下面。
+            contentPadding = PaddingValues(
+                top = innerPadding.calculateTopPadding(),
+                bottom = navigationBarBottom + PageMetrics.SectionGap,
+            ),
         ) {
             item(key = "tags") {
                 GlassCard(Modifier.fillMaxWidth()) {
@@ -906,8 +958,11 @@ private fun TagEditorSheet(
         show = show,
         backdrop = backdrop,
         title = stringResource(R.string.title_tag_editor),
-    ) {
-        LazyColumn(Modifier.fillMaxWidth()) {
+    ) { innerPadding ->
+        LazyColumn(
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(top = innerPadding.calculateTopPadding()),
+        ) {
             item {
                 GlassCard(Modifier.padding(bottom = PageMetrics.SectionGap)) {
                     tags.forEach { tag ->
@@ -1081,8 +1136,13 @@ private fun DeferredSheet(
         show = show,
         backdrop = LocalRootBackdrop.current.takeIf { LocalGlassActive.current },
         title = stringResource(R.string.action_deferred_freeze),
-    ) {
-        Column(Modifier.fillMaxWidth()) {
+    ) { innerPadding ->
+        Column(
+            Modifier
+                .fillMaxWidth()
+                // 让出实测标题栏高度（新版标题栏覆盖在内容之上）。
+                .padding(top = innerPadding.calculateTopPadding()),
+        ) {
             GlassCard(Modifier.padding(bottom = PageMetrics.SectionGap)) {
                 options.forEach { minutes ->
                     SheetActionRow(

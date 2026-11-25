@@ -98,6 +98,8 @@ fun LicensesScreen(onBack: () -> Unit) {
             // （LicensePage.kt:117-120、miuix-ui/.../basic/SmallTitle.kt:42），
             // 因此内容 padding 横向为 0，12dp 由卡片自己提供。
             contentPadding = contentPadding,
+            // 弹性 overscroll 由 PageFrame 的官方 pageScrollModifiers 统一消费（官方 LicensePage 同参）。
+            overscrollEffect = null,
             verticalArrangement = Arrangement.spacedBy(PageMetrics.SectionGap),
         ) {
             item {

@@ -53,6 +53,7 @@ import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.glass.GlassIconButton
 import top.yukonga.miuix.kmp.glass.GlassTopAppBar
+import top.yukonga.miuix.kmp.glass.GlassTopAppBarDefaults
 import top.yukonga.miuix.kmp.glass.glassSearchBarTransition
 import top.yukonga.miuix.kmp.glass.rememberGlassSearchBarAlpha
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -74,8 +75,14 @@ import top.yukonga.miuix.kmp.utils.scrollEndHaptic
  * - 顶栏动作图标 28dp（`example/GlassPage.kt:357`）
  */
 object PageMetrics {
-    /** 卡片 / 列表到页面边缘的距离。 */
-    val Horizontal = 12.dp
+    /**
+     * 卡片 / 列表到页面边缘的距离。
+     *
+     * 直接用官方 `GlassTopAppBarDefaults.HorizontalPadding`（12dp）：库的 KDoc 写明它是
+     * "aligned with the page's cards and tabs"，官方页面（`GlassPage.kt:162`、`IconPage.kt`）
+     * 也用它给卡片留白。不再自建一个同值的常量。
+     */
+    val Horizontal = GlassTopAppBarDefaults.HorizontalPadding
 
     /** 分节之间的纵向间距。 */
     val SectionGap = 12.dp
@@ -83,13 +90,10 @@ object PageMetrics {
     /** 列表末尾的留白。 */
     val BottomGap = 12.dp
 
-    /** 官方卡片圆角。 */
-    val CardCorner = CardDefaults.CornerRadius
-
     /** 顶栏动作按钮里的图标尺寸（官方 example 28dp）。 */
     val TopBarActionIcon = 28.dp
 
-    /** 行内应用图标尺寸（列表行）。 */
+    /** 列表行里的应用图标尺寸（`BasicComponent` 行，官方 example 40dp）。 */
     val ListAppIcon = 40.dp
 
     /** 主页网格图标尺寸。 */
@@ -149,8 +153,14 @@ fun PageFrame(
      */
     topBarBottom: @Composable (LayerBackdrop?) -> Unit = {},
     floatingActionButton: @Composable (LayerBackdrop?) -> Unit = {},
-    /** 全屏浮层（搜索、弹层）。画在 Scaffold 之上，因此能盖住顶栏。 */
-    overlay: @Composable () -> Unit = {},
+    /**
+     * 全屏浮层（搜索、弹层）。画在 Scaffold 之上，因此能盖住顶栏。
+     *
+     * 参数是本页的页面录制层：锚点浮层（`GlassTransformPopup`）要采样的正是"页面内容"，
+     * 它必须与顶栏用同一份 backdrop。浮层经 `TopLayer` 提升到根部之后已经不在录制层子树里，
+     * 因此不会自采样；直接传 `LocalRootBackdrop` 反而会把浮层自己也录进去。
+     */
+    overlay: @Composable (LayerBackdrop?) -> Unit = {},
     /** 搜索浮层是否展开：整页按官方动画淡出并屏蔽无障碍语义。 */
     searchExpanded: Boolean = false,
     /**
@@ -292,7 +302,7 @@ fun PageFrame(
             }
         }
 
-        overlay()
+        overlay(backdrop.takeIf { glassActive })
     }
 }
 
@@ -478,7 +488,6 @@ fun GroupCard(
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
-        insideMargin = PaddingValues(0.dp),
         colors = CardDefaults.defaultColors(),
     ) {
         Column(content = content)

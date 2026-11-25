@@ -37,6 +37,7 @@ Glacier 自己不申请系统权限，真正执行冻结的是设备侧的能力
 - 点图标启动。
 - 长按出这台应用的菜单：启动、冻结或解冻、定时任务、置顶、加入白名单、标签分组、添加到主屏幕、
   导出到剪切板、从主页移除。应用已经冻结时，最后会多一行「解冻并从主页移除」。
+  菜单是官方锚点浮层（`GlassTransformPopup`），从被长按的那一格原地展开，不是底部弹层。
 - 右下角 FAB 把主页里还没冻的一次冻掉。
 - 顶栏「多选」进多选，标题变成「已选 N 个」，点图标勾选。这时 FAB 只处理选中的那几个，
   一个都没选就还是整页。再点一次「多选」或者按返回就退出。
@@ -44,7 +45,7 @@ Glacier 自己不申请系统权限，真正执行冻结的是设备侧的能力
 **应用页**
 
 - 点一行把它移进或移出主页，行尾那个勾表示在不在主页。这一页没有多选，也没有计数。
-- 长按是管理菜单：应用信息、导出到剪切板、提取安装包。
+- 长按是管理菜单：应用信息、导出到剪切板、提取安装包。同样是锚点浮层，从这一行的图标原地展开。
 - 冻结不在这一页做。
 
 二级页（关于、开源许可证）没有底栏，跟着一级页一起转场。
@@ -79,12 +80,13 @@ MIUIX 走 composite build 引入，默认找 `../miuix`，可以用 `MIUIX_DIR` 
 第一次构建前先把 MIUIX 切到基线提交并打上本地补丁：
 
 ```bash
-tools/miuix-baseline.sh pin v0.9.5-beta04
+tools/miuix-baseline.sh pin 542463a0
 tools/miuix-baseline.sh verify
 tools/miuix-baseline.sh status
 ```
 
-细节和升级流程写在 [MIUIX_BASELINE.md](MIUIX_BASELINE.md)。
+当前基线是官方 main 最新 `542463a0`（比 tag `v0.9.5-beta04` 多 12 个 Glass 修复）；
+细节、升级流程和上游注意事项写在 [MIUIX_BASELINE.md](MIUIX_BASELINE.md)。
 
 ## 代码结构
 
@@ -111,7 +113,8 @@ Scaffold(Transparent, insets = 0)                 ← 弹层宿主，最外层
    │  └ NavDisplay
    │     ├ 一级页 Box: 页内录制层 → HorizontalPager，外加 GlassNavigationBar
    │     └ 二级页 About / Licenses（没有底栏）
-   └ GlassNavigationRail(backdrop = root)         宽屏覆盖式侧栏，与 R 同级
+   ├ GlassNavigationRail(backdrop = root)         宽屏覆盖式侧栏，与 R 同级
+   └ TopLayerHost                                 长按锚点浮层，画在录制层与侧栏之外
 ```
 
 底栏是一级目的地自己 Scaffold 的东西，和 MIUIX 官方示例一样装在一级页里，
@@ -126,7 +129,7 @@ Box
 │  ├ bottomBar = Spacer(LocalShellBottomBarHeight)   透明占位，正文和 FAB 按真实高度让位
 │  └ body      = Box(fillMaxSize).layerBackdrop(pageBackdrop)
 │                 └ 列表 / 网格
-└ overlay()                                          搜索和弹层，画在 Scaffold 之上
+└ overlay(pageBackdrop)                              搜索和长按浮层，画在 Scaffold 之上
 ```
 
 玻璃有三条不能破的规矩：采样方不能是录制层的后代；采样源在采样方整个绘制区域都得有像素；
@@ -146,18 +149,24 @@ squircle 图标轮廓，都是照着 MIUIX 源码和 `example/shared` 一项项�
 `DialogMotion` / `SheetMotion`、`MiuixIndication`），没有自己画的图标描边或高亮层。
 顶栏只有官方 `title` + `subtitle` 两行：多选进度写在副标题里，不靠换标题或缩字号。
 
+长按菜单是官方锚点浮层（`GlassTransformPopup`）：从被长按的格子/图标原地展开，
+经官方 example 的 `TopLayer` 提升到根部，所以不会被宽屏侧栏盖住、也不会采到自己。
+页面列表的弹性滚动统一交给 `pageScrollModifiers`（列表补 `overscrollEffect = null`），
+弹层标题栏与内容让位、关于页信息卡、分段页签、压感反馈都直接用官方组件/默认值。
+
 冻结在主页面只有一个入口——右下角的**冻结**按钮：它不会因为"这一页已经全冻上"就翻成解冻，
 也不会消失（位置和语义都常驻；确实没有可冻结目标时点它只给一句「已全部冻结」）。
 解冻只有两个出口：点开应用自动解冻并启动，或者长按应用在菜单里选「解冻」。
 
 长按菜单按"这一个应用有没有被选中"决定作用域：长按**已选中**的图标是批量菜单
 （标题「已选择：N」，六行：冻结/解冻/标签分组/导出到剪切板/从主页移除/解冻并从主页移除），
-长按未选中的图标仍是单应用菜单。按下层不做人工保持——松手即走 `MiuixIndication` 自己的淡出。
+长按未选中的图标仍是单应用菜单。菜单展开期间锚点内容由官方 `glassPopupAnchor` 隐藏，
+关闭时按官方回弹曲线复位，不留按下层。
 
 审计与验收记录：
 
-- [基线、升级流程与组件对照](MIUIX_BASELINE.md)（当前 MIUIX `v0.9.5-beta04` / `3c560868`）
-- [R12 长按菜单与按下态](docs/audit/miuix-os4-r12-audit.md) · [R11 自造轮子清查与冻结交互](docs/audit/miuix-os4-r11-audit.md) · [R10 两页菜单分工](docs/audit/miuix-os4-r10-audit.md)
+- [基线、升级流程与组件对照](MIUIX_BASELINE.md)（当前 MIUIX main `542463a0`）
+- [R13 基线升级与自造轮子清查](docs/audit/miuix-os4-r13-audit.md) · [R12 长按菜单与按下态](docs/audit/miuix-os4-r12-audit.md) · [R11 自造轮子清查与冻结交互](docs/audit/miuix-os4-r11-audit.md) · [R10 两页菜单分工](docs/audit/miuix-os4-r10-audit.md)
 - [R9 按压反馈与选中态](docs/audit/miuix-os4-r9-audit.md) · [R8 宽屏间距与自定值清单](docs/audit/miuix-os4-r8-audit.md)
 - [R7 交互整改](docs/audit/miuix-os4-r7-audit.md) · [R6 自造轮子清查](docs/audit/miuix-os4-r6-audit.md) · [MIUIX 官方契约摘录](docs/reference/miuix-os4-contract.md)
 

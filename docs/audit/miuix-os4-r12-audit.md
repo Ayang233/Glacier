@@ -74,6 +74,11 @@ Cause: stack pointer is not in a rw map; likely due to stack overflow.
 （用户可见的功能全部到位）。方案 A 的代码要点记在本文件 §5，真机（硬件 RenderEffect）验证通过后
 再按 §5 接回来，届时把 `gap`、`GlassPopupItem`、标题行直接复用即可。
 
+> **R13 更新（2026-11-25）**：模拟器接入宿主 GPU（硬件 `RenderEffect`）后，`GlassTransformPopup`
+> 在相同环境稳定可用；R13 已按 §5 把主页网格与应用页行的长按菜单都接回锚点浮层，并补上
+> 官方 `TopLayer` 宿主。SwiftShader 下的崩溃结论与绕行记录保留在本节，供历史对照；
+> 两个上游尺寸探测/缓存行为见 `docs/audit/miuix-os4-r13-audit.md` §3.1。
+
 ## 4. 仍未解决
 
 | 项 | 说明 |

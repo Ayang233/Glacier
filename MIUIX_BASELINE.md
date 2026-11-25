@@ -27,18 +27,22 @@
 | 项 | 值 |
 |---|---|
 | MIUIX 版本 | `0.9.5`（`build-logic/src/main/kotlin/BuildConfig.kt` 的 `LIBRARY_VERSION`） |
-| 官方 tag | `v0.9.5-beta04`（基线**就是**该 tag 指向的提交，不再站在 tag 之后） |
-| **MIUIX commit** | `3c560868758f80cd97bbdab2f8e53612ad1c56be` |
-| commit 时间 | 2026-11-24 17:51:15 +0800 |
-| commit 标题 | `fix(ui): release overlay touch blocking before exit tail and refine motion` |
-| 官方 main 追踪 | `origin/main` = `03d15786`（比基线多 2 个提交：`fix(glass): preserve closing rebound on anchor button` 等，未纳入） |
+| 官方 tag | `v0.9.5-beta04`（tag 指向 `3c560868`） |
+| **MIUIX commit** | `542463a0863b393a3d6052237daae6c3da217e70`（**main 最新**，比 beta04 多 12 个提交） |
+| commit 时间 | 2026-11-25 13:54:50 +0800 |
+| commit 标题 | `library: update baseline profiles and cover all pager tabs` |
+| 官方 main 追踪 | `origin/main` = 本基线本身（R13 按用户要求从 tag 跟到 main 最新） |
 | 本地补丁 | 已应用（`tools/miuix-composite-build.patch`） |
-| 核对日期 | 2026-11-24（第八轮：从 `44f1d315` 切到 tag `v0.9.5-beta04`） |
+| 核对日期 | 2026-11-25（第九轮：`v0.9.5-beta04` → main `542463a0`） |
 
-> **注意：官方在 2026-11-24 重写过 main 历史。** 上一轮基线 `44f1d315` 已不在 `origin/main` 上
-> （fetch 时出现 `+ 44f1d315...03d15786 main -> origin/main (forced update)`），
-> 因此那一轮的"main 提交数"不再可复算。基线从此改为**对齐 tag**，不用"tag + N 个 main 提交"
-> 这种会漂移的表达。
+> **R13 起基线暂时跟到 main 最新。** 官方最新 tag 仍是 `v0.9.5-beta04`，但 main 上这 12 个提交
+> 全是 Glass 渲染与弹层修复（`GlassTransformPopup` 关闭回弹、`GlassBottomSheet` 渐进模糊标题栏、
+> `GlassTopAppBar` 模糊带、动态色对比度等），与 Glacier 本轮要解决的锚点浮层 / 弹层标题栏问题直接相关，
+> 因此按用户要求升到 `542463a0`。下次官方发 tag 后再回到"钉 tag"策略。
+>
+> **注意：官方在 2026-11-24 重写过 main 历史。** 上一轮基线 `44f1d315` 已不在 `origin/main` 上，
+> 因此 R11 之前"tag + N 个 main 提交"的表达不再可复算。R11、R12 钉 tag；R13 钉 main 具体 commit
+> （`542463a0`），仍然只认 commit sha，不跟 `origin/main` 漂移。
 
 
 ## 3. 工具链
@@ -81,16 +85,18 @@ miuix-squircle      squircleClip / squircleBorder / squircleBackground
 | 页签 | `GlassSegmentedTabRow` / `TabRow` | 2–4 个标签走分段轨道，更多退回 TabRow |
 | 搜索 | `GlassSearchOverlay` + `rememberGlassSearchBarAlpha` + `glassSearchBarTransition` | 搜索条转玻璃、400ms 进出动画都由官方驱动 |
 | 文本输入 | `GlassTextField`（玻璃档）/ `TextField`（非玻璃档），均为 `TextFieldState` 新版 API | 旧的 `value/onValueChange` 重载已废弃 |
-| 弹层 | `GlassDialog` / `GlassBottomSheet` / `GlassDropdownPreference` / `GlassDialogButton` | `renderInRootScaffold` 保持默认 true |
-| 弹层内的分组卡片 | `GlassCard` | 0.9.5 main 新增；专用于玻璃表面上的内容卡，替代原先在 `GlassBottomSheet` 里复用的普通 `Card` |
+| 弹层 | `GlassDialog` / `GlassBottomSheet` / `GlassDropdownPreference` / `GlassDialogButton` | `renderInRootScaffold` 保持默认 true；`GlassBottomSheet` 的内容槽是 `(PaddingValues) -> Unit`（标题栏覆盖在内容上，内容必须让出实测标题高度，R13 已全部接好） |
+| 弹层内的分组卡片 | `GlassCard` | 0.9.5 main 新增；专用于玻璃表面上的内容卡，替代原先在 `GlassBottomSheet` / `GlassDialog` 里复用的普通 `Card`；R13 起关于页信息卡也从自绘 textureBlur 换成它 |
+| 长按菜单 | `GlassTransformPopup` + `GlassPopupItem` + `GlassPopupAnchor`（`rememberGlassPopupAnchor` / `glassPopupAnchor` / `glassPopupAnchorContent`） | **R13 接回**：主页网格与应用页列表行的长按菜单都从被按的那一格/图标原地展开（官方锚点浮层），不再用底部弹层；经 `TopLayer` 提升到根部，避免被侧栏盖住 + 避免自采样 |
+| 页面级浮层宿主 | `TopLayer` / `TopLayerHost`（`ui/TopLayer.kt`，官方 `example/utils/TopLayer.kt` 逐字节移植） | 官方 example 私有能力，库不导出；浮层画在录制层与玻璃侧栏之外 |
 | 按钮 | `GlassIconButton` / `GlassFloatingActionButton` | 顶栏动作、返回、FAB |
 | 宿主让位 | `AppPageInsets` + `LocalAppPageInsets` + `appPageHorizontalInsets()` / `appPageTopBarInsets()`（`ui/PageInsets.kt`，官方 `utils/PageUtils.kt:62-152` 的逐字节移植） | 侧栏宽度、系统安全区只作用于内容；`NavDisplay` 恒满宽，背景与模糊带不被裁断 |
 | 内容内边距 | `pageContentPadding`（官方惰性 `PaddingValues`）+ `rememberAppSafePadding()` | 组合期只建对象，`calculate*` 在布局阶段读，侧栏 morph 不触发重组 |
-| 滚动 | `VerticalScrollBar` + `rememberScrollBarAdapter`，`trackPadding = contentPadding`、`topAppBarScrollBehavior = 顶栏行为` | 与官方 `MainPage.kt:359-364` 同参；轨道贴着内容区，顶栏收起时跟着收起 |
+| 滚动 | `VerticalScrollBar` + `rememberScrollBarAdapter`，`trackPadding = contentPadding`、`topAppBarScrollBehavior = 顶栏行为`；页面级 `Lazy*` 一律 `overscrollEffect = null` | 与官方 `MainPage.kt:359-364` 同参；弹性 overscroll 由 `pageScrollModifiers` 统一消费，列表再开一份会双份回弹（官方所有列表页都传 null） |
 | 形状 | `squircleClip` / `squircleBackground` | 应用图标、品牌图标 |
 | 多选指示 | `Checkbox`（官方 26dp，`ToggleableState`） | 列表/搜索结果行放 `endActions`（与库作者自己的 Mishka `AppProxyScreen.kt:415-441` 同构），网格选中时叠图标右上角作角标；库里**没有**"选中描边"这种语言，所以自绘的 2dp 蓝色 squircle 描边已在 R9 删除 |
 | 模糊 | `rememberLayerBackdrop` / `layerBackdrop` / `Backdrop` | 无自建模糊管线、无自建背景采样 |
-| 关于页动态背景 | `ui/effect/`（官方 example 的 `BgEffect` 组件逐字节移植）+ `textureBlur` | 官方 AboutPage 的双 backdrop 范式：独立背景层录 BgEffect，品牌名/信息卡作为兄弟采样；混色 token 取自官方 `ColorBlendToken` |
+| 关于页动态背景 | `ui/effect/`（官方 example 的 `BgEffect` 组件逐字节移植）+ 品牌名 `textureBlur` | 官方 AboutPage 的双 backdrop 范式：独立背景层录 BgEffect，品牌名作为兄弟采样；R13 起信息卡用官方 `GlassCard`（不再自己 textureBlur/混色） |
 | 主题 | `MiuixTheme` + `ThemeController` | 固定浅/深色板，见 §7 |
 | 动效 | `scrollEndHaptic` / `overScrollVertical` / `PagerNavigationSpringSpec` / `springAnimateToPage` / `GlassMotion.*` / 弹层 `DialogMotion.Glass` | 官方原语组合；按压反馈全部走组件的内建实现（玻璃档 `GlassIconButton` 的 `buttonPressedOverlay` + `PressedContentAlpha`，非玻璃档 `IconButton` 的 `MiuixIndication`），弹层进出动画自基线 `44f1d315` 起由 `DialogMotion` 统一 |
 | 顶栏动作区 | 单态 `Row(spacedBy(8.dp))` + `TopBarAction`（官方 `example/GlassPage.kt:363` 的间距） | R10 追加：多选不再换成一排批量按钮，`AnimatedTopBarActions` 组件已从 `PageFrame.kt` 删除；批量动作的出口收敛到 FAB |
@@ -107,8 +113,9 @@ miuix-squircle      squircleClip / squircleBorder / squircleBackground
 | 文件 | 性质 | 官方是否有库 API |
 |---|---|---|
 | `ui/PageInsets.kt`（`AppPageInsets` / `LocalAppPageInsets` / `rememberAppPageInsets` / `appPageHorizontalInsets` / `appPageTopBarInsets` / `rememberAppSafePadding` / `pageBottomPadding`） | 官方 `example/utils/PageUtils.kt` 的逐字节移植（Apache-2.0），与 `ui/effect/` 同一处理方式 | 否（官方只在 example 里给，库不导出） |
+| `ui/TopLayer.kt`（`TopLayerState` / `LocalTopLayer` / `TopLayer` / `TopLayerHost`） | 官方 `example/utils/TopLayer.kt` 的逐字节移植（Apache-2.0）；长按锚点浮层提升到根部用 | 否（官方只在 example 里给，库不导出） |
 | `ui/components/PageFrame.kt`（PageFrame / PageTopBar / TopBarAction / GroupCard / EmptyState / pageContentPadding / pageScrollModifiers） | 页面骨架组合 + 官方 `pageContentPadding` / `pageScrollModifiers` 的同参落地；标题只用官方 `title` / `subtitle` 两行，不再有任何字号缩放或顶栏级动画容器 | 否（官方只有 `example/GlassPage.kt` 与 `PageUtils.kt`） |
-| `PageMetrics` | 尺寸常量，全部取自官方 example 或 `CardDefaults` | 否 |
+| `PageMetrics` | 尺寸常量：横向留白直接引用官方 `GlassTopAppBarDefaults.HorizontalPadding`，其余取自官方 example 或 `CardDefaults` | 否 |
 | `ui/GlassEnvironment.kt` 的 `Local*` | 宿主职责：玻璃开关、根录制层、底栏实测高度、标题透明度、标题避让 | 否（官方 example 同款做法） |
 | `ui/GlacierShell.kt` | 一级/二级页路由 + 三态导航（底栏/折叠胶囊/展开侧栏）；底栏在一级目的地 `entry<Route.Main>` 内部（官方结构），采样页内录制层 | 否 |
 | `platform/AppIcons.kt` | 应用图标加载（图标包 / 自适应图标不套遮罩 / LRU） | 否，属业务能力 |
@@ -120,17 +127,19 @@ miuix-squircle      squircleClip / squircleBorder / squircleBackground
 
 | 项 | 现状 | 原因 |
 |---|---|---|
-| 官方 main 比基线多 2 个提交 | 基线钉在 tag `v0.9.5-beta04`（`3c560868`），`origin/main` 已到 `03d15786` | 基线只跟 tag，不跟 main 游走；`44f1d315` 那次"tag + N"的写法在官方重写历史后已无法复算，不再使用 |
-| `UiFeedback.toast()` | 仍用 Android `Toast` | 调用点包含 Worker / Receiver / 快捷方式等非 UI 上下文，MIUIX `Snackbar` 需要宿主 Scaffold，不能整体替换；属系统反馈而非自造 UI |
+| 基线位置 | 钉在 main 具体提交 `542463a0`（比最新 tag `v0.9.5-beta04` 多 12 个提交） | R13 用户要求升到最新：这 12 个提交是 `GlassTransformPopup` 关闭回弹、`GlassBottomSheet` 渐进模糊标题栏、`GlassTopAppBar` 模糊带与动态色对比度等 Glass 修复，直接对应本轮要修的锚点浮层 / 弹层观感。下次官方发 tag 后回到"钉 tag"策略 |
+| `UiFeedback.toast()` | 仍用 Android `Toast`（R11 评估后**确认保留**） | ① 调用点包含 Worker / Receiver / 快捷方式等无 Composition 的上下文，`Snackbar` 需要宿主；② 页面级浮层（`GlassSearchOverlay` / `GlassBottomSheet` / 锚点菜单）画在 Scaffold 之上，会在"搜索结果里点一行加入/移出主页"这类高频路径上把 Snackbar 盖住，反馈直接丢失；③ `Toast` 是系统反馈件而非自造 UI，HyperOS 上由系统按 OS 风格绘制 |
 | 二级页切 Tab 的转场 | 仍走 `NavTransitions.MiuixDefault`（官方 example 在二级页点导航时切到私有的 `InstantNavTransition`，`AppContent.kt:320/1155`） | 该 helper 是 example 私有实现而非库 API；当前表现为"退回一级页时播放 pop 转场"，与官方观感有差异，但语义正确。需要完全一致时再移植 |
-| `UiFeedback.toast()` | 仍用 Android `Toast`（R11 评估后**确认保留**） | ① 调用点包含 Worker / Receiver / 快捷方式等无 Composition 的上下文，`Snackbar` 需要宿主；② 页面级浮层（`GlassSearchOverlay` / `GlassBottomSheet`）画在 Scaffold 之上，会在"搜索结果里点一行加入/移出主页"这类高频路径上把 Snackbar 盖住，反馈直接丢失；③ `Toast` 是系统反馈件而非自造 UI，HyperOS 上由系统按 OS 风格绘制 |
 | 主页大标题 | 恒为应用名，多选进度写在副标题 | 之前用"换大标题 + 0.83 字号补偿 + 整条顶栏 `AnimatedContent`"表达「已选 N 个」，属自造排版层（`title1` 被临时缩成 26.5sp）；R11 删除，回到官方 `title` + `subtitle` 两行 |
-| 锚点浮层（`GlassPopup` / `GlassTransformPopup`） | **已实现后移除**，长按菜单继续用 `GlassBottomSheet` | 本机稳定崩在 RenderThread（`SIGSEGV` / RenderNode 递归 512 层），换 `GlassPopup`、置空 anchorContent、关 shadow、跳过 morph 动画帧均复现；库内无关闭该渲染路径的入口，`isRuntimeShaderSupported()` 只判 `SDK_INT >= 33` 无法探到 SwiftShader 的缺陷。真机验证通过后可按 `docs/audit/miuix-os4-r12-audit.md` §5 接回 |
+| 锚点浮层（`GlassPopup` / `GlassTransformPopup`） | **R13 已接回并实测通过**：主页网格与应用页列表行的长按菜单都从被按的那一格/图标原地展开；经 `TopLayer` 提升到根部 | R12 的 RenderThread 递归崩溃只在软件渲染（SwiftShader）下出现；本轮模拟器接入宿主 GPU（AMD Radeon，GLES 3.1 硬件 RenderEffect）后正常。上游 beta04→main 的关闭回弹修复也一并生效。详见 `docs/audit/miuix-os4-r13-audit.md` |
+| 弹出菜单行数上限 | 标题 + 分割线 + 6 行后，其余行在弹层内滚动 | 上游 `GlassPopupColumn` 的固有尺寸探测只采样前 8 个子项（`POPUP_PROBE_COUNT = 8`），超过 6 行时面板高度按 6 行算。主页 10 行菜单实测可滚动到「从主页移除」，文案完整；不通过改库绕过 |
+| 弹层首次组合时机 | 首次长按前不组合锚点浮层（`if (lastActionEntry != null)`） | 上游 `GlassPopupSurface` 的固有尺寸缓存以 content lambda 为 token；先在"空菜单"状态组合会缓存只有标题行的面板高度，之后补内容也不再重算。等有目标时第一次就带完整菜单组合可绕过 |
+| 底部导航蓝色模糊块 | 复核为非缺陷 | 设置页底栏左侧的蓝色块是「主页标签字号」滑块的蓝色轨道透过玻璃的正常采样，滚动离开即消失，切页签后不残留；1.5.0 报告里的"残影"本轮未再复现 |
 | 关于页背景效果调试面板 | 未移植（官方 AboutPage `:456-495` 的 `Background Effect` BottomSheet） | 官方 example 用来现场调 BgEffect 参数（OS2/OS3、动态背景、全屏）的调试面板，无产品意义；动态背景本体已完整对齐 |
 | Monet 动态取色 | 未接入。官方 `ColorSchemeMode.MonetSystem` 可用，Glacier 固定浅/深色板 | 品牌一致性；如需要可作为「主题」第三档，属于产品决策 |
 | 宽屏 + 刘海 | 顶栏 `defaultWindowInsetsPadding = false` + `appPageTopBarInsets()`；正文的横向让位只由内容 padding 提供一次 | 与官方 `AdaptiveTopAppBar`（`PageUtils.kt:265-304`）同构，不再有 End-only inset 补丁 |
-| 真机玻璃光学（L3） | 未验证。模拟器是宿主 GPU（GLES 3.1），能产出真实模糊像素，但不等于真机光学表现 | 需要一台真实设备补验 |
-| 冻结业务链路 | Shizuku / Root / Dhizuku / DeviceOwner / Island / 特权 六条后端只有源码级证据 | 模拟器无可用后端 |
+| 真机玻璃光学（L3） | 未验证。模拟器已接宿主 GPU（AMD Radeon），能产出真实模糊像素，但不等于真机材质/描边/阴影的实际观感 | 需要一台真实设备补验 |
+| 冻结业务链路 | Shizuku / Root / Dhizuku / DeviceOwner / Island / 特权 六条后端只有源码级证据 | 模拟器只有 Root 链路实测过；其余后端仍需真机验证 |
 
 ## 8. 升级流程（每次照做）
 
@@ -145,8 +154,9 @@ tools/miuix-baseline.sh status
 #    https://github.com/compose-miuix-ui/miuix/releases
 #    重点看：@Deprecated 新增、公开签名变化、默认值变化、Compose/Kotlin 版本要求
 
-# 4. 切到目标 tag / commit（会顺带打本地补丁）；基线对齐 tag，不再取 main 最新提交
-tools/miuix-baseline.sh pin v0.9.5-beta04
+# 4. 切到目标 tag / commit（会顺带打本地补丁）
+#    R13 基线：main 最新 commit（当前 542463a0）；官方发新 tag 后改回钉 tag
+tools/miuix-baseline.sh pin 542463a0
 
 # 5. 先让 MIUIX 自己编过，再编 app
 ./gradlew :app:assembleDebug
@@ -163,6 +173,13 @@ tools/miuix-baseline.sh verify
 ```
 
 **不要**只改版本号；**不要**为了截图一致恢复已被官方淘汰的自造实现。
+
+> **R13 升级时踩到的两个上游行为**（后续升级先看这里）：
+> 1. `GlassBottomSheet` 的 content 槽从 `() -> Unit` 变成 `(PaddingValues) -> Unit`，标题栏变成覆盖式
+>    （`progressiveBlur` 默认 true）。所有内容必须用实测标题高度做 `contentPadding.top`，否则首屏会压到标题下面。
+> 2. `GlassPopupColumn` 的固有尺寸只探测前 8 个子项（`POPUP_PROBE_COUNT`），且 `GlassPopupSurface`
+>    按 content lambda 缓存固有尺寸。菜单超过 6 行时面板会滚动；锚点浮层必须在"有完整菜单内容"时
+>    才第一次组合（Glacier 用 `if (lastActionEntry != null)` 门控）。
 
 > 网络：本机 git 直连 `github.com` 会被代理拒绝（`CONNECT tunnel failed, response 502`），
 > 脚本在直连失败时改用 `MIUIX_GIT_MIRROR`（默认 `https://ghfast.top/https://github.com/compose-miuix-ui/miuix.git`）
@@ -206,4 +223,5 @@ adb install -r app/build/outputs/apk/debug/Glacier-debug.apk
 | 2026-11-23（同基线） | — | — | 主页/应用页职责拆分（审计 R10）：应用页改成"挑应用"（点 = 移进/移出主页，行尾官方 `Checkbox` 表达归属，删掉多选/计数/批量动作），长按弹管理向 3 行菜单并去掉弹层底部包名脚注；主页长按改为使用向 9/10 行菜单（冻结/解冻语境行、`ShortcutBridge.requestPin` 的"添加到主屏幕"、"解冻并从主页移除"仅在已冻结时出现），多选入口收敛到顶栏按钮；`AppActionSheet` 改为"调用方给动作清单"（`appsMenuActions`/`homeMenuActions`/`apiMenuActions`），删除 `inHome`/`unsupportedActions` 补丁参数与卸载/重装动作；图标按下态用官方 `HoldDownInteraction`（`HoldDownObserver` 为 internal，按官方实现移植 `ui/components/HoldDownEffect.kt`）。详见 `docs/audit/miuix-os4-r10-audit.md` |
 | 2026-11-24 | `44f1d315`（main，`v0.9.5-beta03` + 18） | `3c560868`（**tag `v0.9.5-beta04`**） | 基线改为对齐 tag（官方重写 main，旧基线已不在 main 上）。官方变更：弹层动效统一到 `SheetMotion` / 精修 `DialogMotion`、`MiuixIndication` 按压层改 20/255 并加 200ms 释放保持、`Slider` 支持点按定位、搜索清除按钮样式统一、`GlassPopup` 支持水平对齐。Glacier 侧无需改 API（编译零改动通过），实际收益是弹层/按压的手感直接跟随官方。详见 `docs/audit/miuix-os4-r11-audit.md` |
 | 2026-11-25（同基线） | — | — | 长按菜单交互（R12）：多选态长按**已选中**项 → 批量菜单（标题「已选择：N」+ 冻结/解冻/标签分组/导出/移除/解冻并移除），长按未选中项仍是单应用菜单；删除 `HoldDownEffect`（按下层不再人工保持），菜单打开的那一格改用零透明度官方 `MiuixIndication` 让叠层立即退场；新增 `SelectionActionRunner`、`setTagForApps`（批量打标签）、`TagPickerSheet`（官方三态 `Checkbox`）。详见 `docs/audit/miuix-os4-r12-audit.md` |
-| 2026-11-24（同基线） | — | — | 自造轮子清查 R11 + 冻结交互重构：删掉"已选 N 个"的自造排版层（`titleFontScale` 0.83 字号补偿 + 整条顶栏 `AnimatedContent` + 逐状态 `MiuixTheme` 覆盖），多选进度改回官方副标题；主页 FAB 改为**只冻结**（不再在"全冻"时翻成解冻；FAB 与多选入口**常驻原位**，确实无可冻目标时点击提示「已全部冻结」，不做自造禁用态）；`refresh()` 由"正在刷新就丢弃"改成 Mutex 串行（修"冻结后图标/文案不刷新"）；应用图标灰度档进 LRU 并支持同步 `peek`，冻结切换不再闪空占位 |
+| 2026-11-25（同基线） | — | — | 自造轮子清查 R11 + 冻结交互重构：删掉"已选 N 个"的自造排版层（`titleFontScale` 0.83 字号补偿 + 整条顶栏 `AnimatedContent` + 逐状态 `MiuixTheme` 覆盖），多选进度改回官方副标题；主页 FAB 改为**只冻结**（不再在"全冻"时翻成解冻；FAB 与多选入口**常驻原位**，确实无可冻目标时点击提示「已全部冻结」，不做自造禁用态）；`refresh()` 由"正在刷新就丢弃"改成 Mutex 串行（修"冻结后图标/文案不刷新"）；应用图标灰度档进 LRU 并支持同步 `peek`，冻结切换不再闪空占位 |
+| 2026-11-25 | `3c560868`（**tag `v0.9.5-beta04`**） | `542463a0`（**main 最新**，beta04 + 12） | 用户要求升级到最新。官方变更集中在 Glass：`GlassTransformPopup` 关闭回弹（`preserve closing rebound on anchor button`）、`GlassBottomSheet` 渐进模糊标题栏 + `headerBottomContent` + 内容槽改 `PaddingValues`、`GlassTopAppBar` 渐进模糊顶纱与 `BandOverhang` 36→32dp、`GlassIconButton` 头部上下文统一为 `GlassHeaderContext`、`GlassCard`/`GlassDialogButton` 动态色对比度、`GlassTopAppBar` `heightOffset` 夹紧、预测性返回状态复位、底栏上沿延伸。Glacier 侧：接回锚点长按菜单（`GlassTransformPopup` + `TopLayer`）、全部 `GlassBottomSheet` 内容让出标题栏、关于页信息卡换 `GlassCard`、页面列表补 `overscrollEffect = null`、`PageMetrics.Horizontal` 改用官方 `GlassTopAppBarDefaults.HorizontalPadding`。详见 `docs/audit/miuix-os4-r13-audit.md` |

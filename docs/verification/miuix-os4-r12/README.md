@@ -15,6 +15,7 @@
 
 ## 未覆盖
 
-- 锚点浮层（`GlassTransformPopup`）：本机稳定崩在 RenderThread（详见
+- 锚点浮层（`GlassTransformPopup`）：本机（SwiftShader）稳定崩在 RenderThread（详见
   `docs/audit/miuix-os4-r12-audit.md` §3），已从交付中移除，待真机验证。
-- 应用页长按的按下态（`Card` 内部 indication 不可外部替换）。
+  **R13 已在 GPU 模拟器接回并通过，见 `docs/verification/miuix-os4-r13/`。**
+- 应用页长按的按下态（`Card` 内部 indication 不可外部替换）。R13 换锚点浮层后已随锚点内容隐藏解决。

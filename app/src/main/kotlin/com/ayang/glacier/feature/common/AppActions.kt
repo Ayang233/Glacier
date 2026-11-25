@@ -41,7 +41,6 @@ import top.yukonga.miuix.kmp.icon.glass.Tags
 import top.yukonga.miuix.kmp.icon.glass.Timer
 import top.yukonga.miuix.kmp.icon.glass.UnlockOutline
 import top.yukonga.miuix.kmp.icon.glass.Unpin
-import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
 /**
@@ -232,7 +231,7 @@ fun homeSelectionMenuActions(): List<AppAction> = listOf(
 /**
  * 菜单里的一行（渲染前的纯数据）。
  *
- * sheet 与（将来真机上的）锚点菜单共用这一份文案/图标表：同一个动作在两个容器里
+ * sheet 与锚点菜单共用这一份文案/图标表：同一个动作在两个容器里
  * 不能出现两种措辞。`label` 在组合期用 `stringResource` 取好后再构造。
  */
 @Immutable
@@ -290,8 +289,10 @@ fun actionSpecOf(
 }
 
 /**
- * 应用操作单。
+ * 应用操作单（底部弹层）。
  *
+ * 主页 / 应用页的长按菜单在 R13 已改成官方锚点浮层（`GlassTransformPopup`），
+ * 这里只服务没有页面锚点的入口——独立窗口的 API Activity（`ApiActivity`）。
  * 用官方 [GlassBottomSheet]；玻璃关闭时传 `backdrop = null`，
  * 库会走不透明回退，功能入口一个不少。
  *
@@ -305,7 +306,7 @@ fun actionSpecOf(
  * （规范 0.1 红线）。
  *
  * **大字体 / 横屏**：行容器是 [LazyColumn]（官方 BottomSheet 内容写法
- * `example/component/BottomSheetSection.kt:209-213`，`scrollEndHaptic + overScrollVertical`），
+ * `example/component/BottomSheetSection.kt:209-213`，`scrollEndHaptic（弹层自己处理嵌套滚动与上沿延伸）`），
  * 10 行在 2.0x 字体下超过弹层可用高度时可以滚动，不再是 `Column` 被弹层 `heightIn(max)` 裁掉、
  * 底部若干行永远点不到（`BottomSheetContentLayout.kt:653-700` 的 `heightIn(max = windowHeight - topInset)`）。
  *
@@ -347,7 +348,7 @@ fun AppActionSheet(
         backdrop = backdrop,
         title = lastTitle ?: lastEntry?.label,
         onDismissFinished = onDismissFinished,
-    ) {
+    ) { innerPadding ->
         lastEntry?.let { item ->
             // 行数据在组合期一次算好（label 走 stringResource），item 里只做纯渲染。
             val rows = lastActions.map { actionSpecOf(it, item, onAction) }
@@ -355,9 +356,12 @@ fun AppActionSheet(
             LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .scrollEndHaptic()
-                    .overScrollVertical(),
-                contentPadding = PaddingValues(bottom = navigationBarBottom + PageMetrics.SectionGap),
+                    .scrollEndHaptic(),
+                contentPadding = PaddingValues(
+                    // 新版标题栏覆盖在内容之上（progressiveBlur）：首屏让出实测标题高度。
+                    top = innerPadding.calculateTopPadding(),
+                    bottom = navigationBarBottom + PageMetrics.SectionGap,
+                ),
             ) {
                 item(key = "actions") {
                     GlassCard(Modifier.fillMaxWidth()) {

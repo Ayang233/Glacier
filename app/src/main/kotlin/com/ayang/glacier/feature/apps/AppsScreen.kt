@@ -9,10 +9,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -30,27 +32,36 @@ import com.ayang.glacier.domain.AppFilter
 import com.ayang.glacier.domain.AppSort
 import com.ayang.glacier.feature.common.AppAction
 import com.ayang.glacier.feature.common.AppActionRunner
-import com.ayang.glacier.feature.common.AppActionSheet
+import com.ayang.glacier.feature.common.AppIconView
 import com.ayang.glacier.feature.common.AppListCardRow
 import com.ayang.glacier.feature.common.AppSearchResults
 import com.ayang.glacier.feature.common.SearchResultVerticalPadding
+import com.ayang.glacier.feature.common.actionSpecOf
 import com.ayang.glacier.feature.common.appsMenuActions
 import com.ayang.glacier.ui.rememberAppSafePadding
 import com.ayang.glacier.ui.LocalGlassActive
 import com.ayang.glacier.ui.LocalRootBackdrop
 import com.ayang.glacier.ui.LocalAppPageInsets
+import com.ayang.glacier.ui.TopLayer
 import com.ayang.glacier.ui.appPageHorizontalInsets
 import com.ayang.glacier.ui.components.EmptyState
 import com.ayang.glacier.ui.components.PageFrame
 import com.ayang.glacier.ui.components.PageMetrics
 import com.ayang.glacier.ui.components.TopBarAction
 import kotlinx.coroutines.launch
+import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
+import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.rememberScrollBarAdapter
 import top.yukonga.miuix.kmp.glass.GlassBottomSheet
 import top.yukonga.miuix.kmp.glass.GlassCard
+import top.yukonga.miuix.kmp.glass.GlassPopupAnchor
+import top.yukonga.miuix.kmp.glass.GlassPopupDefaults
+import top.yukonga.miuix.kmp.glass.GlassPopupItem
 import top.yukonga.miuix.kmp.glass.GlassSearchOverlay
 import top.yukonga.miuix.kmp.glass.GlassSearchOverlayDefaults
+import top.yukonga.miuix.kmp.glass.GlassTransformPopup
+import top.yukonga.miuix.kmp.glass.rememberGlassPopupAnchor
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.Close
 import top.yukonga.miuix.kmp.icon.glass.Filter
@@ -59,7 +70,7 @@ import top.yukonga.miuix.kmp.icon.glass.Sort
 import top.yukonga.miuix.kmp.interfaces.ExperimentalScrollBarApi
 import top.yukonga.miuix.kmp.preference.RadioButtonPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
-import top.yukonga.miuix.kmp.utils.overScrollVertical
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
 /**
@@ -98,6 +109,8 @@ fun AppsScreen() {
     var sortOpen by remember { mutableStateOf(false) }
     var filterOpen by remember { mutableStateOf(false) }
     var actionTarget by remember { mutableStateOf<String?>(null) }
+    // 浮层退场时保留最后一次的条目（锚点菜单的内容不能中途清空）。
+    var lastActionEntry by remember { mutableStateOf<AppEntry?>(null) }
 
     // 弹层退场期间要保留最后一份内容：排序项在 pick 后立即改设置，退场动画里不应闪成新选中态。
     var lastSort by remember { mutableStateOf(preferences.appSort) }
@@ -107,6 +120,9 @@ fun AppsScreen() {
     val scrollBehavior = MiuixScrollBehavior()
     val runner = remember(repository) { AppActionRunner(context, repository) }
     val glassActive = LocalGlassActive.current
+    // 长按那一刻记下被长按行图标的官方锚点；`GlassTransformPopup` 从它原地展开。
+    var popupAnchor by remember { mutableStateOf<GlassPopupAnchor?>(null) }
+    val placeholderAnchor = rememberGlassPopupAnchor()
     // 搜索结果列表的滚动量要回传给搜索条：滚动后搜索条才转玻璃（官方 `IconPage.kt:499-544`）。
     val searchListState = rememberLazyListState()
     // 主列表状态：滚动条（PageFrame.scrollBarAdapter）与列表滚动共用同一个 state。
@@ -130,7 +146,8 @@ fun AppsScreen() {
     // 长按语义：打开该应用的操作单（管理向：应用信息 / 导包名 / 提包）。
     // 按下态不做人工保持：松手后由 `MiuixIndication` 自己淡出（beta04 的 200ms 释放保持），
     // 菜单开着的时候不需要一行"永远按着"的灰底。
-    val openActions: (String) -> Unit = { packageName ->
+    val openActions: (String, GlassPopupAnchor?) -> Unit = { packageName, anchor ->
+        if (anchor != null) popupAnchor = anchor
         actionTarget = packageName
     }
 
@@ -154,7 +171,7 @@ fun AppsScreen() {
                 TopBarAction(MiuixIcons.Glass.Filter, stringResource(R.string.filter)) { filterOpen = true }
             }
         },
-        overlay = {
+        overlay = { pageBackdrop ->
             GlassSearchOverlay(
                 expanded = searchOpen,
                 onDismissRequest = { searchOpen = false },
@@ -178,13 +195,13 @@ fun AppsScreen() {
                 closeIcon = MiuixIcons.Glass.Close,
             ) { query ->
                 // 搜索结果与列表同一套手势：点按 = 移进/移出主页（不收起浮层，可以连着挑几个），
-                // 长按 = 操作单（先收浮层，避免两层弹层叠着）。
+                // 长按 = 锚点菜单（先收浮层，避免两层浮层叠着）。
                 AppSearchResults(
                     query = query,
                     onPick = { entry -> toggleHome(entry) },
-                    onLongPick = { entry ->
+                    onLongPick = { entry, anchor ->
                         searchOpen = false
-                        openActions(entry.packageName)
+                        openActions(entry.packageName, anchor)
                     },
                     homePicker = true,
                     listState = searchListState,
@@ -207,19 +224,68 @@ fun AppsScreen() {
                 onDismiss = { filterOpen = false },
             )
 
-            AppActionSheet(
-                entry = actionTarget?.let { pkg -> repository.snapshot.all.firstOrNull { it.packageName == pkg } },
-                show = actionTarget != null,
-                // 应用页的菜单是"管理向"三行：应用信息 / 导出到剪切板 / 提取安装包。
-                // 冻结、置顶、标签这些使用向操作只在主页出现，两页不重叠。
-                actions = appsMenuActions(),
-                onDismiss = { actionTarget = null },
-                onAction = { action ->
-                    val entry = actionTarget?.let { pkg -> repository.snapshot.all.firstOrNull { it.packageName == pkg } }
-                    actionTarget = null
-                    if (entry != null) scope.launch { runner.run(entry, action) }
-                },
-            )
+            // 应用页长按菜单：官方锚点浮层，从该行图标原地展开（不再用底部弹层，
+            // 弹层顶部会贴住被长按的图标，且窗口会吃掉 UP 导致行按下层残留）。
+            val actionEntry = actionTarget?.let { pkg ->
+                repository.snapshot.all.firstOrNull { it.packageName == pkg }
+            }
+            SideEffect {
+                if (actionEntry != null) lastActionEntry = actionEntry
+            }
+            // 首次长按前不组合浮层：`GlassPopupSurface` 的固有尺寸缓存以 content lambda 为 token，
+            // 先在"仅标题"状态下组合一次会把面板高度缓存住，菜单行补上也不再重新量。
+            val menuEntry = lastActionEntry
+            if (menuEntry != null) {
+                TopLayer {
+                    GlassTransformPopup(
+                        show = actionTarget != null,
+                        onDismissRequest = { actionTarget = null },
+                        anchor = popupAnchor ?: placeholderAnchor,
+                        backdrop = pageBackdrop,
+                        anchorContent = {
+                            AppIconView(
+                                packageName = menuEntry.packageName,
+                                size = PageMetrics.ListAppIcon,
+                                frozen = menuEntry.frozen,
+                            )
+                        },
+                        simplified = true,
+                        gap = 8.dp,
+                    ) {
+                        Text(
+                            text = menuEntry.label,
+                            style = MiuixTheme.textStyles.footnote1,
+                            color = MiuixTheme.colorScheme.onSurfaceContainerVariant,
+                            // 中文长行（「导出到剪切板」）在默认 200dp 下会被省略；标题行明确撑到 280dp。
+                            modifier = Modifier
+                                .width(280.dp)
+                                .padding(
+                                    horizontal = GlassPopupDefaults.ItemPaddingHorizontal,
+                                    vertical = 8.dp,
+                                ),
+                        )
+                        HorizontalDivider(
+                            modifier = Modifier.padding(
+                                horizontal = GlassPopupDefaults.DividerPaddingHorizontal,
+                                vertical = GlassPopupDefaults.DividerPaddingVertical,
+                            ),
+                            thickness = GlassPopupDefaults.DividerThickness,
+                        )
+                        appsMenuActions().forEach { action ->
+                            val row = actionSpecOf(action, menuEntry) { picked ->
+                                actionTarget = null
+                                scope.launch { runner.run(menuEntry, picked) }
+                            }
+                            GlassPopupItem(
+                                text = row.label,
+                                icon = row.icon,
+                                enabled = row.enabled,
+                                onClick = row.onClick,
+                            )
+                        }
+                    }
+                }
+            }
         },
     ) { contentPadding ->
         if (entries.isEmpty()) {
@@ -237,18 +303,23 @@ fun AppsScreen() {
                 modifier = Modifier.fillMaxSize(),
                 // 页面左右 12dp = 官方卡片外边距（`MainPage.kt:312`），由 PageFrame 统一算好。
                 contentPadding = contentPadding,
+                // 弹性 overscroll 由 PageFrame 的官方 pageScrollModifiers 统一消费（官方列表页同参）。
+                overscrollEffect = null,
                 // 卡片之间 12dp = 官方卡片间距（规范第 3 节 `PageMetrics.SectionGap`）。
                 verticalArrangement = Arrangement.spacedBy(PageMetrics.SectionGap),
             ) {
                 items(entries, key = { it.packageName }) { entry ->
                     // 与搜索结果行同一实现：官方 Card(onClick, onLongPress) + BasicComponent 行。
+                    // 长按菜单的锚点是这一行图标的官方锚点（在 AppRow.startAction 里登记）。
+                    val anchor = rememberGlassPopupAnchor()
                     AppListCardRow(
                         entry = entry,
                         inHome = entry.packageName in homePackages,
                         onClick = { toggleHome(entry) },
-                        onLongClick = { openActions(entry.packageName) },
+                        onLongClick = { openActions(entry.packageName, anchor) },
                         // 勾选框 = 主页归属（官方 Checkbox），不是多选计数。
                         onHome = entry.packageName in homePackages,
+                        anchor = anchor,
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
@@ -287,13 +358,15 @@ private fun SortSheet(
         show = show,
         backdrop = LocalRootBackdrop.current.takeIf { LocalGlassActive.current },
         title = stringResource(R.string.sort),
-    ) {
+    ) { innerPadding ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxWidth()
-                .scrollEndHaptic()
-                .overScrollVertical(),
-            contentPadding = PaddingValues(bottom = navigationBarBottom + PageMetrics.SectionGap),
+                .scrollEndHaptic(),
+            contentPadding = PaddingValues(
+                top = innerPadding.calculateTopPadding(),
+                bottom = navigationBarBottom + PageMetrics.SectionGap,
+            ),
         ) {
             item(key = "sort-options") {
                 GlassCard(Modifier.fillMaxWidth()) {
@@ -346,13 +419,15 @@ private fun FilterSheet(
         show = show,
         backdrop = LocalRootBackdrop.current.takeIf { LocalGlassActive.current },
         title = stringResource(R.string.filter),
-    ) {
+    ) { innerPadding ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxWidth()
-                .scrollEndHaptic()
-                .overScrollVertical(),
-            contentPadding = PaddingValues(bottom = navigationBarBottom + PageMetrics.SectionGap),
+                .scrollEndHaptic(),
+            contentPadding = PaddingValues(
+                top = innerPadding.calculateTopPadding(),
+                bottom = navigationBarBottom + PageMetrics.SectionGap,
+            ),
         ) {
             item(key = "filters") {
                 GlassCard(Modifier.fillMaxWidth()) {

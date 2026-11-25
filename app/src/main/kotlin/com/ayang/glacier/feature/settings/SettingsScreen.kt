@@ -142,6 +142,8 @@ fun SettingsScreen(onOpenAbout: () -> Unit) {
             // 12dp 由每张卡片的 horizontal padding 提供：分节标题保持 SmallTitle 自带的 28dp，
             // 不会变成 12 + 28 = 40dp（官方 SettingsPage.kt:415 同构）。
             contentPadding = contentPadding,
+            // 弹性 overscroll 由 PageFrame 的官方 pageScrollModifiers 统一消费（官方 SettingsPage 同参）。
+            overscrollEffect = null,
             verticalArrangement = Arrangement.spacedBy(PageMetrics.SectionGap),
         ) {
             item { SmallTitle(stringResource(R.string.settings_general)) }

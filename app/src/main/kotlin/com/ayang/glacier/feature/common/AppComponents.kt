@@ -21,11 +21,15 @@ import androidx.compose.ui.unit.sp
 import com.ayang.glacier.GlacierApplication
 import com.ayang.glacier.R
 import com.ayang.glacier.platform.rememberAppIcon
+import com.ayang.glacier.ui.components.PageMetrics
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.BasicComponentDefaults
 import top.yukonga.miuix.kmp.basic.Checkbox
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.glass.GlassPopupAnchor
+import top.yukonga.miuix.kmp.glass.glassPopupAnchor
+import top.yukonga.miuix.kmp.glass.glassPopupAnchorContent
 import top.yukonga.miuix.kmp.squircle.squircleBackground
 import top.yukonga.miuix.kmp.squircle.squircleClip
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -162,16 +166,31 @@ fun AppRow(
     frozen: Boolean,
     onClick: (() -> Unit)? = null,
     onHome: Boolean? = null,
+    anchor: GlassPopupAnchor? = null,
 ) {
     BasicComponent(
         title = label,
         summary = summary?.takeIf { it.isNotBlank() },
         startAction = {
-            AppIconView(
-                packageName = packageName,
-                size = 40.dp,
-                frozen = frozen,
-            )
+            val icon = @Composable {
+                AppIconView(
+                    packageName = packageName,
+                    size = PageMetrics.ListAppIcon,
+                    frozen = frozen,
+                )
+            }
+            if (anchor != null) {
+                // 图标登记为锚点：长按菜单从图标原地展开，展开期间只隐藏图标（整行仍可见）。
+                Box(
+                    modifier = Modifier
+                        .glassPopupAnchor(anchor, cornerRadius = PageMetrics.ListAppIcon * AppIconCornerRatio)
+                        .glassPopupAnchorContent(anchor),
+                ) {
+                    icon()
+                }
+            } else {
+                icon()
+            }
         },
         // 冻结徽标 / 主页勾选放 endActions（空间不够时官方组件会自动让位）；都没内容时不渲染。
         endActions = {
