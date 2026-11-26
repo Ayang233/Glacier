@@ -219,6 +219,22 @@ tag 由 `target_commitish = main` 自动创建，指向远端 main 的最新提�
 - 本轮重点：隐藏手势提示线的设备底部弹层不再被屏幕圆角裁掉（R15）、设置页改为一级入口 + 二级页（R17）、
   预测性返回开关与隐藏应用名称（R16）。
 
+1.7.1 发布细节：
+- 本地提交 `bf0d264`（18 files，含 R22/R23 审计、1.7.1 release notes、版本号 13/1.7.1）；
+  直连 `git push` 超时被拦（github.com:443 连不上），`tools/push_api.py` 回显
+  `remote bf0d26404b` / `already up to date`，远端 main = `bf0d264`；
+- Release 由 `tools/release_api.py v1.7.1 bf0d264… docs/release-notes/1.7.1.md <apk> SHA256SUMS.txt`
+  创建：tag `v1.7.1` → `bf0d264`，draft=false、prerelease=false；
+  https://github.com/Ayang233/Glacier/releases/tag/v1.7.1
+- 附件：`Glacier-release.apk` 4,604,789 B（sha256 `d533e68c…e437b`，API asset digest 一致）、
+  `SHA256SUMS.txt` 87 B（sha256 `481a84f7…36c2`）；
+- 签名证书未变（`CN=Glacier, OU=Release, O=Ayang, C=CN`，证书 sha256 `46b3f848…82cf4`）；
+- 覆盖升级实测：模拟器上从 1.7.0（versionCode 12）`adb install -r` 到 1.7.1（versionCode 13），
+  同签名覆盖成功、启动无 crash，`versionName=1.7.1`；
+- 本轮重点（R22/R23）：关闭预测性返回后不再闪系统窗口预览；开关切换不再 `recreate()`
+  Activity（避免整窗空白帧），改为只写偏好 + 提示重启生效；页面转场固定官方
+  `NavTransitions.MiuixDefault`，一级页补返回权。
+
 1.7.0 发布细节：
 - 本地提交 `6dc75cc`（30 files，含 R21 审计、验收截图、1.7.0 release notes）；
   直连 `git push` 仍被拦（github.com:443 连不上），改用 `tools/push_api.py` 增量推送，
