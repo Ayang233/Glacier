@@ -117,6 +117,7 @@ import top.yukonga.miuix.kmp.glass.GlassPopupDefaults
 import top.yukonga.miuix.kmp.glass.GlassPopupItem
 import top.yukonga.miuix.kmp.glass.GlassSearchOverlay
 import top.yukonga.miuix.kmp.glass.GlassSearchOverlayDefaults
+import top.yukonga.miuix.kmp.glass.GlassScrollableTabRow
 import top.yukonga.miuix.kmp.glass.GlassSegmentedTabRow
 import top.yukonga.miuix.kmp.glass.GlassTextField
 import top.yukonga.miuix.kmp.glass.GlassTransformPopup
@@ -556,7 +557,7 @@ fun HomeScreen() {
                             // 这里只给菜单行的同一套内边距，不再写死宽度把面板顶到 MaxWidth。
                             modifier = Modifier.padding(
                                 horizontal = GlassPopupDefaults.ItemPaddingHorizontal,
-                                vertical = 8.dp,
+                                vertical = GlassPopupDefaults.ContentPaddingVertical,
                             ),
                         )
                         HorizontalDivider(
@@ -851,7 +852,8 @@ private fun TagRow(
     val names = remember(tags) { tags.map(labelOf) }
     val index = tags.indexOfFirst { it.id == selectedTag }.coerceAtLeast(0)
     // 分段轨道要求"有界宽度 + 互不相同的标签"（docs/zh_CN/components/glass/glasstabrow.md:72），
-    // 标签太多时每格会被压到放不下；超过 4 个退回官方 TabRow（它本身就支持横向滚动）。
+    // 标签太多时每格会被压到放不下。R21 基线新增官方 `GlassScrollableTabRow`（横向滚动、
+    // 每格最小 76dp），玻璃档超过 4 个标签直接用它；非玻璃档仍用官方 `TabRow`。
     val segmentedBackdrop = backdrop.takeIf { LocalGlassActive.current }
     Column(
         modifier = Modifier
@@ -859,8 +861,8 @@ private fun TagRow(
             .padding(horizontal = PageMetrics.Horizontal)
             .padding(top = 6.dp, bottom = PageMetrics.Horizontal),
     ) {
-        if (segmentedBackdrop != null && names.size in 2..4) {
-            GlassSegmentedTabRow(
+        when {
+            segmentedBackdrop != null && names.size in 2..4 -> GlassSegmentedTabRow(
                 tabs = names,
                 selectedIndex = index,
                 onSelect = { onSelect(tags[it].id) },
@@ -868,8 +870,17 @@ private fun TagRow(
                 surfaceAlpha = surfaceAlpha,
                 modifier = Modifier.fillMaxWidth(),
             )
-        } else {
-            TabRow(
+
+            segmentedBackdrop != null -> GlassScrollableTabRow(
+                tabs = names,
+                selectedIndex = index,
+                onSelect = { onSelect(tags[it].id) },
+                backdrop = segmentedBackdrop,
+                surfaceAlpha = surfaceAlpha,
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            else -> TabRow(
                 tabs = names,
                 selectedTabIndex = index,
                 onTabSelected = { onSelect(tags[it].id) },
@@ -924,6 +935,8 @@ private fun TagPickerSheet(
         onDismissRequest = onDismiss,
         show = show,
         backdrop = LocalRootBackdrop.current.takeIf { LocalGlassActive.current },
+        // 官方 6aa83241 起默认 false；覆盖式渐进模糊标题栏按官方 demo 显式开启。
+        progressiveBlur = true,
         title = stringResource(R.string.action_edit_tags),
     ) { innerPadding ->
         LazyColumn(
@@ -990,6 +1003,8 @@ private fun TagEditorSheet(
         onDismissRequest = onDismiss,
         show = show,
         backdrop = backdrop,
+        // 官方 6aa83241 起默认 false；覆盖式渐进模糊标题栏按官方 demo 显式开启。
+        progressiveBlur = true,
         title = stringResource(R.string.title_tag_editor),
     ) { innerPadding ->
         LazyColumn(
@@ -1093,7 +1108,8 @@ private fun TagNameDialog(
                 label = stringResource(R.string.tag_name_hint),
             )
         }
-        Spacer(Modifier.height(16.dp))
+        // 官方 GlassPage.kt 的对话框写法：输入框与按钮行之间 12dp（按钮之间也是 12dp）。
+        Spacer(Modifier.height(12.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             GlassDialogButton(
                 onClick = onDismiss,
@@ -1170,6 +1186,8 @@ private fun DeferredSheet(
         onDismissRequest = onDismiss,
         show = show,
         backdrop = LocalRootBackdrop.current.takeIf { LocalGlassActive.current },
+        // 官方 6aa83241 起默认 false；覆盖式渐进模糊标题栏按官方 demo 显式开启。
+        progressiveBlur = true,
         title = stringResource(R.string.action_deferred_freeze),
     ) { innerPadding ->
         Column(

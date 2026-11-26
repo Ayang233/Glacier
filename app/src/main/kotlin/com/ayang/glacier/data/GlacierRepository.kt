@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.os.Build
+import android.os.SystemClock
 import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -20,7 +21,10 @@ import com.ayang.glacier.platform.PackageTools
 import com.ayang.glacier.platform.UiFeedback
 import com.ayang.glacier.system.FreezeController
 import com.ayang.glacier.system.FreezeOutcome
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -57,6 +61,15 @@ class GlacierRepository(
      */
     private val refreshLock = Mutex()
 
+    /**
+     * 后台刷新作用域：只承载"已经发出去、结果不阻塞调用方"的刷新。
+     *
+     * 典型场景是点按已冻结应用：解冻成功后要立刻 `startActivity`，而 [refresh] 要枚举几百个包
+     * （秒级开销），把它串在启动前面就是用户看到的"点了没反应"。这类刷新用
+     * [refreshInBackground] 丢到这里跑，与调用方协程的生命周期解耦（页面退出也不会丢刷新）。
+     */
+    private val backgroundScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     init {
         store.onChanged = { preferences.bumpRevision() }
     }
@@ -72,6 +85,20 @@ class GlacierRepository(
         refreshLock.withLock {
             publishHome()
             refreshSnapshot()
+        }
+    }
+
+    /**
+     * 不等待结果的 [refresh]：给"用户马上要看到另一个界面"的写操作（目前是点按启动）用。
+     *
+     * 刷新本身走 [backgroundScope]，调用方立刻返回；[refreshLock] 保证它不会和正在进行的那次
+     * 刷新并发，也不会被丢弃（后来的排前一次结束再跑）。
+     */
+    fun refreshInBackground() {
+        backgroundScope.launch {
+            val startedAt = SystemClock.elapsedRealtime()
+            refresh()
+            Log.i(TAG, "background refresh finished in ${SystemClock.elapsedRealtime() - startedAt}ms")
         }
     }
 
@@ -289,9 +316,14 @@ class GlacierRepository(
 
     // ---- 冻结 ----
 
-    suspend fun setFrozen(packageName: String, frozen: Boolean): Boolean {
+    /**
+     * @param refresh 成功后是否同步刷新快照。默认 `true`，与原来行为一致；点按启动这条路径
+     *   传 `false` 并在 `startActivity` **之后**用 [refreshInBackground] 补刷新——那里的
+     *   首要目标是尽快把应用拉起来，列表晚几百毫秒更新没有任何副作用。
+     */
+    suspend fun setFrozen(packageName: String, frozen: Boolean, refresh: Boolean = true): Boolean {
         val ok = freeze.setFrozen(packageName, frozen)
-        if (ok) refresh()
+        if (ok && refresh) refresh()
         return ok
     }
 

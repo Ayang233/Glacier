@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -48,7 +50,6 @@ import com.ayang.glacier.ui.effect.BgEffectBackground
 import com.ayang.glacier.ui.effect.aboutLogoBlend
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.rememberScrollBarAdapter
 import top.yukonga.miuix.kmp.blur.BlurDefaults
@@ -66,7 +67,11 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  *
  * 结构照 MIUIX 官方 `example/AboutPage.kt`（Apache-2.0）：
  * 品牌区（88dp 白底圆角容器 + 74dp 图标 + 35sp Bold 应用名 + 14sp 版本）→
- * `SmallTitle` 分组 → 官方 `Card` 信息卡（只读 [BasicComponent] / 可跳转 [ArrowPreference]）。
+ * 官方 `Card` 信息卡（只读 [BasicComponent] / 可跳转 [ArrowPreference]）。
+ *
+ * 本页不再使用 `SmallTitle` 分组小标题：品牌区已经给出应用名与版本号，信息卡只保留
+ * 不重复的信息（技术信息 / 系统状态 / 开源许可证入口），卡片之间统一靠
+ * [PageMetrics.SectionGap] 分隔。
  *
  * 品牌区是**固定在列表下方的头图**（官方 `AboutPage.kt:233-305`），LazyColumn 的第一个
  * item 是与它等高的透明占位（官方 `:318-339`）。列表滚动时真实内容盖过头图，
@@ -124,6 +129,16 @@ fun AboutScreen(
             }
         }
     }
+    // 官方 AboutPage.kt:134-139：离散阈值 0.45 + 200ms tween。只在跨过阈值时切换目标值，
+    // 滚动过程不逐帧改 alpha，顶栏不会跟着手指抖。
+    val showTitle by remember(lazyListState) {
+        computedStateOf { scrollProgress.value >= 0.45f }
+    }
+    val titleAlpha by animateFloatAsState(
+        targetValue = if (showTitle) 1f else 0f,
+        animationSpec = tween(durationMillis = 200),
+        label = "aboutTitleAlpha",
+    )
     val density = LocalDensity.current
     // 官方 AboutPage.kt:223 的默认值，首帧后由品牌区实测高度替换；转屏/改字体后自动重测。
     var logoHeight by remember { mutableStateOf(DefaultLogoHeight) }
@@ -146,8 +161,9 @@ fun AboutScreen(
         scrollBehavior = scrollBehavior,
         // 二级页不折叠大标题：官方 AboutPage.kt:139 的 `expandable = false`。
         expandable = false,
-        // 官方 AboutPage.kt:127：标题随同一个滚动进度淡入（0.35→1.0 区间）。
-        topBarTitleAlpha = { ((scrollProgress.value - 0.35f) / 0.65f).coerceIn(0f, 1f) },
+        // 官方 AboutPage.kt:134-139：进度过 0.45 才显示标题，并用 200ms tween 淡入，
+        // 不是随滚动连续变化的线性函数（R21 审计 P1-7）。
+        topBarTitleAlpha = { titleAlpha },
         // 官方示例每页显式加滚动条（`example/MainPage.kt:341-345`），这里交给 PageFrame 按 Scaffold 实测值排版。
         scrollBarAdapter = rememberScrollBarAdapter(lazyListState),
         navigationIcon = {
@@ -228,33 +244,17 @@ fun AboutScreen(
                     )
                 }
 
-                item { SmallTitle(stringResource(R.string.about_section_app)) }
+                // 品牌区已展示应用名 + 版本号，这里不再重复版本行；
+                // 包名与构建类型合成为一行技术信息。
                 item {
                     AboutCard() {
                         BasicComponent(
-                            title = stringResource(R.string.about_version_label),
-                            endActions = {
-                                AboutTrailingValue(
-                                    stringResource(
-                                        R.string.version_value,
-                                        BuildConfig.VERSION_NAME,
-                                        BuildConfig.VERSION_CODE,
-                                    ),
-                                )
-                            },
-                        )
-                        BasicComponent(
                             title = stringResource(R.string.about_package_label),
-                            summary = BuildConfig.APPLICATION_ID,
-                        )
-                        BasicComponent(
-                            title = stringResource(R.string.about_build_label),
-                            summary = BuildConfig.BUILD_TYPE,
+                            summary = "${BuildConfig.APPLICATION_ID} · ${BuildConfig.BUILD_TYPE}",
                         )
                     }
                 }
 
-                item { SmallTitle(stringResource(R.string.settings_system)) }
                 item {
                     AboutCard() {
                         BasicComponent(
@@ -272,7 +272,8 @@ fun AboutScreen(
                     }
                 }
 
-                item { SmallTitle(stringResource(R.string.about_section_open_source)) }
+                // 许可证只保留可点击入口：SPDX 标识作为行尾值，
+                // 不再额外放一条重复的 license label / notice。
                 item {
                     AboutCard() {
                         ArrowPreference(
@@ -281,10 +282,6 @@ fun AboutScreen(
                                 AboutTrailingValue(stringResource(R.string.about_license_spdx))
                             },
                             onClick = onOpenLicenses,
-                        )
-                        BasicComponent(
-                            title = stringResource(R.string.about_license_label),
-                            summary = stringResource(R.string.about_license_notice),
                         )
                     }
                 }

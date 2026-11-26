@@ -27,22 +27,22 @@
 | 项 | 值 |
 |---|---|
 | MIUIX 版本 | `0.9.5`（`build-logic/src/main/kotlin/BuildConfig.kt` 的 `LIBRARY_VERSION`） |
-| 官方 tag | `v0.9.5-beta04`（tag 指向 `3c560868`） |
-| **MIUIX commit** | `542463a0863b393a3d6052237daae6c3da217e70`（**main 最新**，比 beta04 多 12 个提交） |
-| commit 时间 | 2026-11-25 13:54:50 +0800 |
-| commit 标题 | `library: update baseline profiles and cover all pager tabs` |
-| 官方 main 追踪 | `origin/main` = 本基线本身（R13 按用户要求从 tag 跟到 main 最新） |
+| 官方 tag | `v0.9.5-rc01`（tag 指向 `542463a0`，即上一轮基线） |
+| **MIUIX commit** | `e7c108ee469349dcb6ab6d81ca4c0ab9d25813bb`（**main 最新**，比 `v0.9.5-rc01` 多 10 个提交） |
+| commit 时间 | 2026-11-26 16:42:07 +0800 |
+| commit 标题 | `example: Add new icon for iOS (#499)` |
+| 官方 main 追踪 | `origin/main` = 本基线本身（R13 起按用户要求跟 main 最新） |
 | 本地补丁 | 已应用（`tools/miuix-composite-build.patch`） |
-| 核对日期 | 2026-11-25（第九轮：`v0.9.5-beta04` → main `542463a0`） |
+| 核对日期 | 2026-11-26（第十轮：`542463a0` → main `e7c108ee`） |
 
-> **R13 起基线暂时跟到 main 最新。** 官方最新 tag 仍是 `v0.9.5-beta04`，但 main 上这 12 个提交
-> 全是 Glass 渲染与弹层修复（`GlassTransformPopup` 关闭回弹、`GlassBottomSheet` 渐进模糊标题栏、
-> `GlassTopAppBar` 模糊带、动态色对比度等），与 Glacier 本轮要解决的锚点浮层 / 弹层标题栏问题直接相关，
-> 因此按用户要求升到 `542463a0`。下次官方发 tag 后再回到"钉 tag"策略。
+> **R21 升到 main 最新 `e7c108ee`（官方 tag `v0.9.5-rc01` 仍是 `542463a0`，即上一轮基线）。**
+> 这 10 个提交集中在 Glass：`GlassTopAppBar` 渐进模糊带重写（`BandOverhang` 32→10dp、
+> `ProgressiveBlurRadius` 80→32dp、`bottomContent` 起始比例）、`GlassBottomSheet` 的
+> `progressiveBlur` 默认改为 `false`、新增官方 `GlassScrollableTabRow`、下拉弹层非交互滚动指示器、
+> AGP 9.5.3。下一轮官方发正式 0.9.5 后回到"钉 tag"策略。
 >
 > **注意：官方在 2026-11-24 重写过 main 历史。** 上一轮基线 `44f1d315` 已不在 `origin/main` 上，
-> 因此 R11 之前"tag + N 个 main 提交"的表达不再可复算。R11、R12 钉 tag；R13 钉 main 具体 commit
-> （`542463a0`），仍然只认 commit sha，不跟 `origin/main` 漂移。
+> 因此 R11 之前"tag + N 个 main 提交"的表达不再可复算。基线只认 commit sha，不跟 `origin/main` 漂移。
 
 
 ## 3. 工具链
@@ -51,7 +51,7 @@
 |---|---|---|
 | Gradle | 9.9.1（wrapper） | MIUIX 自身用 9.9.2，composite 下以 Glacier 的 wrapper 为准 |
 | Kotlin | 2.4.21 | 与 MIUIX 一致 |
-| AGP | 9.5.2 | 与 MIUIX 一致；composite build 中两端 AGP 版本必须相同，否则依赖解析报 `AgpVersionCompatibilityRule` |
+| AGP | 9.5.3 | 与 MIUIX 一致；composite build 中两端 AGP 版本必须相同，否则依赖解析报 `AgpVersionCompatibilityRule` |
 | Compose | **BOM `2026.11.01` → androidx.compose 1.13.0** | MIUIX 0.9.5 用 Compose Multiplatform 1.13.0-rc01；BOM 必须选到同一个 1.13 线，否则会被 MIUIX 的约束悄悄抬升（旧 BOM 2025.12.01 = 1.10.0 → 1.13.0 的隐式升级） |
 | compileSdk | 37 + `minorApiLevel = 2` | MIUIX 要求 37.2 |
 | buildTools | 37.0.0 | |
@@ -82,7 +82,7 @@ miuix-squircle      squircleClip / squircleBorder / squircleBackground
 | 一级页/二级页骨架 | `GlassTopAppBar` / `TopAppBar` + `Scaffold` + `Card` + `BasicComponent` | 玻璃档/非玻璃档两档都由官方组件构成 |
 | 底部导航 | `GlassNavigationBar` | 24dp 横向内边距 + 20dp 顶距，对齐官方 example；**装在一级目的地里**（官方 `Home()` 的 `Scaffold(bottomBar)` 同构），二级页没有底栏；不使用 `visible` |
 | 侧栏 | `GlassNavigationRail` + `rememberGlassNavigationRailState` | 折叠胶囊由组件自带 |
-| 页签 | `GlassSegmentedTabRow` / `TabRow` | 2–4 个标签走分段轨道，更多退回 TabRow |
+| 页签 | `GlassSegmentedTabRow` / `GlassScrollableTabRow` / `TabRow` | 2–4 个标签走分段轨道；更多玻璃档走 R21 新增的官方横向滚动 `GlassScrollableTabRow`，非玻璃档仍用 `TabRow` |
 | 搜索 | `GlassSearchOverlay` + `rememberGlassSearchBarAlpha` + `glassSearchBarTransition` | 搜索条转玻璃、400ms 进出动画都由官方驱动 |
 | 文本输入 | `GlassTextField`（玻璃档）/ `TextField`（非玻璃档），均为 `TextFieldState` 新版 API | 旧的 `value/onValueChange` 重载已废弃 |
 | 弹层 | `GlassDialog` / `GlassBottomSheet` / `GlassDropdownPreference` / `GlassDialogButton` | `renderInRootScaffold` 保持默认 true；`GlassBottomSheet` 的内容槽是 `(PaddingValues) -> Unit`（标题栏覆盖在内容上，内容必须让出实测标题高度，R13 已全部接好） |
@@ -131,7 +131,7 @@ miuix-squircle      squircleClip / squircleBorder / squircleBackground
 | `UiFeedback.toast()` | 仍用 Android `Toast`（R11 评估后**确认保留**） | ① 调用点包含 Worker / Receiver / 快捷方式等无 Composition 的上下文，`Snackbar` 需要宿主；② 页面级浮层（`GlassSearchOverlay` / `GlassBottomSheet` / 锚点菜单）画在 Scaffold 之上，会在"搜索结果里点一行加入/移出主页"这类高频路径上把 Snackbar 盖住，反馈直接丢失；③ `Toast` 是系统反馈件而非自造 UI，HyperOS 上由系统按 OS 风格绘制 |
 | 二级页切 Tab 的转场 | 仍走 `NavTransitions.MiuixDefault`（官方 example 在二级页点导航时切到私有的 `InstantNavTransition`，`AppContent.kt:320/1155`） | 该 helper 是 example 私有实现而非库 API；当前表现为"退回一级页时播放 pop 转场"，与官方观感有差异，但语义正确。需要完全一致时再移植 |
 | 主页大标题 | 恒为应用名，多选进度写在副标题 | 之前用"换大标题 + 0.83 字号补偿 + 整条顶栏 `AnimatedContent`"表达「已选 N 个」，属自造排版层（`title1` 被临时缩成 26.5sp）；R11 删除，回到官方 `title` + `subtitle` 两行 |
-| 预测性返回开关 | 已实现（R16），照官方 example：`HiddenApiBypass` 豁免 + 反射 `ApplicationInfo.setEnableOnBackInvokedCallback` + 重建 Activity | `enableOnBackInvokedCallback` 是 manifest 级开关，运行时只能改进程内的 `ApplicationInfo` 标志，且必须赶在 `Activity.onCreate` 前生效（官方 example 同位置）。关闭后 `NavDisplay` 仍走 `OnBackPressedDispatcher` → 普通 pop 转场，只是不再收到逐帧进度（无跟手预览） |
+| 预测性返回开关 | **R21 改为照 InstallerX-Revived**：manifest `enableOnBackInvokedCallback` 常开，设置只切 `NavDisplay` 的 `predictivePop`（`NoPredictiveBackTransition`，逐字节移植自 InstallerX） | 不再运行时反射 `ApplicationInfo`、不再 `recreate()`。旧方案依赖 HiddenApiBypass 在 OEM ROM 上不一定成功，且开关必然重建 Activity、可能闪一帧；新方案开关即时生效、无重建。关闭时页面不跟手位移，松手仍播 MIUIX pop 转场 |
 | 主页隐藏应用名称 | Glacier 自实现（R16）。MIUIX **没有**相关官方 API：库没有桌面/图标网格组件，文档也没有隐藏名称的能力 | 实现时保留标签节点只做 `alpha(0)`，标签仍量出同样行高，行距（16dp）/图文间距（6dp）/列宽公式还是原 MIUIX token；可访问名移到整格 `contentDescription`，读屏不受影响 |
 | 品牌图标 | 自绘（R16）。MIUIX 图标库搜不到雪花图标 | 6 条臂用同一半径/角度生成，完全对称；主体 0.90 缩放；黑主体白底，`ic_launcher_foreground` / `ic_brand_mark` / `ic_tile_frozen` 同源重画 |
 | 锚点浮层（`GlassPopup` / `GlassTransformPopup`） | **R13 已接回并实测通过，R14 补齐宽度/动画/侧栏让位**：主页网格与应用页列表行的长按菜单都从被按的那一格/图标原地展开；经 `TopLayer` 提升到根部 | R12 的 RenderThread 递归崩溃只在软件渲染（SwiftShader）下出现；本轮模拟器接入宿主 GPU（AMD Radeon，GLES 3.1 硬件 RenderEffect）后正常。上游 beta04→main 的关闭回弹修复也一并生效。详见 `docs/audit/miuix-os4-r13-audit.md`、`docs/audit/miuix-os4-r14-audit.md` |
@@ -236,3 +236,4 @@ adb install -r app/build/outputs/apk/debug/Glacier-debug.apk
 | 2026-11-25（同基线） | — | — | 冷启动首帧显示主页应用（R18）：`GlacierRepository.primeSnapshot()` 在 `Application.onCreate` 同步用磁盘上的主页列表填快照（只读 apps/tags + 几项 PackageManager 信息，不查冻结态、不枚举全部应用），随后后台 `refresh()` 补全全部应用与冻结态（与 Activity 的 refresh 经 `refreshLock` 串行）。主页不再先闪一帧「0 个应用」空状态。详见 `docs/audit/miuix-os4-r18-audit.md` |
 | 2026-11-25（同基线） | — | — | 冻结状态跟首帧一起到位（R19）：`primeSnapshot()` 改用 `FreezeController.isFrozen(info: ApplicationInfo)` 直接读刚拿到的 `ApplicationInfo` 位算冻结态（不再写死 `false`、也不额外查 `PackageManager`），首位快照即带正确冻结态；`refresh()` 拆成 `publishHome()`（只读主页包，实测 1~2ms）+ `refreshSnapshot()`（全量），主页任何一次刷新都毫秒级先到位；全量刷新复用枚举到的 `ApplicationInfo`（`entryFor(info)`），252 个包 593ms → 480ms。详见 `docs/audit/miuix-os4-r19-audit.md` |
 | 2026-11-25（同基线） | — | — | 预测性返回开关不闪 + dependent-option 官方动画（R20）：① `recreate()` 后新窗口首帧常拿不到 `WindowInsets`，整页按「没有状态栏」排一帧再跳回（真机录屏实测位移恒为一个状态栏高度 144px）。官方 MIUIX 的 recreate 机制保留，在 `MainActivity` 加 `RecreatedInsetsGate`：重建时内容照常组合（返回栈/key 不变），只把首帧绘制 alpha 压 0，等 `systemBars` inset 下发再显示（最多 3 帧兜底，底色与 `windowBackground` 同色）；组合结构两条路径必须一致，否则 `rememberSaveable` key 变化会让 NavDisplay 返回栈掉回首页。② dependent-option 行（图标包 / 主页标签字号 / 自动冻结子项）改用官方 `CapturedAnimatedVisibility(enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically())`（同 `ThemeSettingsPage.kt:247-251`），不再用默认参数导致「淡出后高度硬跳」。详见 `docs/audit/miuix-os4-r20-audit.md` |
+| 2026-11-26 | `542463a0`（main，`v0.9.5-rc01`） | `e7c108ee`（**main 最新**，rc01 + 10） | 升级最新基线（R21）：`GlassTopAppBar` 渐进模糊带重写（默认 `BandOverhang` 32→10dp、`ProgressiveBlurRadius` 80→32dp、`bottomContent` 起始比例自动计算）、`GlassBottomSheet` 的 `progressiveBlur` 默认 `false`（标题栏不再覆盖正文，`content` 的 `PaddingValues` 为 0）、新增官方 `GlassScrollableTabRow`、下拉弹层滚动指示器、AGP 9.5.3。Glacier 侧：主页标签 >4 个的玻璃档从普通 `TabRow` 换成官方 `GlassScrollableTabRow`；AGP 同步 9.5.3。详见 `docs/audit/miuix-os4-r21-audit.md` |

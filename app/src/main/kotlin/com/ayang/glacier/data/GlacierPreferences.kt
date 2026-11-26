@@ -95,10 +95,9 @@ class GlacierPreferences(context: Context) {
     /**
      * 预测性返回动画（系统返回手势的跟手预览）。
      *
-     * 关闭只是让应用退出 `OnBackInvokedCallback` 体系：系统不再给返回进度，
-     * Glacier 的页面返回仍走 MIUIX `NavDisplay` 的普通 pop 动画，**动画不会消失**。
-     * 这个开关必须在 Activity 创建前生效，因此写完后需要重建 Activity
-     * （官方 example 同样做 `recreateWithoutTransition()`）。
+     * R21 起系统标志由 manifest 常开，开关只切 `NavDisplay` 的 `predictivePop` 转场：
+     * 关闭后页面不再跟手位移，但返回仍走 MIUIX 普通 pop 动画，**动画不会消失**。
+     * 切换不需要重建 Activity，写完 `bumpRevision()` 即可立即生效。
      */
     var predictiveBackEnabled: Boolean
         get() = prefs.getBoolean(KEY_PREDICTIVE_BACK, true)

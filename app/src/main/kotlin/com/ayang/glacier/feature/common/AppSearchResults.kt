@@ -59,7 +59,6 @@ internal val SearchResultVerticalPadding = 4.dp
 @Composable
 fun AppListCardRow(
     entry: AppEntry,
-    inHome: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     onHome: Boolean? = null,
@@ -76,7 +75,7 @@ fun AppListCardRow(
         AppRow(
             packageName = entry.packageName,
             label = entry.label,
-            summary = appRowSummary(entry, inHome),
+            summary = appRowSummary(entry),
             frozen = entry.frozen,
             onHome = onHome,
             anchor = anchor,
@@ -91,12 +90,13 @@ fun AppListCardRow(
  * （规范 §9「Home 和 Apps 统一性」、任务书 §7 第 8 项）。
  */
 @Composable
-fun appRowSummary(entry: AppEntry, inHome: Boolean): String {
+fun appRowSummary(entry: AppEntry): String {
     // 每个 stringResource 都直接在 @Composable 函数体里求值，不依赖 inline 构建器的组合上下文。
+    // 「是否在主页」不再写进副标题：行尾官方 Checkbox 已经用选中/未选中表达同一件事，
+    // 再拼一段「· 不在主页」就是同一信息的重复展示（用户 R21 反馈）。
     val pinned = if (entry.pinned) " · " + stringResource(R.string.badge_pinned) else ""
     val whitelisted = if (entry.whitelisted) " · " + stringResource(R.string.badge_whitelisted) else ""
-    val notOnHome = if (!inHome) " · " + stringResource(R.string.badge_not_on_home) else ""
-    return entry.packageName + pinned + whitelisted + notOnHome
+    return entry.packageName + pinned + whitelisted
 }
 
 /**
@@ -132,7 +132,8 @@ fun AppSearchResults(
     val results = remember(query, repository.snapshot, revision) {
         if (query.isBlank()) emptyList() else repository.apps(query)
     }
-    // 行摘要要标「不在主页」，这里与 Apps 列表同一份 home 集合，避免逐行 O(n) 查找。
+    // 勾选框（应用页挑选器）要读主页归属，这里与 Apps 列表同一份 home 集合，避免逐行 O(n) 查找。
+    // 副标题不再需要它：Checkbox 的选中态已经是「在不在主页」的唯一表达。
     val homePackages = remember(repository.snapshot) {
         repository.snapshot.home.mapTo(HashSet()) { it.packageName }
     }
@@ -180,7 +181,6 @@ fun AppSearchResults(
             val anchor = rememberGlassPopupAnchor()
             AppListCardRow(
                 entry = entry,
-                inHome = entry.packageName in homePackages,
                 onClick = { onPick(entry) },
                 // 挑选器里勾选框表达主页归属；主页搜索不显示（那里点了是启动应用）。
                 onHome = if (homePicker) entry.packageName in homePackages else null,

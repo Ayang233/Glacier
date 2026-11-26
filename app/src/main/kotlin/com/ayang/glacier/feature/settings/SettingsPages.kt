@@ -30,8 +30,6 @@ import com.ayang.glacier.platform.Platform
 import com.ayang.glacier.platform.PredictiveBack
 import com.ayang.glacier.platform.UiFeedback
 import com.ayang.glacier.platform.auto.AutoFreezeScheduler
-import com.ayang.glacier.platform.findActivity
-import com.ayang.glacier.platform.recreateWithoutTransition
 import com.ayang.glacier.ui.LocalGlassActive
 import com.ayang.glacier.ui.LocalRootBackdrop
 import com.ayang.glacier.ui.components.GroupCard
@@ -216,7 +214,10 @@ fun ThemeSettingsScreen(onBack: () -> Unit) {
                         onCheckedChange = { enabled ->
                             predictiveBack = enabled
                             preferences.predictiveBackEnabled = enabled
-                            context.findActivity()?.recreateWithoutTransition()
+                            // 照 InstallerX-Revived：系统标志由 manifest 常开，开关只切
+                            // NavDisplay 的 predictivePop 转场，不需要重建 Activity。
+                            // bumpRevision 让 GlacierShell 立即读到新值。
+                            preferences.bumpRevision()
                         },
                         title = stringResource(R.string.predictive_back),
                         summary = stringResource(R.string.predictive_back_summary),

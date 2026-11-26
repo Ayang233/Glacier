@@ -132,7 +132,7 @@ fun AppsScreen() {
     // `GlassPopupSurface` 的固有尺寸缓存记住，之后内容补上也不重量）。浮层此时不可见，
     // 真正被长按的条目会在同一次组合里替换进来。
     if (lastActionEntry == null) lastActionEntry = entries.firstOrNull()
-    // 「不在主页」徽标需要的集合：与搜索结果行共用同一份摘要文案（`appRowSummary`）。
+    // 主页归属集合：行尾 Checkbox 的选中态与点按切换都读它（副标题不再重复「不在主页」）。
     val homePackages = remember(repository.snapshot) {
         repository.snapshot.home.mapTo(HashSet()) { it.packageName }
     }
@@ -264,7 +264,7 @@ fun AppsScreen() {
                             // 宽度交回官方内容驱动（MinWidth/MaxWidth），只保留菜单行内边距。
                             modifier = Modifier.padding(
                                 horizontal = GlassPopupDefaults.ItemPaddingHorizontal,
-                                vertical = 8.dp,
+                                vertical = GlassPopupDefaults.ContentPaddingVertical,
                             ),
                         )
                         HorizontalDivider(
@@ -317,7 +317,6 @@ fun AppsScreen() {
                     val anchor = rememberGlassPopupAnchor()
                     AppListCardRow(
                         entry = entry,
-                        inHome = entry.packageName in homePackages,
                         onClick = { toggleHome(entry) },
                         onLongClick = { openActions(entry.packageName, anchor) },
                         // 勾选框 = 主页归属（官方 Checkbox），不是多选计数。
@@ -360,6 +359,9 @@ private fun SortSheet(
         onDismissRequest = onDismiss,
         show = show,
         backdrop = LocalRootBackdrop.current.takeIf { LocalGlassActive.current },
+        // 官方 6aa83241 起默认 false（标题栏在内容上方）；OS4 Glass 的覆盖式渐进模糊
+        // 标题栏要显式开启，官方 demo 也是显式 `progressiveBlur = true`。
+        progressiveBlur = true,
         title = stringResource(R.string.sort),
     ) { innerPadding ->
         LazyColumn(
@@ -421,6 +423,8 @@ private fun FilterSheet(
         onDismissRequest = onDismiss,
         show = show,
         backdrop = LocalRootBackdrop.current.takeIf { LocalGlassActive.current },
+        // 同 SortSheet：官方默认已改为 false，覆盖式模糊标题栏需显式开启。
+        progressiveBlur = true,
         title = stringResource(R.string.filter),
     ) { innerPadding ->
         LazyColumn(

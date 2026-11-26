@@ -80,12 +80,12 @@ MIUIX 走 composite build 引入，默认找 `../miuix`，可以用 `MIUIX_DIR` 
 第一次构建前先把 MIUIX 切到基线提交并打上本地补丁：
 
 ```bash
-tools/miuix-baseline.sh pin 542463a0
+tools/miuix-baseline.sh pin e7c108ee
 tools/miuix-baseline.sh verify
 tools/miuix-baseline.sh status
 ```
 
-当前基线是官方 main 最新 `542463a0`（比 tag `v0.9.5-beta04` 多 12 个 Glass 修复）；
+当前基线是官方 main 最新 `e7c108ee`（比 tag `v0.9.5-rc01` 多 10 个 Glass 修复）；
 细节、升级流程和上游注意事项写在 [MIUIX_BASELINE.md](MIUIX_BASELINE.md)。
 
 ## 代码结构
@@ -138,6 +138,7 @@ Box
 ## 和 MIUIX 对齐的部分
 
 底栏 24dp 横向内边距、页面 12dp 留白、官方脚手架与滚动/弹层动画、关于页结构与尺寸、
+官方新增的 `GlassScrollableTabRow`（标签超 4 个时）、
 squircle 图标轮廓，都是照着 MIUIX 源码和 `example/shared` 一项项对过的。
 页面让位走官方 `AppPageInsets` 契约（`ui/PageInsets.kt`，从官方 `utils/PageUtils.kt` 搬来的），
 `NavDisplay` 始终满宽，侧栏宽度和系统安全区只作用在内容上，背景和顶栏的模糊带不会被切断。
@@ -167,8 +168,8 @@ squircle 图标轮廓，都是照着 MIUIX 源码和 `example/shared` 一项项�
 
 审计与验收记录：
 
-- [基线、升级流程与组件对照](MIUIX_BASELINE.md)（当前 MIUIX main `542463a0`）
-- [R20 预测性返回开关不闪 + dependent-option 官方动画](docs/audit/miuix-os4-r20-audit.md) · [R19 冻结状态跟首帧一起到位](docs/audit/miuix-os4-r19-audit.md) · [R18 冷启动首帧直接显示主页应用](docs/audit/miuix-os4-r18-audit.md) · [R17 冻结按钮雪花与设置页分级](docs/audit/miuix-os4-r17-audit.md) · [R16 设置顺序/预测性返回/雪花图标/隐藏名称](docs/audit/miuix-os4-r16-audit.md) · [R15 底部弹层避开屏幕大 R 角](docs/audit/miuix-os4-r15-audit.md) · [R14 锚点浮层收尾（宽度/动画/侧栏让位）](docs/audit/miuix-os4-r14-audit.md) · [R13 基线升级与自造轮子清查](docs/audit/miuix-os4-r13-audit.md) · [R12 长按菜单与按下态](docs/audit/miuix-os4-r12-audit.md) · [R11 自造轮子清查与冻结交互](docs/audit/miuix-os4-r11-audit.md) · [R10 两页菜单分工](docs/audit/miuix-os4-r10-audit.md)
+- [基线、升级流程与组件对照](MIUIX_BASELINE.md)（当前 MIUIX main `e7c108ee`）
+- [R21 升级最新基线 + 自造轮子复查 + 四个问题](docs/audit/miuix-os4-r21-audit.md) · [R20 预测性返回开关不闪 + dependent-option 官方动画](docs/audit/miuix-os4-r20-audit.md) · [R19 冻结状态跟首帧一起到位](docs/audit/miuix-os4-r19-audit.md) · [R18 冷启动首帧直接显示主页应用](docs/audit/miuix-os4-r18-audit.md) · [R17 冻结按钮雪花与设置页分级](docs/audit/miuix-os4-r17-audit.md) · [R16 设置顺序/预测性返回/雪花图标/隐藏名称](docs/audit/miuix-os4-r16-audit.md) · [R15 底部弹层避开屏幕大 R 角](docs/audit/miuix-os4-r15-audit.md) · [R14 锚点浮层收尾（宽度/动画/侧栏让位）](docs/audit/miuix-os4-r14-audit.md) · [R13 基线升级与自造轮子清查](docs/audit/miuix-os4-r13-audit.md) · [R12 长按菜单与按下态](docs/audit/miuix-os4-r12-audit.md) · [R11 自造轮子清查与冻结交互](docs/audit/miuix-os4-r11-audit.md) · [R10 两页菜单分工](docs/audit/miuix-os4-r10-audit.md)
 - [R9 按压反馈与选中态](docs/audit/miuix-os4-r9-audit.md) · [R8 宽屏间距与自定值清单](docs/audit/miuix-os4-r8-audit.md)
 - [R7 交互整改](docs/audit/miuix-os4-r7-audit.md) · [R6 自造轮子清查](docs/audit/miuix-os4-r6-audit.md) · [MIUIX 官方契约摘录](docs/reference/miuix-os4-contract.md)
 

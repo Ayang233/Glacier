@@ -90,8 +90,11 @@ object PageMetrics {
     /** 列表末尾的留白。 */
     val BottomGap = 12.dp
 
-    /** 顶栏动作按钮里的图标尺寸（官方 example 28dp）。 */
-    val TopBarActionIcon = 28.dp
+    /** 玻璃档顶栏动作图标尺寸（官方 example 28dp）。 */
+    val TopBarActionIconGlass = 28.dp
+
+    /** 非玻璃档顶栏动作图标尺寸（官方 example 24dp）。 */
+    val TopBarActionIcon = 24.dp
 
     /** 列表行里的应用图标尺寸（`BasicComponent` 行，官方 example 40dp）。 */
     val ListAppIcon = 40.dp
@@ -241,7 +244,8 @@ fun PageFrame(
                     scrollBehavior = scrollBehavior,
                     expandable = largeTitle,
                     titleAlpha = mergedTitleAlpha,
-                    obstructionStart = LocalTopBarObstructionStart.current,
+                    // 官方契约是 lambda：在顶栏组合期读取，侧栏 morph 不触发整页重组。
+                    obstructionStart = LocalTopBarObstructionStart.current(),
                     navigationIcon = navigationIcon,
                     actions = topBarActions,
                     bottomContent = { topBarBottom(backdrop.takeIf { glassActive }) },
@@ -389,7 +393,7 @@ fun TopBarAction(
             Icon(
                 imageVector = icon,
                 contentDescription = contentDescription,
-                modifier = Modifier.size(PageMetrics.TopBarActionIcon),
+                modifier = Modifier.size(PageMetrics.TopBarActionIconGlass),
                 tint = MiuixTheme.colorScheme.onSurface,
             )
         }
@@ -568,7 +572,7 @@ fun BackNavigationAction(
                 imageVector = MiuixIcons.Glass.ChevronBackward,
                 contentDescription = contentDescription,
                 modifier = Modifier
-                    .size(PageMetrics.TopBarActionIcon)
+                    .size(PageMetrics.TopBarActionIconGlass)
                     .then(mirror),
                 tint = MiuixTheme.colorScheme.onSurface,
             )

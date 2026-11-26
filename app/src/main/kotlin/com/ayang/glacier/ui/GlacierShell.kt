@@ -117,6 +117,10 @@ fun GlacierShell() {
     val glassActive = preferences.glassEnabled && isRuntimeShaderSupported()
     val wide = isWideLayout()
     val expandedRail = isExtraWideLayout()
+    // 预测性返回只切转场，不再运行时改 manifest 级标志 / 重建 Activity（照 InstallerX-Revived）。
+    // 订阅 revision，设置页开关改完返回后立即生效；关闭时用 NoPredictiveBackTransition，
+    // 页面不再跟手位移，松手仍播 MIUIX pop 转场。
+    val predictiveBack = remember(preferences.revision.intValue) { preferences.predictiveBackEnabled }
 
     val backStack = rememberNavBackStack<Route>(Route.Main)
 
@@ -181,10 +185,14 @@ fun GlacierShell() {
     val titleAlpha: () -> Float = { if (wide) railProgress() else 1f }
     // 二级页不淡出标题，改为由官方 centerObstructionStart 把居中标题右移，避开顶部胶囊
     // （官方 AppContent.kt:228-234 / GlassPage.kt:347）。胶囊还没量出宽度时为 Unspecified。
-    val obstructionStart: Dp = if (wide && !railState.expanded && railState.collapsedWidth > 0.dp) {
-        railState.collapsedStart
-    } else {
-        Dp.Unspecified
+    // 官方 `LocalTopAppBarCenterObstructionStart` 是 lambda：由顶栏在需要时读取，
+    // 胶囊宽度变化不触发 Shell 重组。
+    val obstructionStart: () -> Dp = {
+        if (wide && !railState.expanded && railState.collapsedWidth > 0.dp) {
+            railState.collapsedStart
+        } else {
+            Dp.Unspecified
+        }
     }
 
     val surface = MiuixTheme.colorScheme.surface
@@ -216,6 +224,12 @@ fun GlacierShell() {
         NavSwipeDirection.RightToLeft
     } else {
         NavSwipeDirection.LeftToRight
+    }
+
+    // 预测性返回开：官方 MiuixDefault 自带 predictivePop，页面 1:1 跟手；
+    // 关：NoPredictiveBackTransition 隐藏跟手位移，但保留 pop 转场。
+    val navTransition = remember(predictiveBack) {
+        if (predictiveBack) NavTransitions.MiuixDefault else NoPredictiveBackTransition
     }
 
     // 页面级浮层（长按锚点菜单等）的根宿主：在录制层与玻璃 side chrome 之外，
@@ -267,7 +281,7 @@ fun GlacierShell() {
                         modifier = Modifier
                             .fillMaxSize()
                             .then(if (wide) Modifier.clipToBounds() else Modifier),
-                        transition = NavTransitions.MiuixDefault,
+                        transition = navTransition,
                         effects = navEffects,
                         onBack = {
                             if (backStack.size > 1) backStack.removeAt(backStack.lastIndex)
@@ -296,7 +310,7 @@ fun GlacierShell() {
                             CompositionLocalProvider(
                                 LocalTopBarTitleAlpha provides titleAlpha,
                                 // 一级页标题随侧栏淡出（官方 primaryTitleAlpha），不参与避让。
-                                LocalTopBarObstructionStart provides Dp.Unspecified,
+                                LocalTopBarObstructionStart provides { Dp.Unspecified },
                                 // 底栏高度由一级页自己measured后下发给页面正文（官方由 Scaffold 的
                                 // innerPadding 给；Glacier 的页面在分页器里，用这个 Local 表达同一件事）。
                                 LocalShellBottomBarHeight provides if (wide) 0.dp else barHeight,
@@ -471,8 +485,8 @@ fun GlacierShell() {
 /**
  * 窄屏底部导航胶囊。
  *
- * 数值照官方 `example/GlassPage.kt:292-320`：
- * 横向让位用官方 `appPageHorizontalInsets()`，24dp 内边距、20dp 顶部间距、
+ * 数值照官方 `example/GlassPage.kt:294-307`（R21 基线已删除旧的 20dp 顶部间距）：
+ * 横向让位用官方 `appPageHorizontalInsets()`，横向 24dp 内边距、
  * 底部 `max(24dp, safeBottom + 8dp)` 由外层 layout 统一处理，
  * `defaultWindowInsetsPadding = false` 避免组件再让一次系统 inset。
  *
@@ -496,7 +510,8 @@ private fun GlacierBottomNavigation(
             .fillMaxWidth()
             // 官方写法：横向让位复用页面同一套 contentInsets（窄屏 = 刘海/横屏导航条）。
             .then(Modifier.appPageHorizontalInsets())
-            .padding(start = 24.dp, end = 24.dp, top = 20.dp)
+            // 官方 9c256923 已删除 top = 20.dp：底栏直接贴内容区底边，不再多占 20dp。
+            .padding(horizontal = 24.dp)
             .layout { measurable, constraints ->
                 val bottom = maxOf(24.dp, safeBottom + 8.dp)
                     .roundToPx()

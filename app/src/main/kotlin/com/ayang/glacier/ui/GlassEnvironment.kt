@@ -1,7 +1,6 @@
 package com.ayang.glacier.ui
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
@@ -26,7 +25,7 @@ val LocalGlassActive = staticCompositionLocalOf { false }
 val LocalRootBackdrop = staticCompositionLocalOf<LayerBackdrop?> { null }
 
 /**
- * 底栏实测总高度（含 20dp 顶部间距 + 胶囊 + 底部安全区）。
+ * 底栏实测总高度（含胶囊 + 底部安全区；R21 起不再有额外 20dp 顶部间距）。
  *
  * 由 Shell 的 bottomBar 实测后写入；页面在自己的 Scaffold 里用它做透明占位，
  * 让正文底部 padding 与 FAB 位置都由 Scaffold 计算，不再手动猜。
@@ -55,10 +54,10 @@ val LocalTopBarTitleAlpha = staticCompositionLocalOf<() -> Float> { { 1f } }
  * 避开顶部胶囊。一级页保持官方的"标题随侧栏 morph 淡出"，因此传
  * [Dp.Unspecified]（不避让）。
  *
- * 与官方 `LocalTopAppBarCenterObstructionStart` 一致用 compositionLocalOf 而非
- * staticCompositionLocalOf：胶囊宽度变化只通知读取它的标题，不触发整树重组。
+ * 与官方 `PageUtils.kt:59` 完全一致：`staticCompositionLocalOf<() -> Dp>` +
+ * 消费端在布局/组合期调用 lambda，宿主 morph 时不触发整树重组。
  */
-val LocalTopBarObstructionStart = compositionLocalOf { Dp.Unspecified }
+val LocalTopBarObstructionStart = staticCompositionLocalOf<() -> Dp> { { Dp.Unspecified } }
 
 /**
  * 宽屏断点：与 MIUIX 官方 example 的 `shouldShowSplitPane` 一致

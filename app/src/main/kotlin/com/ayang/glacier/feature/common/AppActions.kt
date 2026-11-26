@@ -1,6 +1,8 @@
 package com.ayang.glacier.feature.common
 
 import android.content.Context
+import android.os.SystemClock
+import android.util.Log
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.LazyColumn
@@ -42,6 +44,9 @@ import top.yukonga.miuix.kmp.icon.glass.Timer
 import top.yukonga.miuix.kmp.icon.glass.UnlockOutline
 import top.yukonga.miuix.kmp.icon.glass.Unpin
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+
+/** 启动路径的耗时日志：`adb logcat -s GlacierLaunch` 可直接看"解冻 → startActivity"的真实间隔。 */
+private const val TAG = "GlacierLaunch"
 
 /**
  * 单个应用可执行的操作。
@@ -135,20 +140,39 @@ class AppActionRunner(
      *
      * 解冻失败就直接停下并如实提示：此时硬启动只会得到一个 `ActivityNotFound`，
      * 用户看到的是"应用打不开"，而不是"没权限解冻"。
+     *
+     * **解冻不做全量刷新**：解冻成功后唯一要紧的事是把 Activity 拉起来，而全量刷新要枚举
+     * 几百个已安装应用（约 500ms）。这里用 `setFrozen(..., refresh = false)`，
+     * `startActivity` 之后再 [GlacierRepository.refreshInBackground] 补快照。
+     * Island 的 [IslandBackend.awaitLaunchIntent] 语义保留：系统要先认为这个包"可启动"，
+     * 否则硬启动只会失败。
      */
     private suspend fun launch(entry: AppEntry) {
+        val startedAt = SystemClock.elapsedRealtime()
         if (entry.frozen) {
-            if (!repository.setFrozen(entry.packageName, false)) {
+            if (!repository.setFrozen(entry.packageName, false, refresh = false)) {
                 UiFeedback.toast(context, R.string.permission_denied)
                 return
             }
+            Log.i(
+                TAG,
+                "unfrozen ${entry.packageName} in ${SystemClock.elapsedRealtime() - startedAt}ms (snapshot refresh deferred)",
+            )
             if (repository.selectedMode() == WorkingMode.IslandFreeze ||
                 repository.selectedMode() == WorkingMode.IslandSuspend
             ) {
                 repository.freeze.island.awaitLaunchIntent(entry.packageName)
             }
         }
-        if (!repository.launch(entry.packageName)) {
+        val launched = repository.launch(entry.packageName)
+        // 启动请求已经发出（或已判定失败），此时才把列表刷新丢到后台：
+        // 刷新不再可能挡在 startActivity 前面。
+        if (entry.frozen) repository.refreshInBackground()
+        Log.i(
+            TAG,
+            "startActivity ${entry.packageName} requested=$launched in ${SystemClock.elapsedRealtime() - startedAt}ms",
+        )
+        if (!launched) {
             UiFeedback.toast(context, R.string.activity_not_found)
         }
     }
@@ -346,6 +370,8 @@ fun AppActionSheet(
         onDismissRequest = onDismiss,
         show = show,
         backdrop = backdrop,
+        // 官方 6aa83241 起默认 false；覆盖式渐进模糊标题栏按官方 demo 显式开启。
+        progressiveBlur = true,
         title = lastTitle ?: lastEntry?.label,
         onDismissFinished = onDismissFinished,
     ) { innerPadding ->
