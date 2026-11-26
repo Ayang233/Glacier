@@ -265,3 +265,19 @@ tag 由 `target_commitish = main` 自动创建，指向远端 main 的最新提�
 - 本轮重点：冻结状态随首帧一起到位（R19）、预测性返回开关不再闪（R20，真机录屏逐帧定位到
   「重建后首帧 WindowInsets 未下发」）、设置 dependent-option 行改用官方 enter/exit（R20）。
 - 待真机确认：R20 的首帧闪烁修复在模拟器上复现不出（模拟器首帧 inset 已就绪）。
+
+1.7.2 发布细节：
+- 本地提交 `7f52905`（17 files，含 R24/R25 审计、验收截图、1.7.2 release notes、版本号 14/1.7.2）；
+  直连 `git push` 被拦（github.com:443 连不上），`tools/push_api.py` 增量推送，
+  远端 main = `7f52905`，脚本回显 "sha 与本地一致"；
+- Release 由 `tools/release_api.py v1.7.2 7f52905… docs/release-notes/1.7.2.md <apk> SHA256SUMS.txt`
+  创建：tag `v1.7.2` → `7f52905`，draft=false、prerelease=false；
+  https://github.com/Ayang233/Glacier/releases/tag/v1.7.2
+- 附件：`Glacier-release.apk` 4,604,785 B（sha256 `da141740…c4af`，API asset digest 一致）、
+  `SHA256SUMS.txt` 87 B（sha256 `0036e08b…6c9f`）；通过 API 下载两个附件复核 sha256 一致；
+- 签名证书未变（`CN=Glacier, OU=Release, O=Ayang, C=CN`，证书 sha256 `46b3f848…82cf4`）；
+- 覆盖升级实测：模拟器上从 1.7.1（versionCode 13）`adb install -r` 到 1.7.2（versionCode 14），
+  同签名覆盖成功、启动无 crash，`versionName=1.7.2`；
+- 本轮重点（R24/R25）：关于页上下滑对齐 MIUIX AboutPage（背景/品牌固定、列表真实滚动、
+  品牌淡出与顶栏标题由滚动进度驱动）；关闭玻璃后非玻璃顶栏按官方 `AdaptiveTopAppBar`
+  把 surface 底色铺到状态栏安全区，上滑不再透出列表内容。
