@@ -113,7 +113,8 @@
     <string name="hide_home_labels">Hide app names</string>
     <string name="hide_home_labels_summary">Home shows icons only. Names stay available in long-press menus.</string>
     <string name="predictive_back">Predictive back animation</string>
-    <string name="predictive_back_summary">Preview the page while swiping back. Turning it off keeps the normal back animation, without the preview.</string>
+    <string name="predictive_back_summary">Preview the page while swiping back. Turning it off keeps the normal back animation, without the preview. Restart the app after switching.</string>
+    <string name="predictive_back_restart">Saved. Restart the app to apply.</string>
     <string name="fuzzy_search">Fuzzy search</string>
     <string name="fuzzy_search_summary">Tolerate typos and missing letters</string>
     <string name="nine_key_search">T9 search</string>

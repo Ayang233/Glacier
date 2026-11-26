@@ -203,21 +203,24 @@ fun ThemeSettingsScreen(onBack: () -> Unit) {
                     title = stringResource(R.string.hide_home_labels),
                     summary = stringResource(R.string.hide_home_labels_summary),
                 )
-                // 预测性返回动画：照官方 example 的做法（改进程内 ApplicationInfo 标志 + 重建
-                // Activity）。关闭只是不再有系统跟手预览，返回手势仍会触发 OnBackPressedDispatcher，
-                // MIUIX NavDisplay 照常播自己的 pop 转场，动画不会消失。
-                // 重建前不再 bumpRevision：标志由新 Activity 的 onCreate 读取，旧窗口少一次
-                // 无用的全量重组，重建前后的画面更干净。
+                // 预测性返回动画：系统级开关（进程内 ApplicationInfo 标志），
+                // 关闭后系统不再下发跟手预览；返回手势仍走 OnBackPressedDispatcher，
+                // MIUIX NavDisplay 照常播 pop 转场，动画不会消失。
+                //
+                // 该标志只在窗口创建期读取，运行时改不了；而 recreate() 会带来
+                // 整窗 windowBackground 空白帧（R23 录屏确认）。所以这里只写偏好 +
+                // 提示重启，进程下次启动时由 GlacierApplication 应用。
                 if (PredictiveBack.isSupported) {
                     SwitchPreference(
                         checked = predictiveBack,
                         onCheckedChange = { enabled ->
                             predictiveBack = enabled
                             preferences.predictiveBackEnabled = enabled
-                            // 照 InstallerX-Revived：系统标志由 manifest 常开，开关只切
-                            // NavDisplay 的 predictivePop 转场，不需要重建 Activity。
-                            // bumpRevision 让 GlacierShell 立即读到新值。
-                            preferences.bumpRevision()
+                            UiFeedback.toast(
+                                context,
+                                R.string.predictive_back_restart,
+                                long = true,
+                            )
                         },
                         title = stringResource(R.string.predictive_back),
                         summary = stringResource(R.string.predictive_back_summary),

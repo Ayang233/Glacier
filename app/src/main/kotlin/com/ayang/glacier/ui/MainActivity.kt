@@ -3,7 +3,6 @@ package com.ayang.glacier.ui
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -20,11 +19,10 @@ import kotlinx.coroutines.launch
  * 只用 Compose 承载，没有 XML 布局、没有第二套设计体系。
  * 主题取官方 [GlacierTheme]，Glass 开关由根容器统一决定。
  *
- * **预测性返回不再在运行时改进程标志**：manifest 的
- * `android:enableOnBackInvokedCallback="true"` 常开，系统始终把跟手进度发给
- * `NavDisplay`；设置页的开关只切换 `predictivePop` 转场（`NoPredictiveBackTransition`），
- * 与 InstallerX-Revived / Mishka 同一套做法。这样不需要 HiddenApiBypass，也不需要
- * `recreate()`，切换开关不会再闪一帧。
+ * **预测性返回由系统标志控制**：manifest 常开 `enableOnBackInvokedCallback`，
+ * 进程启动时由 [GlacierApplication] 按偏好把 `ApplicationInfo` 标志置为对应值。
+ * 该标志只能在窗口创建期读取，因此设置页切换后 **不重建 Activity**（重建会出现
+ * 整窗 `windowBackground` 空白帧），而是提示用户重启应用生效。
  */
 class MainActivity : FragmentActivity() {
 

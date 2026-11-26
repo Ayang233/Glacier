@@ -75,6 +75,12 @@
 
 ## 六、预测性返回
 
+> **R22 已回退本节方案。** 只切 `predictivePop` 无法关闭系统自己的返回窗口预览：
+> 真机录屏逐帧确认，关闭后在一级页做手势返回仍会闪一帧；模拟器 logcat 也显示
+> `enableOnBackInvokedCallback` 仍为 true。现在改为系统级 `enableOnBackInvokedCallback`
+> 开关 + 官方 `MiuixDefault`，删除 `NoPredictiveBackTransition`。
+> 见 `docs/audit/miuix-os4-r22-audit.md`。
+
 现象定位：系统预测性返回本身正常。旧实例持久化里 `predictive_back_animation=false` 时，运行时会把进程内 `ApplicationInfo.enableOnBackInvokedCallback` 设为 false（logcat：`mIsAnimationCallback=false`），表现就是「页面不动、只有系统返回箭头」；把它打开后慢滑返回立即恢复跟手（页面右移、下层压暗、松手提交），与 MIUIX 官方 example 同几何。
 
 但旧方案有两个结构性风险，本轮照 InstallerX-Revived 重做：

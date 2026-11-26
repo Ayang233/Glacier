@@ -11,6 +11,7 @@ import com.ayang.glacier.data.GlacierPreferences
 import com.ayang.glacier.data.GlacierRepository
 import com.ayang.glacier.domain.ThemeMode
 import com.ayang.glacier.platform.Notifications
+import com.ayang.glacier.platform.PredictiveBack
 import com.ayang.glacier.platform.auto.AutoFreezeScheduler
 import com.ayang.glacier.platform.auto.AutoFreezeService
 import com.ayang.glacier.system.FreezeController
@@ -45,6 +46,9 @@ class GlacierApplication : Application() {
 
         Notifications.ensureChannels(this)
         preferences = GlacierPreferences(this)
+        // 预测性返回是进程/窗口创建期开关：进程一启动就按偏好落一次。
+        // 设置页切换只写偏好并提示重启，不重建 Activity（避免整窗空白帧）。
+        PredictiveBack.apply(this, preferences.predictiveBackEnabled)
         preferences.onThemeChanged = { mode -> applyNightMode(mode) }
         store = GlacierDataStore(this)
         freeze = FreezeController(this, preferences)

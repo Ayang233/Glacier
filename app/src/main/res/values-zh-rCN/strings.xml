@@ -113,7 +113,8 @@
     <string name="hide_home_labels">隐藏应用名称</string>
     <string name="hide_home_labels_summary">主页只显示图标；名称仍可在长按菜单里看到</string>
     <string name="predictive_back">预测性返回动画</string>
-    <string name="predictive_back_summary">返回手势滑动时预览页面。关闭后仍保留返回动画，只是不再预览</string>
+    <string name="predictive_back_summary">返回手势滑动时预览页面。关闭后仍保留返回动画，只是不再预览；切换后需重启应用生效</string>
+    <string name="predictive_back_restart">已保存，重启应用后生效</string>
     <string name="fuzzy_search">模糊搜索</string>
     <string name="fuzzy_search_summary">容忍错字与缺字</string>
     <string name="nine_key_search">T9 搜索</string>

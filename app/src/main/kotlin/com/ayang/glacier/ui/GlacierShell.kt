@@ -1,5 +1,6 @@
 package com.ayang.glacier.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -117,10 +118,6 @@ fun GlacierShell() {
     val glassActive = preferences.glassEnabled && isRuntimeShaderSupported()
     val wide = isWideLayout()
     val expandedRail = isExtraWideLayout()
-    // 预测性返回只切转场，不再运行时改 manifest 级标志 / 重建 Activity（照 InstallerX-Revived）。
-    // 订阅 revision，设置页开关改完返回后立即生效；关闭时用 NoPredictiveBackTransition，
-    // 页面不再跟手位移，松手仍播 MIUIX pop 转场。
-    val predictiveBack = remember(preferences.revision.intValue) { preferences.predictiveBackEnabled }
 
     val backStack = rememberNavBackStack<Route>(Route.Main)
 
@@ -226,10 +223,15 @@ fun GlacierShell() {
         NavSwipeDirection.LeftToRight
     }
 
-    // 预测性返回开：官方 MiuixDefault 自带 predictivePop，页面 1:1 跟手；
-    // 关：NoPredictiveBackTransition 隐藏跟手位移，但保留 pop 转场。
-    val navTransition = remember(predictiveBack) {
-        if (predictiveBack) NavTransitions.MiuixDefault else NoPredictiveBackTransition
+    // 页面转场永远只用官方预设：跟手预览开/关由系统 `enableOnBackInvokedCallback` 决定，
+    // 不在这里按设置项换 NavTransition。自造转场会和共享 depth 驱动各算一套进度，
+    // 手势起止时容易出现一帧错位（真机录屏逐帧可见）。
+    //
+    // 一级页让出返回权：栈底且不在第一个 tab 时先回 tab 0；tab 0 交还系统。
+    // 栈深 > 1 时这里 disabled，唯一消费者是 NavDisplay 自己的预测性返回处理器，
+    // 避免两个 OnBackInvokedCallback 抢同一个手势。
+    BackHandler(enabled = backStack.size <= 1 && tab != 0) {
+        tab = 0
     }
 
     // 页面级浮层（长按锚点菜单等）的根宿主：在录制层与玻璃 side chrome 之外，
@@ -281,7 +283,7 @@ fun GlacierShell() {
                         modifier = Modifier
                             .fillMaxSize()
                             .then(if (wide) Modifier.clipToBounds() else Modifier),
-                        transition = navTransition,
+                        transition = NavTransitions.MiuixDefault,
                         effects = navEffects,
                         onBack = {
                             if (backStack.size > 1) backStack.removeAt(backStack.lastIndex)
