@@ -1,5 +1,6 @@
 package com.ayang.glacier.ui.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -362,16 +364,24 @@ fun PageTopBar(
         // alpha == 1 时与原默认值逐字节等价，不影响未传 topBarTitleAlpha 的页面。
         val alpha = titleAlpha().coerceIn(0f, 1f)
         val textColor = MiuixTheme.colorScheme.onSurface.copy(alpha = alpha)
-        // 官方非玻璃档把 inset 挂在整条顶栏上（`PageUtils.kt:299-304`），底色不铺到刘海下面。
+        val surface = MiuixTheme.colorScheme.surface
+        // 官方 `AdaptiveTopAppBar` 非玻璃分支（`example/utils/PageUtils.kt:297-314`）：
+        // 底色是挂在外层 modifier 上的 `.background(color)`，`TopAppBar` 自身传
+        // `color = Color.Transparent`。这样底色覆盖到 `appPageTopBarInsets()` 预留的
+        // 状态栏区域；否则 TopAppBar 的底色只画在 inset 以内，上滑时列表内容会从
+        // 状态栏那一条里透出来（R25 修的就是这个）。
         TopAppBar(
             title = title,
             subtitle = subtitle,
             scrollBehavior = scrollBehavior,
             expandable = expandable,
+            color = Color.Transparent,
             titleColor = textColor,
             largeTitleColor = textColor,
             subtitleColor = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = alpha),
-            modifier = modifier.then(Modifier.appPageTopBarInsets()),
+            modifier = modifier
+                .background(surface)
+                .then(Modifier.appPageTopBarInsets()),
             defaultWindowInsetsPadding = false,
             centerObstructionStart = obstructionStart,
             navigationIcon = navigationIcon,

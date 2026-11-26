@@ -79,7 +79,7 @@ miuix-squircle      squircleClip / squircleBorder / squircleBackground
 | 场景 | 使用组件 | 备注 |
 |---|---|---|
 | 根容器 | `Scaffold`（透明、insets=0）+ `NavDisplay` + `HorizontalPager` | 弹层宿主在最外层 |
-| 一级页/二级页骨架 | `GlassTopAppBar` / `TopAppBar` + `Scaffold` + `Card` + `BasicComponent` | 玻璃档/非玻璃档两档都由官方组件构成 |
+| 一级页/二级页骨架 | `GlassTopAppBar` / `TopAppBar` + `Scaffold` + `Card` + `BasicComponent` | 玻璃档/非玻璃档两档都由官方组件构成；非玻璃档照官方 `AdaptiveTopAppBar`（`PageUtils.kt:297-314`）把 `surface` 底色挂在 `appPageTopBarInsets()` **外层**、`TopAppBar` 传 `Color.Transparent`，状态栏安全区才不会被滚动内容透出（R25） |
 | 底部导航 | `GlassNavigationBar` | 24dp 横向内边距 + 20dp 顶距，对齐官方 example；**装在一级目的地里**（官方 `Home()` 的 `Scaffold(bottomBar)` 同构），二级页没有底栏；不使用 `visible` |
 | 侧栏 | `GlassNavigationRail` + `rememberGlassNavigationRailState` | 折叠胶囊由组件自带 |
 | 页签 | `GlassSegmentedTabRow` / `GlassScrollableTabRow` / `TabRow` | 2–4 个标签走分段轨道；更多玻璃档走 R21 新增的官方横向滚动 `GlassScrollableTabRow`，非玻璃档仍用 `TabRow` |
@@ -96,7 +96,7 @@ miuix-squircle      squircleClip / squircleBorder / squircleBackground
 | 形状 | `squircleClip` / `squircleBackground` | 应用图标、品牌图标 |
 | 多选指示 | `Checkbox`（官方 26dp，`ToggleableState`） | 列表/搜索结果行放 `endActions`（与库作者自己的 Mishka `AppProxyScreen.kt:415-441` 同构），网格选中时叠图标右上角作角标；库里**没有**"选中描边"这种语言，所以自绘的 2dp 蓝色 squircle 描边已在 R9 删除 |
 | 模糊 | `rememberLayerBackdrop` / `layerBackdrop` / `Backdrop` | 无自建模糊管线、无自建背景采样 |
-| 关于页动态背景 | `ui/effect/`（官方 example 的 `BgEffect` 组件逐字节移植）+ 品牌名 `textureBlur` | 官方 AboutPage 的双 backdrop 范式：独立背景层录 BgEffect，品牌名作为兄弟采样；R13 起信息卡用官方 `GlassCard`（不再自己 textureBlur/混色） |
+| 关于页动态背景 | `ui/effect/`（官方 example 的 `BgEffect` 组件逐字节移植）+ 品牌名 `textureBlur` | 官方 AboutPage 的双 backdrop 范式：独立背景层录 BgEffect，品牌名作为兄弟采样；R13 起信息卡用官方 `GlassCard`（不再自己 textureBlur/混色）；**R24 起上下滑结构也对齐官方 `AboutPage.kt:312-413`**：`pageScrollModifiers` 挂在 LazyColumn、正文用 `Spacer(fillParentMaxHeight())` 撑到一屏，背景/品牌区固定不动 |
 | 主题 | `MiuixTheme` + `ThemeController` | 固定浅/深色板，见 §7 |
 | 动效 | `scrollEndHaptic` / `overScrollVertical` / `PagerNavigationSpringSpec` / `springAnimateToPage` / `GlassMotion.*` / 弹层 `DialogMotion.Glass` | 官方原语组合；按压反馈全部走组件的内建实现（玻璃档 `GlassIconButton` 的 `buttonPressedOverlay` + `PressedContentAlpha`，非玻璃档 `IconButton` 的 `MiuixIndication`），弹层进出动画自基线 `44f1d315` 起由 `DialogMotion` 统一 |
 | 顶栏动作区 | 单态 `Row(spacedBy(8.dp))` + `TopBarAction`（官方 `example/GlassPage.kt:363` 的间距） | R10 追加：多选不再换成一排批量按钮，`AnimatedTopBarActions` 组件已从 `PageFrame.kt` 删除；批量动作的出口收敛到 FAB |

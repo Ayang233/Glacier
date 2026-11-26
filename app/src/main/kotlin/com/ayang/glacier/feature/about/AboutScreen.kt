@@ -46,6 +46,7 @@ import com.ayang.glacier.ui.LocalGlassActive
 import com.ayang.glacier.ui.components.BackNavigationAction
 import com.ayang.glacier.ui.components.PageFrame
 import com.ayang.glacier.ui.components.PageMetrics
+import com.ayang.glacier.ui.components.pageScrollModifiers
 import com.ayang.glacier.ui.effect.BgEffectBackground
 import com.ayang.glacier.ui.effect.aboutLogoBlend
 import top.yukonga.miuix.kmp.basic.BasicComponent
@@ -166,6 +167,11 @@ fun AboutScreen(
         topBarTitleAlpha = { titleAlpha },
         // 官方示例每页显式加滚动条（`example/MainPage.kt:341-345`），这里交给 PageFrame 按 Scaffold 实测值排版。
         scrollBarAdapter = rememberScrollBarAdapter(lazyListState),
+        // 本页背景/品牌区是固定的，只有列表可以滚动：弹性 overscroll 必须挂在列表上，
+        // 不能由 PageFrame 挂在整页 wrapper 上。否则上/下拉回弹会把 BgEffect 背景与品牌区
+        // 一起拖走，顶栏下方露出宿主底色（官方 AboutPage 正是把 pageScrollModifiers 挂在
+        // LazyColumn 上，AboutPage.kt:312-316）。
+        pageScrollOnContent = true,
         navigationIcon = {
             BackNavigationAction(
                 onClick = onBack,
@@ -187,6 +193,14 @@ fun AboutScreen(
         val logoContentPadding = remember(logoPadding) {
             object : PaddingValues by logoPadding {
                 override fun calculateTopPadding() = logoPadding.calculateTopPadding() + BrandLogoTopGap
+                override fun calculateBottomPadding() = 0.dp
+            }
+        }
+
+        // 官方 AboutPage.kt:193-197 的 listContentPadding：底部留白从 LazyColumn 的
+        // contentPadding 挪进正文 Column。这样最后一段仍属于可滚动内容，而不是固定的列表内边距。
+        val listContentPadding = remember(scrollPadding) {
+            object : PaddingValues by scrollPadding {
                 override fun calculateBottomPadding() = 0.dp
             }
         }
@@ -220,16 +234,16 @@ fun AboutScreen(
 
             LazyColumn(
                 state = lazyListState,
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = scrollPadding,
-                // 弹性 overscroll 由 PageFrame 的官方 pageScrollModifiers 统一消费（官方 AboutPage 同参）。
+                // 官方 AboutPage.kt:312-316：滚动/回弹/顶栏折叠只作用于列表本身，
+                // 固定在下方的 BgEffect 背景与品牌区不跟着位移。
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pageScrollModifiers(topAppBarScrollBehavior = scrollBehavior),
+                contentPadding = listContentPadding,
                 overscrollEffect = null,
-                verticalArrangement = Arrangement.spacedBy(PageMetrics.SectionGap),
             ) {
                 // 官方 AboutPage.kt:318-339 的透明占位。
                 // 高度公式逐项保留官方：logoHeight + 52dp + logoPadding.top - scrollPadding.top + 126dp。
-                // 唯一调整是减去本页 LazyColumn 的 12dp SectionGap（官方没有 spacedBy）：
-                // arrangement 会在占位 item 后额外加 12dp，不减的话头图与正文的视觉间距会比官方大 12dp。
                 item(key = LogoSpacerKey) {
                     Spacer(
                         modifier = Modifier
@@ -238,62 +252,68 @@ fun AboutScreen(
                                 logoHeight +
                                     BrandLogoTopGap +
                                     (logoPadding.calculateTopPadding() - scrollPadding.calculateTopPadding()) +
-                                    BrandContentGap -
-                                    PageMetrics.SectionGap,
+                                    BrandContentGap,
                             ),
                     )
                 }
 
-                // 品牌区已展示应用名 + 版本号，这里不再重复版本行；
-                // 包名与构建类型合成为一行技术信息。
-                item {
-                    AboutCard() {
-                        BasicComponent(
-                            title = stringResource(R.string.about_package_label),
-                            summary = "${BuildConfig.APPLICATION_ID} · ${BuildConfig.BUILD_TYPE}",
-                        )
-                    }
-                }
+                // 官方 AboutPage.kt:354-413：正文放在同一个 item 里，并用
+                // `Spacer(Modifier.fillParentMaxHeight())` 把这一项撑到至少一屏。
+                // 少了这个占位，正文不足一屏时 LazyColumn 根本不可滚动，下拉只会走弹性
+                // overscroll：卡片会压到还没淡出的品牌区上，且 scrollProgress 永远为 0，
+                // 顶栏标题、品牌淡出都不会触发 —— 这正是官方与 Glacier 上下滑观感不同的根因。
+                item(key = AboutContentKey) {
+                    Box {
+                        Spacer(Modifier.fillParentMaxHeight())
+                        Column(
+                            modifier = Modifier.padding(bottom = scrollPadding.calculateBottomPadding()),
+                            verticalArrangement = Arrangement.spacedBy(PageMetrics.SectionGap),
+                        ) {
+                            // 品牌区已展示应用名 + 版本号，这里不再重复版本行；
+                            // 包名与构建类型合成为一行技术信息。
+                            AboutCard {
+                                BasicComponent(
+                                    title = stringResource(R.string.about_package_label),
+                                    summary = "${BuildConfig.APPLICATION_ID} · ${BuildConfig.BUILD_TYPE}",
+                                )
+                            }
 
-                item {
-                    AboutCard() {
-                        BasicComponent(
-                            title = stringResource(R.string.working_mode),
-                            // selectedMode() 最终读 preferences.workingMode（普通 SharedPreferences
-                            // 属性），订阅 revision 才能让设置页改完后摘要立即更新。
-                            summary = remember(app.preferences.revision.intValue) {
-                                repository.selectedMode().key
-                            },
-                        )
-                        BasicComponent(
-                            title = stringResource(R.string.about_device_label),
-                            summary = repository.deviceSummary(),
-                        )
-                    }
-                }
+                            AboutCard {
+                                BasicComponent(
+                                    title = stringResource(R.string.working_mode),
+                                    // selectedMode() 最终读 preferences.workingMode（普通 SharedPreferences
+                                    // 属性），订阅 revision 才能让设置页改完后摘要立即更新。
+                                    summary = remember(app.preferences.revision.intValue) {
+                                        repository.selectedMode().key
+                                    },
+                                )
+                                BasicComponent(
+                                    title = stringResource(R.string.about_device_label),
+                                    summary = repository.deviceSummary(),
+                                )
+                            }
 
-                // 许可证只保留可点击入口：SPDX 标识作为行尾值，
-                // 不再额外放一条重复的 license label / notice。
-                item {
-                    AboutCard() {
-                        ArrowPreference(
-                            title = stringResource(R.string.about_licenses),
-                            endActions = {
-                                AboutTrailingValue(stringResource(R.string.about_license_spdx))
-                            },
-                            onClick = onOpenLicenses,
-                        )
-                    }
-                }
+                            // 许可证只保留可点击入口：SPDX 标识作为行尾值，
+                            // 不再额外放一条重复的 license label / notice。
+                            AboutCard {
+                                ArrowPreference(
+                                    title = stringResource(R.string.about_licenses),
+                                    endActions = {
+                                        AboutTrailingValue(stringResource(R.string.about_license_spdx))
+                                    },
+                                    onClick = onOpenLicenses,
+                                )
+                            }
 
-                item {
-                    Text(
-                        text = stringResource(R.string.about_description),
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
+                            Text(
+                                text = stringResource(R.string.about_description),
+                                style = MiuixTheme.textStyles.footnote1,
+                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -429,6 +449,9 @@ private fun AboutTrailingValue(text: String) {
 
 /** LazyColumn 里透明占位 item 的 key，同时用于 `scrollProgress` 反查它的实测高度。 */
 private const val LogoSpacerKey = "logoSpacer"
+
+/** 官方 `item(key = "about")`：正文卡片 + `fillParentMaxHeight` 撑高项。 */
+private const val AboutContentKey = "about"
 
 /** 官方 `mutableStateOf(300.dp)` 的首帧默认高度（`AboutPage.kt:223`）。 */
 private val DefaultLogoHeight = 300.dp
