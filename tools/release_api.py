@@ -65,7 +65,9 @@ release = api(
 print("release:", release["html_url"], "tag:", release["tag_name"])
 
 for path in assets:
-    name = path.rsplit("/", 1)[-1]
+    # Windows 下传进来的路径是反斜杠；GitHub 会把它当文件名的一部分（变成一串点）。
+    # 统一先归一成 / 再取 basename，保证附件名就是 Glacier-release.apk。
+    name = path.replace("\\", "/").rsplit("/", 1)[-1]
     ctype = mimetypes.guess_type(name)[0] or "application/octet-stream"
     if name.endswith(".apk"):
         ctype = "application/vnd.android.package-archive"

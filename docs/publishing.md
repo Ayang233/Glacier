@@ -219,6 +219,23 @@ tag 由 `target_commitish = main` 自动创建，指向远端 main 的最新提�
 - 本轮重点：隐藏手势提示线的设备底部弹层不再被屏幕圆角裁掉（R15）、设置页改为一级入口 + 二级页（R17）、
   预测性返回开关与隐藏应用名称（R16）。
 
+1.7.0 发布细节：
+- 本地提交 `6dc75cc`（30 files，含 R21 审计、验收截图、1.7.0 release notes）；
+  直连 `git push` 仍被拦（github.com:443 连不上），改用 `tools/push_api.py` 增量推送，
+  远端 main = `6dc75cc`，与本地 HEAD 一致（脚本回显 "sha 与本地一致"）；
+- Release 由 `tools/release_api.py v1.7.0 6dc75cc… docs/release-notes/1.7.0.md <apk> SHA256SUMS.txt` 创建：
+  tag `v1.7.0` → `6dc75cc`，draft=false、prerelease=false；
+- 附件：`Glacier-release.apk` 4,604,233 B（sha256 `61831671…d6d4`）、`SHA256SUMS.txt`（87 B）；
+- 覆盖升级实测：模拟器上从 1.6.4（versionCode 11）`adb install -r` 到 1.7.0（versionCode 12），
+  同签名覆盖成功、启动无 crash；主页/应用页/关于页/预测性返回/冻结启动均通过；
+- 本轮重点：MIUIX 基线升到 `e7c108ee`（AGP 9.5.3）、底部弹层显式开启 `progressiveBlur`、
+  标签 >4 用 `GlassScrollableTabRow`；冻结应用点按立即启动；应用页删除「· 不在主页」；
+  预测性返回照 InstallerX 重做（manifest 常开 + 只切 predictivePop，删除 HiddenApiBypass/recreate）；
+  关于页去小标题与重复行。
+- 发布脚本修复：`release_api.py` 在 Windows 下把路径反斜杠当成文件名，附件被传成
+  `app.build.outputs.apk.release.Glacier-release.apk`；已删除该附件、按正确文件名重传，
+  并在脚本里统一 `path.replace("\\", "/")` 取 basename。
+
 1.6.4 发布细节：
 - 源码 `git push` 直连再次被拦（github.com:443 连续 8 次 timeout / reset），改用 `tools/push_api.py`
   增量推送：R19/R20 修复提交与发版提交共 3 个，远端 main = `4aec46b`，与本地 HEAD 一致；
